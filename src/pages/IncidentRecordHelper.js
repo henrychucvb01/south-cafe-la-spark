@@ -451,14 +451,16 @@ Yesterday around 10:30 during lunch preparation, Maria Lopez started yelling at 
                 onClick={analyzeDescription}
                 disabled={analyzing}
               >
-{analyzing ? (
-  <>
-    <span className="spark-thinking-spinner"></span>
-    SPARK is thinking...
-  </>
-) : (
-  <>✦ Organize Incident</>
-)}
+                {analyzing ? (
+                <>
+                    <span className="spark-thinking-spinner"></span>
+                    SPARK is thinking...
+              </>
+            ) : (
+                <>✦ Organize Incident</>
+                )}
+         </button>
+      </div>
 
         {/* =============================================
             STEP 2 — REVIEW
