@@ -495,23 +495,7 @@ Yesterday around 10:30 during lunch preparation, Maria Lopez started yelling at 
               </div>
             )}
 
-            <div className="incident-nav">
-              <button
-                type="button"
-                className="incident-secondary"
-                onClick={() => goToStep(1)}
-              >
-                ← Edit Original Description
-              </button>
-
-              <button
-                type="button"
-                className="incident-primary"
-                onClick={runDocumentationCheck}
-              >
-                Check Documentation →
-              </button>
-            </div>
+         
           </section>
         )}
             {/* EMPLOYEE INFORMATION */}
@@ -944,7 +928,23 @@ Yesterday around 10:30 during lunch preparation, Maria Lopez started yelling at 
               />
             </ReviewField>
 
-         
+            <div className="incident-nav">
+              <button
+                type="button"
+                className="incident-secondary"
+                onClick={() => goToStep(1)}
+              >
+                ← Edit Original Description
+              </button>
+
+              <button
+                type="button"
+                className="incident-primary"
+                onClick={runDocumentationCheck}
+              >
+                Check Documentation →
+              </button>
+            </div>
 
         {/* =============================================
             STEP 3 — CHECK
