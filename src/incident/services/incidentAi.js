@@ -1,12 +1,4 @@
-import {
-  extractIncidentDetails,
-} from "../utils/extractIncidentDetails";
-
-const AI_API_URL = "/api/analyze-incident";
-
-export async function analyzeIncident(
-  roughDescription
-) {
+export async function analyzeIncident(roughDescription) {
   if (!roughDescription?.trim()) {
     throw new Error(
       "Please describe what happened before continuing."
@@ -14,55 +6,54 @@ export async function analyzeIncident(
   }
 
   try {
-    const response = await fetch(
-      AI_API_URL,
-      {
-        method: "POST",
+    const response = await fetch("/api/analyze-incident", {
+      method: "POST",
 
-        headers: {
-          "Content-Type":
-            "application/json",
-        },
+      headers: {
+        "Content-Type": "application/json",
+      },
 
-        body: JSON.stringify({
-          description:
-            roughDescription.trim(),
-        }),
-      }
-    );
+      body: JSON.stringify({
+        description: roughDescription.trim(),
+      }),
+    });
 
-    if (!response.ok) {
+    let result;
+
+    try {
+      result = await response.json();
+    } catch (error) {
       throw new Error(
-        `AI server returned ${response.status}`
+        `AI server returned ${response.status} and did not return valid JSON.`
       );
     }
 
-    const result =
-      await response.json();
+    if (!response.ok) {
+      throw new Error(
+        result?.error ||
+          `AI server returned error ${response.status}.`
+      );
+    }
+
+    if (!result || typeof result !== "object") {
+      throw new Error(
+        "The AI server returned an invalid response."
+      );
+    }
 
     return {
       ...result,
       _analysisSource: "gemini",
     };
-
   } catch (error) {
-    console.warn(
-      "Gemini unavailable. Using local incident analyzer.",
+    console.error(
+      "Gemini incident analysis failed:",
       error
     );
 
-    const localResult =
-      extractIncidentDetails(
-        roughDescription
-      );
-
-    return {
-      ...localResult,
-
-      missingInformation: [],
-      followUpQuestions: [],
-
-      _analysisSource: "local",
-    };
+    throw new Error(
+      error?.message ||
+        "The AI incident analyzer could not be reached."
+    );
   }
 }
