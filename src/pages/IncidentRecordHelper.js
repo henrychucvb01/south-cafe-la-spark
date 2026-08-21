@@ -148,6 +148,13 @@ function IncidentRecordHelper({ location, employee, onBack }) {
 
   const [analyzing, setAnalyzing] = useState(false);
   const [recordGenerated, setRecordGenerated] = useState(false);
+
+  const [aiReview, setAiReview] = useState({
+    attentionLevel: "",
+    attentionReason: "",
+    writingCoach: [],
+    professionalSummary: "",
+  });
   // ---------------------------------------------------
   // PREFILL SPARK INFORMATION
   // ---------------------------------------------------
@@ -209,6 +216,12 @@ function resetIncidentRecord() {
   setConfirmed(false);
   setReviewedFields({});
   setRecordGenerated(false);
+  setAiReview({
+    attentionLevel: "",
+    attentionReason: "",
+    writingCoach: [],
+    professionalSummary: "",
+  });
 
   window.scrollTo({
     top: 0,
@@ -280,6 +293,15 @@ function resetIncidentRecord() {
 
         followUpQuestions: extracted.followUpQuestions || [],
       }));
+
+      setAiReview({
+        attentionLevel: extracted.attentionLevel || "moderate",
+        attentionReason: extracted.attentionReason || "",
+        writingCoach: Array.isArray(extracted.writingCoach)
+          ? extracted.writingCoach
+          : [],
+        professionalSummary: extracted.professionalSummary || "",
+      });
 
       goToStep(2);
     } catch (error) {
@@ -487,22 +509,10 @@ Yesterday around 10:30 during lunch preparation, Maria Lopez started yelling at 
                 marked reviewed.
               </p>
             </div>
-   {form.followUpQuestions?.length > 0 && (
-              <div className="incident-followups">
-                <h3>A few things may need clarification</h3>
-
-                <p>
-                  SPARK could not determine these details from your original
-                  description.
-                </p>
-
-                <ul>
-                  {form.followUpQuestions.map((question, index) => (
-                    <li key={index}>{question}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            <SparkAiReview
+              form={form}
+              aiReview={aiReview}
+            />
 
             {/* EMPLOYEE INFORMATION */}
 
@@ -1100,6 +1110,189 @@ Yesterday around 10:30 during lunch preparation, Maria Lopez started yelling at 
         )}
       </main>
     </div>
+  );
+}
+
+
+// =====================================================
+// SPARK AI REVIEW
+// =====================================================
+
+function formatReviewDate(value) {
+  if (!value) return "Not provided";
+
+  const date = new Date(`${value}T12:00:00`);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleDateString([], {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatReviewTime(value) {
+  if (!value) return "Not provided";
+
+  const match = String(value).match(/^(\d{2}):(\d{2})$/);
+
+  if (!match) {
+    return value;
+  }
+
+  const date = new Date();
+  date.setHours(Number(match[1]), Number(match[2]), 0, 0);
+
+  return date.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function SparkAiReview({ form, aiReview }) {
+  const level = aiReview?.attentionLevel || "moderate";
+
+  const levelLabels = {
+    low: "Low",
+    moderate: "Moderate",
+    high: "High Attention",
+  };
+
+  const hasWritingCoach =
+    Array.isArray(aiReview?.writingCoach) &&
+    aiReview.writingCoach.length > 0;
+
+  const hasQuestions =
+    Array.isArray(form?.followUpQuestions) &&
+    form.followUpQuestions.length > 0;
+
+  return (
+    <section className="spark-ai-review">
+      <div className="spark-ai-review-header">
+        <div className="spark-ai-review-mark">✦</div>
+
+        <div>
+          <div className="spark-ai-review-eyebrow">SPARK AI REVIEW</div>
+          <h3>Here is what SPARK understood</h3>
+          <p>
+            Review SPARK's analysis, then verify or correct the detailed
+            fields below.
+          </p>
+        </div>
+      </div>
+
+      <div className="spark-ai-understood-grid">
+        <div className="spark-ai-understood-item">
+          <span>Employee</span>
+          <strong>{form.employeeName || "Not provided"}</strong>
+        </div>
+
+        <div className="spark-ai-understood-item">
+          <span>Incident Type</span>
+          <strong>{form.incidentType || "Not determined"}</strong>
+        </div>
+
+        <div className="spark-ai-understood-item">
+          <span>Date / Time</span>
+          <strong>
+            {formatReviewDate(form.incidentDate)}
+            {form.incidentTime
+              ? ` · ${formatReviewTime(form.incidentTime)}`
+              : ""}
+          </strong>
+        </div>
+
+        <div className="spark-ai-understood-item">
+          <span>Witness</span>
+          <strong>{form.witnesses || "Not provided"}</strong>
+        </div>
+      </div>
+
+      <div className={`spark-ai-attention ${level}`}>
+        <div className="spark-ai-attention-top">
+          <span>INCIDENT ATTENTION LEVEL</span>
+          <strong>{levelLabels[level] || "Moderate"}</strong>
+        </div>
+
+        <p>
+          {aiReview?.attentionReason ||
+            "SPARK needs additional facts to explain this attention level."}
+        </p>
+
+        <small>
+          This is a triage aid for supervisor review, not a disciplinary
+          determination.
+        </small>
+      </div>
+
+      {hasWritingCoach && (
+        <div className="spark-ai-panel spark-ai-coach">
+          <div className="spark-ai-panel-title">
+            <span>✎</span>
+            <strong>Documentation Coaching</strong>
+          </div>
+
+          <div className="spark-ai-coach-list">
+            {aiReview.writingCoach.map((item, index) => (
+              <div className="spark-ai-coach-item" key={index}>
+                {item?.original && (
+                  <div className="spark-ai-original">
+                    “{item.original}”
+                  </div>
+                )}
+
+                <p>{item?.coaching || item}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {hasQuestions && (
+        <div className="spark-ai-panel spark-ai-questions">
+          <div className="spark-ai-panel-title">
+            <span>?</span>
+            <strong>SPARK Needs Clarification</strong>
+          </div>
+
+          <p>
+            These details may strengthen the record if the manager knows the
+            answers. Do not guess.
+          </p>
+
+          <ul>
+            {form.followUpQuestions.map((question, index) => (
+              <li key={index}>{question}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {aiReview?.professionalSummary && (
+        <div className="spark-ai-panel spark-ai-summary">
+          <div className="spark-ai-panel-title">
+            <span>✦</span>
+            <strong>Suggested Professional Summary</strong>
+          </div>
+
+          <p>{aiReview.professionalSummary}</p>
+        </div>
+      )}
+
+      <div className="spark-ai-reference-note">
+        <span>📖</span>
+        <div>
+          <strong>Reference guidance is the next SPARK layer.</strong>
+          <p>
+            Handbook and job-aid guidance will appear here only after those
+            materials are connected. SPARK will not invent policy references.
+          </p>
+        </div>
+      </div>
+    </section>
   );
 }
 
