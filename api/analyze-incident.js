@@ -17,7 +17,6 @@ const INCIDENT_TYPES = [
 function normalizeDate(value) {
   if (!value) return "";
 
-  // Already YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return value;
   }
@@ -40,7 +39,6 @@ function normalizeTime(value) {
 
   const clean = String(value).trim().toLowerCase();
 
-  // Already HH:MM
   if (/^\d{2}:\d{2}$/.test(clean)) {
     return clean;
   }
@@ -77,10 +75,7 @@ function extractDateFromDescription(description) {
     "(January|February|March|April|May|June|July|August|September|October|November|December)";
 
   const match = description.match(
-    new RegExp(
-      `${monthPattern}\\s+(\\d{1,2}),\\s*(\\d{4})`,
-      "i"
-    )
+    new RegExp(`${monthPattern}\\s+(\\d{1,2}),\\s*(\\d{4})`, "i")
   );
 
   if (!match) {
@@ -121,9 +116,35 @@ function extractTimeFromDescription(description) {
     return "";
   }
 
-  return normalizeTime(
-    `${match[1]}:${match[2] || "00"} ${match[3]}`
-  );
+  return normalizeTime(`${match[1]}:${match[2] || "00"} ${match[3]}`);
+}
+
+function cleanStringArray(value) {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((item) => String(item || "").trim())
+    .filter(Boolean);
+}
+
+function cleanWritingCoach(value) {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((item) => {
+      if (typeof item === "string") {
+        return {
+          original: "",
+          coaching: item.trim(),
+        };
+      }
+
+      return {
+        original: String(item?.original || "").trim(),
+        coaching: String(item?.coaching || "").trim(),
+      };
+    })
+    .filter((item) => item.original || item.coaching);
 }
 
 export default async function handler(request, response) {
@@ -159,27 +180,35 @@ export default async function handler(request, response) {
     }
 
     const prompt = `
-You are helping a school cafeteria manager document a workplace incident.
+You are SPARK, an AI documentation assistant for school cafeteria managers.
 
-Your job is to organize the manager's description into factual incident-record information.
+A manager will describe a workplace incident in their own words. Managers may be emotional, frustrated, subjective, incomplete, or unfamiliar with documentation standards.
+
+Your job has TWO parts:
+
+PART 1 — ORGANIZE THE FACTS
+Organize only the facts the manager actually supplied into the incident-record fields.
+
+PART 2 — COACH THE DOCUMENTATION
+Help the manager identify unclear, subjective, emotional, absolute, or unsupported wording and identify important missing details. Also create a concise professional summary using only supplied facts.
 
 IMPORTANT RULES:
 
 1. Use ONLY information supplied by the manager.
 2. Never invent facts.
-3. Never invent names, dates, times, locations, witnesses, quotes, actions, or outcomes.
-4. Never assume someone's intent, emotion, motive, or mental state.
+3. Never invent names, dates, times, locations, witnesses, quotes, actions, outcomes, policies, or prior history.
+4. Never assume someone's intent, emotion, motive, diagnosis, or mental state.
 5. Preserve people's names exactly as provided.
 6. Only put something in "exactWords" if the manager clearly supplied a direct quote.
-7. If information was not provided, return an empty string for that field.
+7. If factual information was not provided, return an empty string for that factual field.
 8. Do not recommend discipline.
 9. Do not decide whether a policy was violated.
-10. Do not accuse an employee of misconduct beyond what the manager actually described.
-11. Choose the closest incident category from the allowed list.
-12. "observedFacts" should be objective, professional, and concise.
-13. If the manager uses subjective words such as rude, angry, lazy, disrespectful, or bad attitude, rely on the observable behavior they supplied rather than repeating an unsupported conclusion.
-14. "managerAction" should contain only actions the manager said they personally took.
-15. "employeeResponse" should contain only the employee's stated or observed response after intervention.
+10. Do not make a final HR, legal, or disciplinary determination.
+11. Do not accuse an employee of misconduct beyond what the manager actually described.
+12. Choose the closest incident category from the allowed list.
+13. "observedFacts" must be objective, professional, and concise.
+14. "managerAction" must contain only actions the manager said they personally took.
+15. "employeeResponse" must contain only the employee's stated or observed response after intervention.
 16. If important information is missing, identify it in "missingInformation".
 17. Ask short, useful follow-up questions in "followUpQuestions".
 18. Do not repeat a question if the answer was already provided.
@@ -187,6 +216,16 @@ IMPORTANT RULES:
 20. "incidentTime" MUST use 24-hour HH:MM format.
 21. "employeeName" should be the employee who is the primary subject of the incident, only when clearly identified by the manager.
 22. Do not put witnesses or the manager in "employeeName" unless they are clearly the employee who is the subject of the incident.
+23. For "writingCoach", identify wording such as "bad attitude", "lazy", "rude", "always", "never", "disrespectful", "crazy", "doesn't care", or similar conclusions when the manager did not provide observable support. Explain what observable detail would be stronger.
+24. Do not silently rewrite questionable language. Point it out in "writingCoach".
+25. "professionalSummary" must be a neutral factual draft based ONLY on supplied facts. It may improve grammar and organization but may not add information.
+26. "attentionLevel" is ONLY a triage aid for supervisor review, not a severity ruling or disciplinary recommendation.
+27. Use attentionLevel "low" when the described facts appear routine and do not indicate immediate safety, violence, theft, intoxication, injury, or major operational disruption.
+28. Use attentionLevel "moderate" when the described facts involve notable refusal, repeated conflict, meaningful disruption, or conduct that reasonably warrants supervisor review but no immediate high-attention condition is described.
+29. Use attentionLevel "high" when the reported facts involve physical violence/fighting, threats, alleged theft, suspected drug/alcohol use at work, serious safety risk, injury, or another situation that may require prompt supervisor/HR attention.
+30. "attentionReason" must explain the attention level using only the reported facts and neutral language.
+31. If the facts are too incomplete to assess attention, use "moderate" and say that additional facts are needed.
+32. Do NOT cite or claim to have checked a handbook, policy, collective bargaining agreement, or job aid in this version. Reference materials will be handled separately.
 
 Allowed incident types:
 
@@ -209,7 +248,16 @@ Return ONLY valid JSON using exactly this structure:
   "impact": "",
   "assistanceGuidance": "",
   "missingInformation": [],
-  "followUpQuestions": []
+  "followUpQuestions": [],
+  "attentionLevel": "low",
+  "attentionReason": "",
+  "writingCoach": [
+    {
+      "original": "",
+      "coaching": ""
+    }
+  ],
+  "professionalSummary": ""
 }
 
 Manager's description:
@@ -255,9 +303,7 @@ ${description}
     }
 
     const result = await geminiResponse.json();
-
-    const text =
-      result?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const text = result?.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!text) {
       return response.status(500).json({
@@ -286,19 +332,32 @@ ${description}
     incident.incidentTime =
       normalizeTime(incident.incidentTime) || fallbackTime;
 
-    incident.employeeName = incident.employeeName || "";
+    incident.employeeName = String(incident.employeeName || "").trim();
 
-    incident.missingInformation = Array.isArray(
+    incident.missingInformation = cleanStringArray(
       incident.missingInformation
-    )
-      ? incident.missingInformation
-      : [];
+    );
 
-    incident.followUpQuestions = Array.isArray(
+    incident.followUpQuestions = cleanStringArray(
       incident.followUpQuestions
+    );
+
+    incident.writingCoach = cleanWritingCoach(incident.writingCoach);
+
+    const allowedAttentionLevels = ["low", "moderate", "high"];
+    incident.attentionLevel = allowedAttentionLevels.includes(
+      String(incident.attentionLevel || "").toLowerCase()
     )
-      ? incident.followUpQuestions
-      : [];
+      ? String(incident.attentionLevel).toLowerCase()
+      : "moderate";
+
+    incident.attentionReason = String(
+      incident.attentionReason || ""
+    ).trim();
+
+    incident.professionalSummary = String(
+      incident.professionalSummary || ""
+    ).trim();
 
     return response.status(200).json(incident);
   } catch (error) {
