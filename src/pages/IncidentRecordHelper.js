@@ -5,10 +5,7 @@ import { checkIncidentDocumentation } from "../incident/utils/documentationCheck
 import { generateIncidentPdf } from "../incident/utils/pdfGenerator";
 import { analyzeIncident } from "../incident/services/incidentAi";
 import IncidentTypeHelp from "../incident/components/IncidentTypeHelp";
-import {
-  buildSparkGuidance,
-  getReferenceAttentionLevel,
-} from "../incident/reference/incidentGuidance";
+import { buildSparkGuidance } from "../incident/reference/incidentGuidance";
 
 const INCIDENT_TYPES = [
   "Rude and Discourteous Behavior",
@@ -366,31 +363,6 @@ function resetIncidentRecord() {
     observedFacts: form.observedFacts,
   });
 
-  const referenceAttention = getReferenceAttentionLevel({
-    incidentType: form.incidentType,
-    roughDescription: form.roughDescription,
-    observedFacts: form.observedFacts,
-    impact: form.impact,
-  });
-
-  const applyAssistanceSuggestion = (suggestion) => {
-    if (!suggestion) return;
-
-    setForm((current) => ({
-      ...current,
-      assistanceGuidance: current.assistanceGuidance?.trim()
-        ? `${current.assistanceGuidance.trim()}\n${suggestion}`
-        : suggestion,
-    }));
-
-    setReviewedFields((current) => ({
-      ...current,
-      assistanceGuidance: true,
-    }));
-
-    setConfirmed(false);
-  };
-
   // ---------------------------------------------------
   // RENDER
   // ---------------------------------------------------
@@ -552,7 +524,6 @@ Yesterday around 10:30 during lunch preparation, Maria Lopez started yelling at 
               form={form}
               aiReview={aiReview}
               sparkGuidance={sparkGuidance}
-              referenceAttention={referenceAttention}
             />
 
             {/* EMPLOYEE INFORMATION */}
@@ -992,49 +963,24 @@ Yesterday around 10:30 during lunch preparation, Maria Lopez started yelling at 
               </div>
 
               <p>
-                Assistance and guidance are important because the employee should
-                understand the expectation and have an opportunity to improve.
-                Only document coaching, retraining, clarification, or assistance
-                that was actually provided.
+                Consider what coaching, clarification, retraining, or assistance
+                you actually provided so the employee understood the expectation
+                and had an opportunity to improve.
               </p>
 
               {sparkGuidance?.assistanceGuidanceSuggestions?.length > 0 && (
-                <>
-                  <div className="spark-assistance-suggestions">
-                    {sparkGuidance.assistanceGuidanceSuggestions
-                      .slice(0, 5)
-                      .map((suggestion, index) => (
-                        <div
-                          className="spark-assistance-suggestion"
-                          key={`${suggestion}-${index}`}
-                        >
-                          <span>•</span>
-                          <p>{suggestion}</p>
-                        </div>
-                      ))}
-                  </div>
-
-                  <div className="spark-assistance-actions">
-                    {sparkGuidance.assistanceGuidanceSuggestions
-                      .slice(0, 3)
-                      .map((suggestion, index) => (
-                        <button
-                          key={`use-${index}`}
-                          type="button"
-                          className="incident-secondary"
-                          onClick={() => applyAssistanceSuggestion(suggestion)}
-                        >
-                          Use suggestion {index + 1}
-                        </button>
-                      ))}
-                  </div>
-                </>
+                <ul>
+                  {sparkGuidance.assistanceGuidanceSuggestions
+                    .slice(0, 5)
+                    .map((suggestion, index) => (
+                      <li key={index}>{suggestion}</li>
+                    ))}
+                </ul>
               )}
 
               <small>
-                SPARK is offering coaching ideas, not confirming that the
-                assistance occurred. Edit the field above so it accurately
-                reflects what you actually did.
+                Only document assistance or guidance that was actually provided.
+                Do not copy a suggestion into the Incident Record unless it is accurate.
               </small>
             </div>
 
@@ -1246,12 +1192,7 @@ function formatReviewTime(value) {
   });
 }
 
-function SparkAiReview({
-  form,
-  aiReview,
-  sparkGuidance,
-  referenceAttention,
-}) {
+function SparkAiReview({ form, aiReview, sparkGuidance }) {
   const level = aiReview?.attentionLevel || "moderate";
 
   const levelLabels = {
@@ -1399,7 +1340,7 @@ function SparkAiReview({
           {sparkGuidance.managerFocus?.length > 0 && (
             <>
               <strong className="spark-reference-subtitle">
-                What the manager should document
+                What to document
               </strong>
 
               <ul>
@@ -1410,11 +1351,12 @@ function SparkAiReview({
             </>
           )}
 
-          {sparkGuidance.severityNotes?.length > 0 && (
+          {sparkGuidance.languageCoaching?.length > 0 && (
             <div className="spark-reference-caution">
-              <strong>Reference note</strong>
+              <strong>Language coaching</strong>
+
               <ul>
-                {sparkGuidance.severityNotes.map((item, index) => (
+                {sparkGuidance.languageCoaching.map((item, index) => (
                   <li key={index}>{item}</li>
                 ))}
               </ul>
@@ -1428,41 +1370,7 @@ function SparkAiReview({
             </p>
           )}
 
-          <small>
-            {sparkGuidance.disclaimer}
-          </small>
-        </div>
-      )}
-
-      {sparkGuidance?.languageCoaching?.length > 0 && (
-        <div className="spark-ai-panel spark-ai-coach">
-          <div className="spark-ai-panel-title">
-            <span>✎</span>
-            <strong>SPARK Language Coach</strong>
-          </div>
-
-          <p>
-            SPARK found wording that may be stronger if it is replaced with
-            observable facts.
-          </p>
-
-          <ul>
-            {sparkGuidance.languageCoaching.map((item, index) => (
-              <li key={index}>{item}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {referenceAttention && (
-        <div className="spark-ai-reference-note">
-          <span>⚑</span>
-          <div>
-            <strong>{referenceAttention.level}</strong>
-            <p>
-              {referenceAttention.label}. {referenceAttention.explanation}
-            </p>
-          </div>
+          <small>{sparkGuidance.disclaimer}</small>
         </div>
       )}
     </section>
