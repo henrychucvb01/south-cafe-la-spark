@@ -14,6 +14,118 @@ const INCIDENT_TYPES = [
   "Other",
 ];
 
+function normalizeDate(value) {
+  if (!value) return "";
+
+  // Already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function normalizeTime(value) {
+  if (!value) return "";
+
+  const clean = String(value).trim().toLowerCase();
+
+  // Already HH:MM
+  if (/^\d{2}:\d{2}$/.test(clean)) {
+    return clean;
+  }
+
+  const match = clean.match(
+    /(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)?/
+  );
+
+  if (!match) {
+    return "";
+  }
+
+  let hours = Number(match[1]);
+  const minutes = Number(match[2] || 0);
+  const meridiem = match[3]?.replace(/\./g, "");
+
+  if (meridiem === "pm" && hours < 12) {
+    hours += 12;
+  }
+
+  if (meridiem === "am" && hours === 12) {
+    hours = 0;
+  }
+
+  if (hours > 23 || minutes > 59) {
+    return "";
+  }
+
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function extractDateFromDescription(description) {
+  const monthPattern =
+    "(January|February|March|April|May|June|July|August|September|October|November|December)";
+
+  const match = description.match(
+    new RegExp(
+      `${monthPattern}\\s+(\\d{1,2}),\\s*(\\d{4})`,
+      "i"
+    )
+  );
+
+  if (!match) {
+    return "";
+  }
+
+  const monthNames = [
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
+  ];
+
+  const month = monthNames.indexOf(match[1].toLowerCase()) + 1;
+  const day = Number(match[2]);
+  const year = Number(match[3]);
+
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(
+    2,
+    "0"
+  )}`;
+}
+
+function extractTimeFromDescription(description) {
+  const match = description.match(
+    /\b(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)\b/i
+  );
+
+  if (!match) {
+    return "";
+  }
+
+  return normalizeTime(
+    `${match[1]}:${match[2] || "00"} ${match[3]}`
+  );
+}
+
 export default async function handler(request, response) {
   response.setHeader("Access-Control-Allow-Origin", "*");
   response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -71,6 +183,10 @@ IMPORTANT RULES:
 16. If important information is missing, identify it in "missingInformation".
 17. Ask short, useful follow-up questions in "followUpQuestions".
 18. Do not repeat a question if the answer was already provided.
+19. "incidentDate" MUST use YYYY-MM-DD format.
+20. "incidentTime" MUST use 24-hour HH:MM format.
+21. "employeeName" should be the employee who is the primary subject of the incident, only when clearly identified by the manager.
+22. Do not put witnesses or the manager in "employeeName" unless they are clearly the employee who is the subject of the incident.
 
 Allowed incident types:
 
@@ -79,6 +195,7 @@ ${INCIDENT_TYPES.join(", ")}
 Return ONLY valid JSON using exactly this structure:
 
 {
+  "employeeName": "",
   "incidentType": "",
   "incidentDate": "",
   "incidentTime": "",
@@ -159,6 +276,29 @@ ${description}
         error: "Gemini returned information in an unexpected format.",
       });
     }
+
+    const fallbackDate = extractDateFromDescription(description);
+    const fallbackTime = extractTimeFromDescription(description);
+
+    incident.incidentDate =
+      normalizeDate(incident.incidentDate) || fallbackDate;
+
+    incident.incidentTime =
+      normalizeTime(incident.incidentTime) || fallbackTime;
+
+    incident.employeeName = incident.employeeName || "";
+
+    incident.missingInformation = Array.isArray(
+      incident.missingInformation
+    )
+      ? incident.missingInformation
+      : [];
+
+    incident.followUpQuestions = Array.isArray(
+      incident.followUpQuestions
+    )
+      ? incident.followUpQuestions
+      : [];
 
     return response.status(200).json(incident);
   } catch (error) {
