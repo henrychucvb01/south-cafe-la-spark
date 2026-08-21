@@ -6044,3 +6044,24 @@ button.homebase-card:hover {
   font-size: 18px !important;
   padding: 12px 10px !important;
 }
+/* =========================================================
+   SPARK AI THINKING INDICATOR
+========================================================= */
+
+.spark-thinking-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  vertical-align: -3px;
+  animation: spark-thinking-spin 0.8s linear infinite;
+}
+
+@keyframes spark-thinking-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
