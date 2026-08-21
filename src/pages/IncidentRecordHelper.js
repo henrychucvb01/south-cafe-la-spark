@@ -250,6 +250,8 @@ function resetIncidentRecord() {
 
         managerName: current.managerName || employee?.employee_name || "",
 
+        employeeName: extracted.employeeName || current.employeeName || "",
+
         incidentType: extracted.incidentType || "",
 
         incidentDate: extracted.incidentDate || "",
@@ -452,15 +454,17 @@ Yesterday around 10:30 during lunch preparation, Maria Lopez started yelling at 
                 disabled={analyzing}
               >
                 {analyzing ? (
-                <>
+                  <>
                     <span className="spark-thinking-spinner"></span>
                     SPARK is thinking...
-              </>
-            ) : (
-                <>✦ Organize Incident</>
+                  </>
+                ) : (
+                  <>✦ Organize Incident</>
                 )}
-         </button>
-      </div>
+              </button>
+            </div>
+          </section>
+        )}
 
         {/* =============================================
             STEP 2 — REVIEW
@@ -500,9 +504,6 @@ Yesterday around 10:30 during lunch preparation, Maria Lopez started yelling at 
               </div>
             )}
 
-         
-          </section>
-        )}
             {/* EMPLOYEE INFORMATION */}
 
             <div className="review-section-title">
@@ -950,6 +951,8 @@ Yesterday around 10:30 during lunch preparation, Maria Lopez started yelling at 
                 Check Documentation →
               </button>
             </div>
+          </section>
+        )}
 
         {/* =============================================
             STEP 3 — CHECK
