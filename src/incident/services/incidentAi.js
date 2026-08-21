@@ -2,10 +2,7 @@ import {
   extractIncidentDetails,
 } from "../utils/extractIncidentDetails";
 
-
-const AI_API_URL =
-  "https://south-cafe-la-command-omega.vercel.app/api/analyze-incident";
-
+const AI_API_URL = "/api/analyze-incident";
 
 export async function analyzeIncident(
   roughDescription
