@@ -6065,3 +6065,292 @@ button.homebase-card:hover {
     transform: rotate(360deg);
   }
 }
+
+
+/* =========================================================
+   SPARK — AI REVIEW PANEL
+   Added for Incident Record Helper Step 2
+========================================================= */
+
+.spark-ai-review {
+  margin: 22px 0 30px;
+  padding: 22px;
+  background: linear-gradient(180deg, #f7fbff 0%, #ffffff 100%);
+  border: 1px solid #c9dced;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(18, 62, 104, 0.06);
+}
+
+.spark-ai-review-header {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.spark-ai-review-mark {
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: #0b315d;
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.spark-ai-review-eyebrow {
+  margin-bottom: 4px;
+  color: #1768a8;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.spark-ai-review-header h3 {
+  margin: 0;
+  color: #082b4c;
+  font-size: 21px;
+}
+
+.spark-ai-review-header p {
+  margin: 6px 0 0;
+  color: #627184;
+  line-height: 1.5;
+}
+
+.spark-ai-understood-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.spark-ai-understood-item {
+  min-width: 0;
+  padding: 13px 14px;
+  background: #ffffff;
+  border: 1px solid #dce6ef;
+  border-radius: 10px;
+}
+
+.spark-ai-understood-item span {
+  display: block;
+  margin-bottom: 5px;
+  color: #7b8796;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.spark-ai-understood-item strong {
+  display: block;
+  color: #17334f;
+  font-size: 14px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.spark-ai-attention {
+  margin-bottom: 14px;
+  padding: 15px 16px;
+  border: 1px solid;
+  border-radius: 11px;
+}
+
+.spark-ai-attention.low {
+  background: #eff9f3;
+  border-color: #b9dbc6;
+}
+
+.spark-ai-attention.moderate {
+  background: #fff9e9;
+  border-color: #e7cd82;
+}
+
+.spark-ai-attention.high {
+  background: #fff1f1;
+  border-color: #e6b5b5;
+}
+
+.spark-ai-attention-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+}
+
+.spark-ai-attention-top span {
+  color: #657486;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.spark-ai-attention-top strong {
+  font-size: 14px;
+}
+
+.spark-ai-attention.low .spark-ai-attention-top strong {
+  color: #237044;
+}
+
+.spark-ai-attention.moderate .spark-ai-attention-top strong {
+  color: #a26b00;
+}
+
+.spark-ai-attention.high .spark-ai-attention-top strong {
+  color: #a83b3b;
+}
+
+.spark-ai-attention p {
+  margin: 8px 0 5px;
+  color: #43566b;
+  line-height: 1.5;
+}
+
+.spark-ai-attention small {
+  color: #748093;
+  line-height: 1.4;
+}
+
+.spark-ai-panel {
+  margin-top: 12px;
+  padding: 16px;
+  background: #ffffff;
+  border: 1px solid #dce4ec;
+  border-radius: 11px;
+}
+
+.spark-ai-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 9px;
+  color: #17334f;
+}
+
+.spark-ai-panel-title > span {
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #edf5fc;
+  color: #1768a8;
+  font-weight: 900;
+}
+
+.spark-ai-coach {
+  border-color: #e6cda0;
+  background: #fffdf7;
+}
+
+.spark-ai-coach-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.spark-ai-coach-item {
+  padding: 11px 12px;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid #eee0c5;
+  border-radius: 8px;
+}
+
+.spark-ai-original {
+  margin-bottom: 5px;
+  color: #9b4b34;
+  font-weight: 800;
+}
+
+.spark-ai-coach-item p,
+.spark-ai-questions p,
+.spark-ai-summary p {
+  margin: 0;
+  color: #526173;
+  line-height: 1.55;
+}
+
+.spark-ai-questions {
+  background: #f7fbff;
+  border-color: #c9ddec;
+}
+
+.spark-ai-questions ul {
+  margin: 10px 0 0;
+  padding-left: 22px;
+}
+
+.spark-ai-questions li {
+  margin: 7px 0;
+  color: #354a61;
+  line-height: 1.45;
+}
+
+.spark-ai-summary {
+  background: #f5faf7;
+  border-color: #c8dfd0;
+}
+
+.spark-ai-summary p {
+  color: #354f43;
+  font-size: 14px;
+}
+
+.spark-ai-reference-note {
+  display: flex;
+  gap: 11px;
+  margin-top: 14px;
+  padding: 13px 14px;
+  background: #f5f7fa;
+  border: 1px dashed #ccd5df;
+  border-radius: 10px;
+}
+
+.spark-ai-reference-note > span {
+  flex: 0 0 auto;
+  font-size: 18px;
+}
+
+.spark-ai-reference-note strong {
+  color: #435266;
+  font-size: 13px;
+}
+
+.spark-ai-reference-note p {
+  margin: 4px 0 0;
+  color: #788494;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@media (max-width: 850px) {
+  .spark-ai-understood-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .spark-ai-review {
+    padding: 17px;
+  }
+
+  .spark-ai-review-header {
+    flex-direction: column;
+  }
+
+  .spark-ai-understood-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .spark-ai-attention-top {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+}
