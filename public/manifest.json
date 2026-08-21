@@ -1,0 +1,26 @@
+{
+  "id": "/spark",
+  "short_name": "SPARK",
+  "name": "SPARK - South Café LA Operations Assistant",
+  "description": "South Café LA Operations Assistant",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4f7fb",
+  "theme_color": "#062642",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/spark-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/spark-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
