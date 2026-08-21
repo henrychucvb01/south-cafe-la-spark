@@ -5,6 +5,10 @@ import { checkIncidentDocumentation } from "../incident/utils/documentationCheck
 import { generateIncidentPdf } from "../incident/utils/pdfGenerator";
 import { analyzeIncident } from "../incident/services/incidentAi";
 import IncidentTypeHelp from "../incident/components/IncidentTypeHelp";
+import {
+  buildSparkGuidance,
+  getReferenceAttentionLevel,
+} from "../incident/reference/incidentGuidance";
 
 const INCIDENT_TYPES = [
   "Rude and Discourteous Behavior",
@@ -353,6 +357,41 @@ function resetIncidentRecord() {
   };
 
   // ---------------------------------------------------
+  // SPARK REFERENCE GUIDANCE
+  // ---------------------------------------------------
+
+  const sparkGuidance = buildSparkGuidance({
+    incidentType: form.incidentType,
+    roughDescription: form.roughDescription,
+    observedFacts: form.observedFacts,
+  });
+
+  const referenceAttention = getReferenceAttentionLevel({
+    incidentType: form.incidentType,
+    roughDescription: form.roughDescription,
+    observedFacts: form.observedFacts,
+    impact: form.impact,
+  });
+
+  const applyAssistanceSuggestion = (suggestion) => {
+    if (!suggestion) return;
+
+    setForm((current) => ({
+      ...current,
+      assistanceGuidance: current.assistanceGuidance?.trim()
+        ? `${current.assistanceGuidance.trim()}\n${suggestion}`
+        : suggestion,
+    }));
+
+    setReviewedFields((current) => ({
+      ...current,
+      assistanceGuidance: true,
+    }));
+
+    setConfirmed(false);
+  };
+
+  // ---------------------------------------------------
   // RENDER
   // ---------------------------------------------------
 
@@ -512,6 +551,8 @@ Yesterday around 10:30 during lunch preparation, Maria Lopez started yelling at 
             <SparkAiReview
               form={form}
               aiReview={aiReview}
+              sparkGuidance={sparkGuidance}
+              referenceAttention={referenceAttention}
             />
 
             {/* EMPLOYEE INFORMATION */}
@@ -944,6 +985,59 @@ Yesterday around 10:30 during lunch preparation, Maria Lopez started yelling at 
               />
             </ReviewField>
 
+            <div className="spark-ai-panel spark-ai-summary">
+              <div className="spark-ai-panel-title">
+                <span>✓</span>
+                <strong>Opportunity to Improve</strong>
+              </div>
+
+              <p>
+                Assistance and guidance are important because the employee should
+                understand the expectation and have an opportunity to improve.
+                Only document coaching, retraining, clarification, or assistance
+                that was actually provided.
+              </p>
+
+              {sparkGuidance?.assistanceGuidanceSuggestions?.length > 0 && (
+                <>
+                  <div className="spark-assistance-suggestions">
+                    {sparkGuidance.assistanceGuidanceSuggestions
+                      .slice(0, 5)
+                      .map((suggestion, index) => (
+                        <div
+                          className="spark-assistance-suggestion"
+                          key={`${suggestion}-${index}`}
+                        >
+                          <span>•</span>
+                          <p>{suggestion}</p>
+                        </div>
+                      ))}
+                  </div>
+
+                  <div className="spark-assistance-actions">
+                    {sparkGuidance.assistanceGuidanceSuggestions
+                      .slice(0, 3)
+                      .map((suggestion, index) => (
+                        <button
+                          key={`use-${index}`}
+                          type="button"
+                          className="incident-secondary"
+                          onClick={() => applyAssistanceSuggestion(suggestion)}
+                        >
+                          Use suggestion {index + 1}
+                        </button>
+                      ))}
+                  </div>
+                </>
+              )}
+
+              <small>
+                SPARK is offering coaching ideas, not confirming that the
+                assistance occurred. Edit the field above so it accurately
+                reflects what you actually did.
+              </small>
+            </div>
+
             <div className="incident-nav">
               <button
                 type="button"
@@ -1152,7 +1246,12 @@ function formatReviewTime(value) {
   });
 }
 
-function SparkAiReview({ form, aiReview }) {
+function SparkAiReview({
+  form,
+  aiReview,
+  sparkGuidance,
+  referenceAttention,
+}) {
   const level = aiReview?.attentionLevel || "moderate";
 
   const levelLabels = {
@@ -1282,16 +1381,90 @@ function SparkAiReview({ form, aiReview }) {
         </div>
       )}
 
-      <div className="spark-ai-reference-note">
-        <span>📖</span>
-        <div>
-          <strong>Reference guidance is the next SPARK layer.</strong>
-          <p>
-            Handbook and job-aid guidance will appear here only after those
-            materials are connected. SPARK will not invent policy references.
-          </p>
+      {sparkGuidance && (
+        <div className="spark-ai-panel spark-ai-reference">
+          <div className="spark-ai-panel-title">
+            <span>📖</span>
+            <strong>Reference Guidance</strong>
+          </div>
+
+          <div className="spark-reference-match">
+            <span>Possible reference match</span>
+            <strong>{sparkGuidance.title}</strong>
+            {sparkGuidance.pcRule && <small>{sparkGuidance.pcRule}</small>}
+          </div>
+
+          <p>{sparkGuidance.referenceSummary}</p>
+
+          {sparkGuidance.managerFocus?.length > 0 && (
+            <>
+              <strong className="spark-reference-subtitle">
+                What the manager should document
+              </strong>
+
+              <ul>
+                {sparkGuidance.managerFocus.slice(0, 6).map((item, index) => (
+                  <li key={index}>{item}</li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          {sparkGuidance.severityNotes?.length > 0 && (
+            <div className="spark-reference-caution">
+              <strong>Reference note</strong>
+              <ul>
+                {sparkGuidance.severityNotes.map((item, index) => (
+                  <li key={index}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {sparkGuidance.hrFlag && (
+            <p className="spark-reference-hr">
+              <strong>Supervisor / HR guidance:</strong>{" "}
+              {sparkGuidance.hrFlag}
+            </p>
+          )}
+
+          <small>
+            {sparkGuidance.disclaimer}
+          </small>
         </div>
-      </div>
+      )}
+
+      {sparkGuidance?.languageCoaching?.length > 0 && (
+        <div className="spark-ai-panel spark-ai-coach">
+          <div className="spark-ai-panel-title">
+            <span>✎</span>
+            <strong>SPARK Language Coach</strong>
+          </div>
+
+          <p>
+            SPARK found wording that may be stronger if it is replaced with
+            observable facts.
+          </p>
+
+          <ul>
+            {sparkGuidance.languageCoaching.map((item, index) => (
+              <li key={index}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {referenceAttention && (
+        <div className="spark-ai-reference-note">
+          <span>⚑</span>
+          <div>
+            <strong>{referenceAttention.level}</strong>
+            <p>
+              {referenceAttention.label}. {referenceAttention.explanation}
+            </p>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
