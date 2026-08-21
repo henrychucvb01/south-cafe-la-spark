@@ -162,59 +162,60 @@ function IncidentRecordHelper({ location, employee, onBack }) {
     }));
   }, [location, employee]);
 
-  // ---------------------------------------------------
-  // FORM HELPERS
-  // ---------------------------------------------------
+// ---------------------------------------------------
+// FORM HELPERS
+// ---------------------------------------------------
 
-  const update = (field, value) => {
-    setForm((current) => ({
-      ...current,
-      [field]: value,
-    }));
+const update = (field, value) => {
+  setForm((current) => ({
+    ...current,
+    [field]: value,
+  }));
 
-    setReviewedFields((current) => ({
-      ...current,
-      [field]: true,
-    }));
+  setReviewedFields((current) => ({
+    ...current,
+    [field]: true,
+  }));
 
-    setConfirmed(false);
-  };
+  setConfirmed(false);
+};
 
-  const markReviewed = (field) => {
-    setReviewedFields((current) => ({
-      ...current,
-      [field]: true,
-    }));
-  };
+const markReviewed = (field) => {
+  setReviewedFields((current) => ({
+    ...current,
+    [field]: true,
+  }));
+};
 
-  const goToStep = (number) => {
-    setStep(number);
+const goToStep = (number) => {
+  setStep(number);
 
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
-  };
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth",
+  });
+};
 
-  function resetIncidentRecord() {
-    setStep(1);
+function resetIncidentRecord() {
+  setStep(1);
 
-    setForm({
-      ...emptyForm,
-      schoolName: location?.school_name || "",
-      managerName: employee?.employee_name || "",
-    });
+  setForm({
+    ...emptyForm,
+    schoolName: location?.school_name || "",
+    managerName: employee?.employee_name || "",
+  });
 
-    setDocumentationResult(null);
-    setConfirmed(false);
-    setReviewedFields({});
-    setRecordGenerated(false);
+  setDocumentationResult(null);
+  setConfirmed(false);
+  setReviewedFields({});
+  setRecordGenerated(false);
 
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
-  }
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth",
+  });
+}
+   
 
   // ---------------------------------------------------
   // INCIDENT ANALYSIS
@@ -477,7 +478,42 @@ Yesterday around 10:30 during lunch preparation, Maria Lopez started yelling at 
                 marked reviewed.
               </p>
             </div>
+   {form.followUpQuestions?.length > 0 && (
+              <div className="incident-followups">
+                <h3>A few things may need clarification</h3>
 
+                <p>
+                  SPARK could not determine these details from your original
+                  description.
+                </p>
+
+                <ul>
+                  {form.followUpQuestions.map((question, index) => (
+                    <li key={index}>{question}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="incident-nav">
+              <button
+                type="button"
+                className="incident-secondary"
+                onClick={() => goToStep(1)}
+              >
+                ← Edit Original Description
+              </button>
+
+              <button
+                type="button"
+                className="incident-primary"
+                onClick={runDocumentationCheck}
+              >
+                Check Documentation →
+              </button>
+            </div>
+          </section>
+        )}
             {/* EMPLOYEE INFORMATION */}
 
             <div className="review-section-title">
@@ -908,42 +944,7 @@ Yesterday around 10:30 during lunch preparation, Maria Lopez started yelling at 
               />
             </ReviewField>
 
-            {form.followUpQuestions?.length > 0 && (
-              <div className="incident-followups">
-                <h3>A few things may need clarification</h3>
-
-                <p>
-                  SPARK could not determine these details from your original
-                  description.
-                </p>
-
-                <ul>
-                  {form.followUpQuestions.map((question, index) => (
-                    <li key={index}>{question}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <div className="incident-nav">
-              <button
-                type="button"
-                className="incident-secondary"
-                onClick={() => goToStep(1)}
-              >
-                ← Edit Original Description
-              </button>
-
-              <button
-                type="button"
-                className="incident-primary"
-                onClick={runDocumentationCheck}
-              >
-                Check Documentation →
-              </button>
-            </div>
-          </section>
-        )}
+         
 
         {/* =============================================
             STEP 3 — CHECK
