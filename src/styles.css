@@ -6367,9 +6367,9 @@ button.homebase-card:hover {
   align-items: center;
   justify-content: center;
   min-height: 32px;
-  padding: 7px 12px;
+  padding: 8px 14px;
   border-radius: 8px;
-  font-size: 12px;
+  font-size: 18px;
   font-weight: 800;
   line-height: 1;
   white-space: nowrap;
