@@ -6354,3 +6354,116 @@ button.homebase-card:hover {
     gap: 5px;
   }
 }
+
+
+/* =========================================================
+   AUGUST 2026 UI POLISH
+   Larger date badges + South Café LA analytics controls
+   ========================================================= */
+
+/* Date badges only — does not enlarge normal Complete/Attention badges */
+.school-dashboard-status.date-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+/* School Hub: View Meal Analytics */
+.meal-analytics-button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid #cbdbea;
+  border-radius: 8px;
+  background: #f7fbff;
+  color: #176ed5;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.meal-analytics-button:hover {
+  background: #edf6ff;
+  border-color: #9fc4eb;
+  box-shadow: 0 3px 10px rgba(23, 110, 213, 0.1);
+}
+
+.meal-analytics-button:active {
+  transform: translateY(1px);
+}
+
+/* Meal Analytics: Meals / $ Reimbursement segmented control */
+.meal-view-toggle {
+  width: fit-content;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin: 0 0 14px;
+  padding: 4px;
+  border: 1px solid #dce4ec;
+  border-radius: 10px;
+  background: #eef3f7;
+}
+
+.meal-view-toggle button {
+  min-height: 36px;
+  padding: 0 15px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: #627080;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.meal-view-toggle button:hover {
+  color: #176ed5;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.meal-view-toggle button.active {
+  background: white;
+  color: #176ed5;
+  box-shadow: 0 2px 7px rgba(23, 57, 92, 0.11);
+}
+
+/* Keeps the controls comfortable on phones */
+@media (max-width: 600px) {
+  .school-dashboard-status.date-badge {
+    min-height: 30px;
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  .meal-analytics-button {
+    min-height: 40px;
+    padding: 0 13px;
+  }
+
+  .meal-view-toggle {
+    width: 100%;
+  }
+
+  .meal-view-toggle button {
+    flex: 1;
+  }
+}
