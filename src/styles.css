@@ -6385,7 +6385,7 @@ button.homebase-card:hover {
   background: #f7fbff;
   color: #176ed5;
   font-family: inherit;
-  font-size: 11px;
+  font-size: 18px;
   font-weight: 800;
   cursor: pointer;
   transition:
@@ -6426,7 +6426,7 @@ button.homebase-card:hover {
   background: transparent;
   color: #627080;
   font-family: inherit;
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 800;
   cursor: pointer;
   transition:
@@ -6451,7 +6451,7 @@ button.homebase-card:hover {
   .school-dashboard-status.date-badge {
     min-height: 30px;
     padding: 6px 10px;
-    font-size: 11px;
+    font-size: 18px;
   }
 
   .meal-analytics-button {
