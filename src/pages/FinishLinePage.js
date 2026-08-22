@@ -156,10 +156,18 @@ SUPERVISOR PREVIEW MODE
   const isPreviewMode = existingCheck?.previewMode === true;
   const previewDay = existingCheck?.previewDay ?? null;
   const previewMonthEnd = existingCheck?.previewMonthEnd ?? false;
+
+  // When editing a historical Finish Line, keep every load/save tied
+  // to that original service date instead of today's date.
+  const todayServiceDate = new Date().toISOString().split("T")[0];
+  const activeServiceDate =
+    !isPreviewMode && existingCheck?.service_date
+      ? existingCheck.service_date
+      : todayServiceDate;
   /* =========================================================
 DAY LOGIC
 ========================================================= */
-  const realDay = new Date().getDay();
+  const realDay = new Date(`${activeServiceDate}T12:00:00`).getDay();
   const activeDay =
     isPreviewMode && previewDay !== null
       ? previewDay
@@ -175,7 +183,7 @@ DAY LOGIC
 DATE HELPERS
 ========================================================= */
   function getTodayLabel() {
-    return new Date().toLocaleDateString([], {
+    return new Date(`${activeServiceDate}T12:00:00`).toLocaleDateString([], {
       weekday: "long",
       month: "long",
       day: "numeric",
@@ -208,25 +216,25 @@ DATE HELPERS
     if (TEST_MONTH_END) {
       return true;
     }
-    const today = new Date();
+    const serviceDay = new Date(`${activeServiceDate}T12:00:00`);
     /*
 Friday:
 check whether next Monday is
 a different month.
 */
-    if (today.getDay() === 5) {
-      const monday = new Date(today);
-      monday.setDate(today.getDate() + 3);
-      return monday.getMonth() !== today.getMonth();
+    if (serviceDay.getDay() === 5) {
+      const monday = new Date(serviceDay);
+      monday.setDate(serviceDay.getDate() + 3);
+      return monday.getMonth() !== serviceDay.getMonth();
     }
     /*
 Monday-Thursday:
 check whether tomorrow starts
 a new month.
 */
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-    return tomorrow.getMonth() !== today.getMonth();
+    const tomorrow = new Date(serviceDay);
+    tomorrow.setDate(serviceDay.getDate() + 1);
+    return tomorrow.getMonth() !== serviceDay.getMonth();
   }
   const showMonthEnd = isPreviewMode ? previewMonthEnd : isLastWeekdayOfMonth();
   /* =========================================================
@@ -234,7 +242,7 @@ LOAD PAGE DATA
 ========================================================= */
   useEffect(() => {
     loadPageData();
-  }, [location?.id]);
+  }, [location?.id, activeServiceDate]);
   async function loadPageData() {
     /*
 Supervisor preview:
@@ -257,7 +265,7 @@ touch Supabase.
     }
     setPageLoading(true);
     try {
-      const serviceDate = new Date().toISOString().split("T")[0];
+      const serviceDate = activeServiceDate;
       /* =====================================
 LOAD FINISH LINE
 ===================================== */
@@ -713,7 +721,7 @@ Supervisor Preview does not save.
     setLoading(true);
     setMessage("");
     try {
-      const serviceDate = new Date().toISOString().split("T")[0];
+      const serviceDate = activeServiceDate;
       const status = determineAttention() ? "attention" : "complete";
       const now = new Date().toISOString();
       /* =====================================
@@ -924,7 +932,7 @@ PAGE HEADER
                 fontSize: "11px",
               }}
             >
-              You are editing today's existing Finish Line Check.
+              You are editing the Finish Line Check for {getTodayLabel()}.
             </div>
           )}
           {message && <div className="login-error">{message}</div>}
