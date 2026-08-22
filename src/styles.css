@@ -2899,19 +2899,19 @@ tbody tr.selected-row {
 
 .school-dashboard-section-title h2 {
   margin: 0;
-  font-size: 15px;
+  font-size: 17px;
 }
 
 .school-dashboard-section-title p {
   margin: 4px 0 0;
   color: #7a8593;
-  font-size: 10px;
+  font-size: 18px;
 }
 
 .school-dashboard-status {
   padding: 5px 9px;
   border-radius: 6px;
-  font-size: 9px;
+  font-size: 15px;
   font-weight: 800;
 }
 
