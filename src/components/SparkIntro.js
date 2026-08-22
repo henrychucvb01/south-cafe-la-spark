@@ -18,14 +18,17 @@ export default function SparkIntro({ children }) {
       "(prefers-reduced-motion: reduce)"
     )?.matches;
 
-    const duration = reduceMotion ? 250 : 1650;
+    // GIF is about 1.28 seconds.
+    // Then the SPARK icon holds briefly before the intro fades away.
+    const duration = reduceMotion ? 250 : 2350;
 
     const timer = window.setTimeout(() => {
       try {
         sessionStorage.setItem(INTRO_KEY, "yes");
       } catch {
-        // The intro can still finish even when storage is unavailable.
+        // Continue even when browser storage is unavailable.
       }
+
       setShowIntro(false);
     }, duration);
 
@@ -35,9 +38,16 @@ export default function SparkIntro({ children }) {
   return (
     <>
       {children}
+
       {showIntro && (
         <div className="spark-launch-intro" aria-label="Opening SPARK">
-          <div className="spark-launch-light" aria-hidden="true" />
+          <img
+            src="/spark-burst-navy.gif"
+            alt=""
+            className="spark-launch-burst"
+            aria-hidden="true"
+          />
+
           <img
             src="/spark-clear.png"
             alt="SPARK"
