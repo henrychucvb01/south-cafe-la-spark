@@ -1,6 +1,32 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 
+function isFinishLineCommentItem(item) {
+  return String(item?.item_key || "").endsWith("_comment");
+}
+
+function getFinishLineExplanation(items, itemKey) {
+  if (!itemKey || !Array.isArray(items)) {
+    return "";
+  }
+
+  const commentItem = items.find(
+    (item) => item.item_key === `${itemKey}_comment`
+  );
+
+  return commentItem?.answer || "";
+}
+
+function formatFinishLineAnswer(answer) {
+  const value = String(answer || "").toLowerCase();
+
+  if (value === "yes") return "YES";
+  if (value === "no") return "NO";
+  if (value === "na") return "N/A";
+
+  return String(answer || "—").toUpperCase();
+}
+
 function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
   const [todayCheck, setTodayCheck] = useState(null);
   const [history, setHistory] = useState([]);
@@ -68,7 +94,6 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
       setHistory(historyData || []);
     } catch (err) {
       console.error("School dashboard error:", err);
-
       setError(err.message || "Could not load school dashboard.");
     } finally {
       setLoading(false);
@@ -121,7 +146,6 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
 
           <div>
             <div className="login-brand-name">SOUTH CAFÉ LA</div>
-
             <div className="login-brand-subtitle">SCHOOL DASHBOARD</div>
           </div>
         </div>
@@ -133,8 +157,6 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
 
       <main className="login-main">
         <div className="school-dashboard-page">
-          {/* SCHOOL HEADER */}
-
           <div className="school-dashboard-header">
             <div>
               <div className="dashboard-small-label">
@@ -142,7 +164,6 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
               </div>
 
               <h1>{location?.school_name}</h1>
-
               <p>Signed in as {employee?.employee_name}</p>
             </div>
 
@@ -152,8 +173,6 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
           </div>
 
           {error && <div className="command-error">{error}</div>}
-
-          {/* TODAY STATUS */}
 
           <section
             className={`school-status-banner ${
@@ -175,9 +194,7 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
 
               <span>
                 {!todayCheck && "Not submitted today"}
-
                 {todayCheck?.status === "complete" && "Completed successfully"}
-
                 {todayCheck?.status === "attention" &&
                   `${attentionCount} item${
                     attentionCount === 1 ? "" : "s"
@@ -188,22 +205,17 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
             {todayCheck && (
               <div className="school-status-time">
                 <small>Submitted by</small>
-
                 <strong>{todayCheck.employee_name}</strong>
-
                 <small>{formatTime(todayCheck.submitted_at)}</small>
               </div>
             )}
           </section>
-
-          {/* TODAY'S FINISH LINE */}
 
           {todayCheck && (
             <section className="dashboard-card">
               <div className="school-dashboard-section-title">
                 <div>
                   <h2>Today's Finish Line</h2>
-
                   <p>End-of-day verification details</p>
                 </div>
 
@@ -233,36 +245,73 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
               </div>
 
               <div className="school-check-list">
-                {todayCheck.finish_line_items?.map((item) => (
-                  <div className="school-check-row" key={item.id}>
-                    <div className="school-check-label">
-                      <span
-                        className={`school-check-dot ${
-                          item.requires_attention ? "bad" : "good"
-                        }`}
+                {todayCheck.finish_line_items
+                  ?.filter((item) => !isFinishLineCommentItem(item))
+                  .map((item) => {
+                    const explanation = getFinishLineExplanation(
+                      todayCheck.finish_line_items,
+                      item.item_key
+                    );
+
+                    return (
+                      <div
+                        className="school-check-row"
+                        key={item.id}
+                        style={{ alignItems: "flex-start" }}
                       >
-                        {item.requires_attention ? "!" : "✓"}
-                      </span>
+                        <div
+                          className="school-check-label"
+                          style={{ flex: 1, minWidth: 0 }}
+                        >
+                          <span
+                            className={`school-check-dot ${
+                              item.requires_attention ? "bad" : "good"
+                            }`}
+                          >
+                            {item.requires_attention ? "!" : "✓"}
+                          </span>
 
-                      <span>{item.item_label}</span>
-                    </div>
+                          <div style={{ minWidth: 0 }}>
+                            <span>{item.item_label}</span>
 
-                    <strong>{String(item.answer || "—").toUpperCase()}</strong>
-                  </div>
-                ))}
+                            {explanation && (
+                              <div
+                                style={{
+                                  marginTop: "5px",
+                                  padding: "6px 8px",
+                                  background: item.requires_attention
+                                    ? "#fff4f4"
+                                    : "#f5f7f9",
+                                  borderRadius: "6px",
+                                  color: item.requires_attention
+                                    ? "#8f3535"
+                                    : "#667482",
+                                  fontSize: "11px",
+                                  lineHeight: "1.4",
+                                }}
+                              >
+                                <strong>Explanation:</strong> {explanation}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <strong>
+                          {formatFinishLineAnswer(item.answer)}
+                        </strong>
+                      </div>
+                    );
+                  })}
               </div>
 
               {todayCheck.comments && (
                 <div className="school-dashboard-comments">
                   <h3>Comments</h3>
-
                   <p>{todayCheck.comments}</p>
                 </div>
               )}
             </section>
           )}
-
-          {/* NO FINISH LINE */}
 
           {!todayCheck && (
             <section className="dashboard-card">
@@ -272,13 +321,10 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
             </section>
           )}
 
-          {/* HISTORY */}
-
           <section className="dashboard-card">
             <div className="school-dashboard-section-title">
               <div>
                 <h2>Finish Line History</h2>
-
                 <p>Most recent submissions</p>
               </div>
             </div>
@@ -289,46 +335,46 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
               </div>
             ) : (
               <div className="school-history-list">
-              {history.map((check) => (
-                <div
-                  className="school-history-row"
-                  key={check.id}
-                  onClick={() => onEditFinishLine(check)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      onEditFinishLine(check);
-                    }
-                  }}
-                >
-                  <div className="school-history-date">
-                    <span className={`school-history-status ${check.status}`}>
-                      {check.status === "complete" ? "✓" : "!"}
-                    </span>
-            
-                    <div>
-                      <strong>{formatDate(check.service_date)}</strong>
-                      <small>{check.employee_name}</small>
+                {history.map((check) => (
+                  <div
+                    className="school-history-row"
+                    key={check.id}
+                    onClick={() => onEditFinishLine(check)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        onEditFinishLine(check);
+                      }
+                    }}
+                  >
+                    <div className="school-history-date">
+                      <span className={`school-history-status ${check.status}`}>
+                        {check.status === "complete" ? "✓" : "!"}
+                      </span>
+
+                      <div>
+                        <strong>{formatDate(check.service_date)}</strong>
+                        <small>{check.employee_name}</small>
+                      </div>
+                    </div>
+
+                    <div className="school-history-right">
+                      <span className={`school-history-pill ${check.status}`}>
+                        {check.status === "complete" ? "Complete" : "Attention"}
+                      </span>
+
+                      <small>{formatTime(check.submitted_at)}</small>
                     </div>
                   </div>
-            
-                  <div className="school-history-right">
-                    <span className={`school-history-pill ${check.status}`}>
-                      {check.status === "complete" ? "Complete" : "Attention"}
-                    </span>
-            
-                    <small>{formatTime(check.submitted_at)}</small>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
             )}
-            </section>
-            </div>
-            </main>
-            </div>
-            );
-            }
-            
-            export default SchoolDashboard;
+          </section>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+export default SchoolDashboard;
