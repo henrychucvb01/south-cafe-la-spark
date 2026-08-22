@@ -19,6 +19,7 @@ EMPTY DATA
 const emptyChecklist = {
   previousMealCounts: "",
   dairyOrderCreated: "",
+  receiversCompleted: "",
   productionWorksheet: "",
   productionRecord: "",
   mealCountEntered: "",
@@ -43,10 +44,26 @@ const emptyMealCounts = {
   lunch: "",
   supper: "",
 };
+
+const emptyResponseComments = {
+  previousMealCounts: "",
+  dairyOrderCreated: "",
+  receiversCompleted: "",
+  productionWorksheet: "",
+  productionRecord: "",
+  mealCountEntered: "",
+  reportsReviewed: "",
+  mondayMissingMealReport: "",
+  mondayAllMealCountsEntered: "",
+  tuesdayMealPlan: "",
+  wednesdayOrderStatus: "",
+  thursdayOrdersComplete: "",
+  monthEndInventory: "",
+};
 /* =========================================================
 YES / NO BUTTONS
 ========================================================= */
-function YesNoButtons({ value, onChange }) {
+function YesNoButtons({ value, onChange, allowNA = false }) {
   return (
     <div className="yes-no-group">
       <button
@@ -63,9 +80,54 @@ function YesNoButtons({ value, onChange }) {
       >
         No
       </button>
+      {allowNA && (
+        <button
+          type="button"
+          className={`yes-no-button ${value === "na" ? "selected-danger" : ""}`}
+          onClick={() => onChange("na")}
+        >
+          N/A
+        </button>
+      )}
     </div>
   );
 }
+
+function ResponseComment({ answer, value, onChange }) {
+  if (answer !== "no" && answer !== "na") return null;
+
+  return (
+    <div
+      style={{
+        marginTop: "10px",
+        padding: "11px 12px",
+        background: "#fff7f7",
+        border: "1px solid #efb7b7",
+        borderRadius: "8px",
+      }}
+    >
+      <div
+        style={{
+          color: "#a53030",
+          fontSize: "10px",
+          fontWeight: "800",
+          marginBottom: "7px",
+        }}
+      >
+        Comment required — please explain this response.
+      </div>
+      <textarea
+        className="comments-box"
+        rows="2"
+        placeholder="Enter explanation..."
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{ margin: 0 }}
+      />
+    </div>
+  );
+}
+
 /* =========================================================
 FINISH LINE PAGE
 ========================================================= */
@@ -79,6 +141,7 @@ function FinishLinePage({
   const [checklist, setChecklist] = useState(emptyChecklist);
   const [closing, setClosing] = useState(emptyClosing);
   const [mealCounts, setMealCounts] = useState(emptyMealCounts);
+  const [responseComments, setResponseComments] = useState(emptyResponseComments);
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -182,6 +245,7 @@ touch Supabase.
       setChecklist(emptyChecklist);
       setClosing(emptyClosing);
       setMealCounts(emptyMealCounts);
+      setResponseComments(emptyResponseComments);
       setIsEditing(false);
       setOriginalCheck(null);
       setPageLoading(false);
@@ -218,9 +282,15 @@ finish_line_items (*)
         function answerFor(key) {
           return items.find((item) => item.item_key === key)?.answer || "";
         }
+
+        function commentFor(key) {
+          return items.find((item) => item.item_key === `${key}_comment`)?.answer || "";
+        }
+
         setChecklist({
           previousMealCounts: answerFor("previous_meal_counts"),
           dairyOrderCreated: answerFor("dairy_order_created"),
+          receiversCompleted: answerFor("receivers_completed"),
           productionWorksheet: answerFor("production_worksheet"),
           productionRecord: answerFor("production_record"),
           mealCountEntered: answerFor("meal_count_entered"),
@@ -234,6 +304,22 @@ finish_line_items (*)
           thursdayOrdersComplete: answerFor("thursday_orders_complete"),
           monthEndInventory: answerFor("month_end_inventory"),
           comments: finishData.comments || "",
+        });
+
+        setResponseComments({
+          previousMealCounts: commentFor("previous_meal_counts"),
+          dairyOrderCreated: commentFor("dairy_order_created"),
+          receiversCompleted: commentFor("receivers_completed"),
+          productionWorksheet: commentFor("production_worksheet"),
+          productionRecord: commentFor("production_record"),
+          mealCountEntered: commentFor("meal_count_entered"),
+          reportsReviewed: commentFor("reports_reviewed"),
+          mondayMissingMealReport: commentFor("monday_missing_meal_report"),
+          mondayAllMealCountsEntered: commentFor("monday_all_meal_counts_entered"),
+          tuesdayMealPlan: commentFor("tuesday_meal_plan"),
+          wednesdayOrderStatus: commentFor("wednesday_order_status"),
+          thursdayOrdersComplete: commentFor("thursday_orders_complete"),
+          monthEndInventory: commentFor("month_end_inventory"),
         });
         /*
 They could only submit the
@@ -252,6 +338,7 @@ completing closing.
         setOriginalCheck(null);
         setChecklist(emptyChecklist);
         setClosing(emptyClosing);
+        setResponseComments(emptyResponseComments);
       }
       /* =====================================
 LOAD TODAY'S MEAL COUNTS
@@ -291,6 +378,14 @@ FORM UPDATES
     }));
     setMessage("");
   }
+  function updateResponseComment(field, value) {
+    setResponseComments((current) => ({
+      ...current,
+      [field]: value,
+    }));
+    setMessage("");
+  }
+
   function updateMealCount(field, value) {
     /*
 Numbers only.
@@ -317,6 +412,7 @@ ATTENTION STATUS
     return [
       checklist.previousMealCounts === "no",
       checklist.dairyOrderCreated === "no",
+      checklist.receiversCompleted === "no",
       checklist.productionWorksheet === "no",
       checklist.productionRecord === "no",
       checklist.mealCountEntered === "no",
@@ -336,6 +432,7 @@ FORM COMPLETE CHECK
     const dailyComplete = [
       checklist.previousMealCounts,
       checklist.dairyOrderCreated,
+      checklist.receiversCompleted,
       checklist.productionWorksheet,
       checklist.productionRecord,
       checklist.mealCountEntered,
@@ -344,6 +441,33 @@ FORM COMPLETE CHECK
     if (!dailyComplete) {
       return false;
     }
+
+    const requiredCommentPairs = [
+      ["previousMealCounts", checklist.previousMealCounts],
+      ["dairyOrderCreated", checklist.dairyOrderCreated],
+      ["receiversCompleted", checklist.receiversCompleted],
+      ["productionWorksheet", checklist.productionWorksheet],
+      ["productionRecord", checklist.productionRecord],
+      ["mealCountEntered", checklist.mealCountEntered],
+      ["reportsReviewed", checklist.reportsReviewed],
+      ["mondayMissingMealReport", isMonday ? checklist.mondayMissingMealReport : ""],
+      ["mondayAllMealCountsEntered", isMonday ? checklist.mondayAllMealCountsEntered : ""],
+      ["tuesdayMealPlan", isTuesday ? checklist.tuesdayMealPlan : ""],
+      ["wednesdayOrderStatus", isWednesday ? checklist.wednesdayOrderStatus : ""],
+      ["thursdayOrdersComplete", isThursday ? checklist.thursdayOrdersComplete : ""],
+      ["monthEndInventory", showMonthEnd ? checklist.monthEndInventory : ""],
+    ];
+
+    const missingRequiredComment = requiredCommentPairs.some(
+      ([field, answer]) =>
+        (answer === "no" || answer === "na") &&
+        !responseComments[field]?.trim()
+    );
+
+    if (missingRequiredComment) {
+      return false;
+    }
+
     /*
 Breakfast and Lunch are required.
 Supper is allowed to remain pending
@@ -380,7 +504,7 @@ VALIDATION
   function validateChecklist() {
     if (!formComplete) {
       setMessage(
-        "Complete all required Finish Line items, meal counts, and Closing & Readiness before submitting."
+        "Complete all required Finish Line items, required No/N/A explanations, meal counts, and Closing & Readiness before submitting."
       );
       return false;
     }
@@ -407,6 +531,13 @@ BUILD FINISH LINE DATABASE ITEMS
       },
       {
         finish_line_check_id: checkId,
+        item_key: "receivers_completed",
+        item_label: "Receivers completed if applicable",
+        answer: checklist.receiversCompleted,
+        requires_attention: checklist.receiversCompleted === "no",
+      },
+      {
+        finish_line_check_id: checkId,
         item_key: "production_worksheet",
         item_label: "Production worksheets completed and signed",
         answer: checklist.productionWorksheet,
@@ -415,14 +546,14 @@ BUILD FINISH LINE DATABASE ITEMS
       {
         finish_line_check_id: checkId,
         item_key: "production_record",
-        item_label: "Production record completed",
+        item_label: "Production Record Produced",
         answer: checklist.productionRecord,
         requires_attention: checklist.productionRecord === "no",
       },
       {
         finish_line_check_id: checkId,
         item_key: "meal_count_entered",
-        item_label: "Meal counts entered into production record",
+        item_label: "Meal Counts entered in Edison Production and written on paper Production Record",
         answer: checklist.mealCountEntered,
         requires_attention: checklist.mealCountEntered === "no",
       },
@@ -798,6 +929,21 @@ PAGE HEADER
           )}
           {message && <div className="login-error">{message}</div>}
           <form className="finish-line-form" onSubmit={handleSubmit}>
+            <div
+              style={{
+                background: "#fff8e6",
+                border: "1px solid #ead39a",
+                borderRadius: "9px",
+                padding: "11px 14px",
+                marginBottom: "14px",
+                fontSize: "11px",
+                color: "#6c5417",
+                fontWeight: "700",
+              }}
+            >
+              Comment with explanation is required immediately for any No or N/A response.
+            </div>
+
             {/* =====================================
 1 — NEWTON
 ===================================== */}
@@ -809,15 +955,19 @@ PAGE HEADER
                   <p>Previous meal count verification</p>
                 </div>
               </div>
-              <div className="check-item">
-                <div>
-                  <strong>
-                    Are all previous meal counts entered in Newton?
-                  </strong>
+              <div className="check-item" style={{ alignItems: "flex-start" }}>
+                <div style={{ flex: 1 }}>
+                  <strong>Are all previous meal counts entered in Newton?</strong>
                   <small>
-                    Includes Supper for all sites, plus Snack and Offsite where
-                    applicable.
+                    Includes Supper for all sites, plus Snack and Offsite where applicable.
                   </small>
+                  <ResponseComment
+                    answer={checklist.previousMealCounts}
+                    value={responseComments.previousMealCounts}
+                    onChange={(value) =>
+                      updateResponseComment("previousMealCounts", value)
+                    }
+                  />
                 </div>
                 <YesNoButtons
                   value={checklist.previousMealCounts}
@@ -838,42 +988,34 @@ PAGE HEADER
                   <p>Verify required records are complete.</p>
                 </div>
               </div>
-              <div className="check-item">
-                <strong>Dairy order created if due?</strong>
-                <YesNoButtons
-                  value={checklist.dairyOrderCreated}
-                  onChange={(value) =>
-                    updateChecklist("dairyOrderCreated", value)
-                  }
-                />
-              </div>
-              <div className="check-item">
-                <strong>Production worksheets completed and signed?</strong>
-                <YesNoButtons
-                  value={checklist.productionWorksheet}
-                  onChange={(value) =>
-                    updateChecklist("productionWorksheet", value)
-                  }
-                />
-              </div>
-              <div className="check-item">
-                <strong>Production record completed?</strong>
-                <YesNoButtons
-                  value={checklist.productionRecord}
-                  onChange={(value) =>
-                    updateChecklist("productionRecord", value)
-                  }
-                />
-              </div>
-              <div className="check-item">
-                <strong>Meal counts entered into the production record?</strong>
-                <YesNoButtons
-                  value={checklist.mealCountEntered}
-                  onChange={(value) =>
-                    updateChecklist("mealCountEntered", value)
-                  }
-                />
-              </div>
+
+              {[
+                ["dairyOrderCreated", "Dairy order created if due?", true],
+                ["receiversCompleted", "Receivers completed if applicable?", true],
+                ["productionWorksheet", "Production worksheets completed and signed?", false],
+                ["productionRecord", "Production Record Produced?", false],
+                ["mealCountEntered", "Meal Counts entered in Edison Production and written on paper Production Record?", false],
+              ].map(([field, label, allowNA]) => (
+                <div
+                  className="check-item"
+                  style={{ alignItems: "flex-start" }}
+                  key={field}
+                >
+                  <div style={{ flex: 1 }}>
+                    <strong>{label}</strong>
+                    <ResponseComment
+                      answer={checklist[field]}
+                      value={responseComments[field]}
+                      onChange={(value) => updateResponseComment(field, value)}
+                    />
+                  </div>
+                  <YesNoButtons
+                    value={checklist[field]}
+                    allowNA={allowNA}
+                    onChange={(value) => updateChecklist(field, value)}
+                  />
+                </div>
+              ))}
             </section>
             {/* =====================================
 3 — REPORT REVIEW
@@ -886,13 +1028,19 @@ PAGE HEADER
                   <p>Confirm required reports were reviewed for accuracy.</p>
                 </div>
               </div>
-              <div className="check-item">
-                <div>
+              <div className="check-item" style={{ alignItems: "flex-start" }}>
+                <div style={{ flex: 1 }}>
                   <strong>Have today's required reports been reviewed?</strong>
                   <small>
-                    After Posting Report • Meal Count Report • LAUSD Production
-                    Report
+                    After Posting Report • Meal Count Report • LAUSD Production Report
                   </small>
+                  <ResponseComment
+                    answer={checklist.reportsReviewed}
+                    value={responseComments.reportsReviewed}
+                    onChange={(value) =>
+                      updateResponseComment("reportsReviewed", value)
+                    }
+                  />
                 </div>
                 <YesNoButtons
                   value={checklist.reportsReviewed}
@@ -1038,7 +1186,7 @@ MONDAY
             {isMonday && (
               <section className="check-section">
                 <div className="check-section-heading">
-                  <span className="section-number">5</span>
+                  <span className="section-number">D</span>
                   <div>
                     <h2>Monday — Missing Meal Counts</h2>
                     <p>Review the previous week's service activity.</p>
@@ -1050,6 +1198,13 @@ MONDAY
                     value={checklist.mondayMissingMealReport}
                     onChange={(value) =>
                       updateChecklist("mondayMissingMealReport", value)
+                    }
+                  />
+                  <ResponseComment
+                    answer={checklist.mondayMissingMealReport}
+                    value={responseComments.mondayMissingMealReport}
+                    onChange={(value) =>
+                      updateResponseComment("mondayMissingMealReport", value)
                     }
                   />
                 </div>
@@ -1095,6 +1250,13 @@ MONDAY
                       updateChecklist("mondayAllMealCountsEntered", value)
                     }
                   />
+                  <ResponseComment
+                    answer={checklist.mondayAllMealCountsEntered}
+                    value={responseComments.mondayAllMealCountsEntered}
+                    onChange={(value) =>
+                      updateResponseComment("mondayAllMealCountsEntered", value)
+                    }
+                  />
                 </div>
               </section>
             )}
@@ -1104,7 +1266,7 @@ TUESDAY
             {isTuesday && (
               <section className="check-section">
                 <div className="check-section-heading">
-                  <span className="section-number">5</span>
+                  <span className="section-number">D</span>
                   <div>
                     <h2>Tuesday — Meal Plan</h2>
                     <p>Follow the current Ordering Calendar.</p>
@@ -1121,6 +1283,13 @@ TUESDAY
                       updateChecklist("tuesdayMealPlan", value)
                     }
                   />
+                  <ResponseComment
+                    answer={checklist.tuesdayMealPlan}
+                    value={responseComments.tuesdayMealPlan}
+                    onChange={(value) =>
+                      updateResponseComment("tuesdayMealPlan", value)
+                    }
+                  />
                 </div>
               </section>
             )}
@@ -1130,7 +1299,7 @@ WEDNESDAY
             {isWednesday && (
               <section className="check-section">
                 <div className="check-section-heading">
-                  <span className="section-number">5</span>
+                  <span className="section-number">D</span>
                   <div>
                     <h2>Wednesday — Order Status</h2>
                     <p>Review upcoming non-dairy orders.</p>
@@ -1152,6 +1321,13 @@ WEDNESDAY
                       updateChecklist("wednesdayOrderStatus", value)
                     }
                   />
+                  <ResponseComment
+                    answer={checklist.wednesdayOrderStatus}
+                    value={responseComments.wednesdayOrderStatus}
+                    onChange={(value) =>
+                      updateResponseComment("wednesdayOrderStatus", value)
+                    }
+                  />
                 </div>
               </section>
             )}
@@ -1161,7 +1337,7 @@ THURSDAY
             {isThursday && (
               <section className="check-section">
                 <div className="check-section-heading">
-                  <span className="section-number">5</span>
+                  <span className="section-number">D</span>
                   <div>
                     <h2>Thursday — Orders</h2>
                     <p>Ordering deadline: 2:00 PM</p>
@@ -1176,6 +1352,13 @@ THURSDAY
                     value={checklist.thursdayOrdersComplete}
                     onChange={(value) =>
                       updateChecklist("thursdayOrdersComplete", value)
+                    }
+                  />
+                  <ResponseComment
+                    answer={checklist.thursdayOrdersComplete}
+                    value={responseComments.thursdayOrdersComplete}
+                    onChange={(value) =>
+                      updateResponseComment("thursdayOrdersComplete", value)
                     }
                   />
                 </div>
@@ -1203,28 +1386,41 @@ MONTH END
                       updateChecklist("monthEndInventory", value)
                     }
                   />
+                  <ResponseComment
+                    answer={checklist.monthEndInventory}
+                    value={responseComments.monthEndInventory}
+                    onChange={(value) =>
+                      updateResponseComment("monthEndInventory", value)
+                    }
+                  />
                 </div>
               </section>
             )}
             {/* =====================================
-CLOSING & READINESS
+5 — CLOSING & READINESS
 ===================================== */}
-
             <section className="check-section">
               <div className="check-section-heading">
-                <span className="section-number">3</span>
-
+                <span className="section-number">5</span>
                 <div>
                   <h2>Closing & Readiness</h2>
-                  <p>Complete every area before submitting.</p>
+                  <p>
+                    Confirm each area is cleaned, completed, and ready for the next service day.
+                  </p>
                 </div>
               </div>
 
-              <div
-                style={{
-                  padding: "16px",
-                }}
-              >
+              <div style={{ padding: "16px" }}>
+                <div
+                  style={{
+                    marginBottom: "11px",
+                    fontSize: "10px",
+                    color: "#677482",
+                  }}
+                >
+                  Click each item when complete. Completed items will turn green.
+                </div>
+
                 <div
                   style={{
                     display: "flex",
@@ -1232,54 +1428,20 @@ CLOSING & READINESS
                     gap: "9px",
                   }}
                 >
-                  <button
-                    type="button"
-                    className={`closing-pill ${
-                      closing.equipment ? "closing-complete" : ""
-                    }`}
-                    onClick={() => toggleClosing("equipment")}
-                  >
-                    Equipment
+                  <button type="button" className={`closing-pill ${closing.equipment ? "closing-complete" : ""}`} onClick={() => toggleClosing("equipment")}>
+                    Equipment Clean & Ready
                   </button>
-
-                  <button
-                    type="button"
-                    className={`closing-pill ${
-                      closing.prepAreas ? "closing-complete" : ""
-                    }`}
-                    onClick={() => toggleClosing("prepAreas")}
-                  >
-                    Prep Areas
+                  <button type="button" className={`closing-pill ${closing.prepAreas ? "closing-complete" : ""}`} onClick={() => toggleClosing("prepAreas")}>
+                    Prep Areas Clean
                   </button>
-
-                  <button
-                    type="button"
-                    className={`closing-pill ${
-                      closing.floors ? "closing-complete" : ""
-                    }`}
-                    onClick={() => toggleClosing("floors")}
-                  >
-                    Floors
+                  <button type="button" className={`closing-pill ${closing.floors ? "closing-complete" : ""}`} onClick={() => toggleClosing("floors")}>
+                    Floors Clean
                   </button>
-
-                  <button
-                    type="button"
-                    className={`closing-pill ${
-                      closing.trash ? "closing-complete" : ""
-                    }`}
-                    onClick={() => toggleClosing("trash")}
-                  >
-                    Trash Cans
+                  <button type="button" className={`closing-pill ${closing.trash ? "closing-complete" : ""}`} onClick={() => toggleClosing("trash")}>
+                    Trash Emptied
                   </button>
-
-                  <button
-                    type="button"
-                    className={`closing-pill ${
-                      closing.kitchenReady ? "closing-complete" : ""
-                    }`}
-                    onClick={() => toggleClosing("kitchenReady")}
-                  >
-                    Kitchen Ready
+                  <button type="button" className={`closing-pill ${closing.kitchenReady ? "closing-complete" : ""}`} onClick={() => toggleClosing("kitchenReady")}>
+                    Kitchen Ready for Tomorrow
                   </button>
                 </div>
               </div>
@@ -1317,7 +1479,7 @@ SUBMIT
                 </strong>
                 <small>
                   {!formComplete &&
-                    "Complete all required items before submitting."}
+                    "Complete all required items and any required No/N/A explanations before submitting."}
                   {formComplete &&
                     !isPreviewMode &&
                     "All Finish Line requirements are complete."}
