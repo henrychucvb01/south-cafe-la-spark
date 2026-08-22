@@ -2899,19 +2899,19 @@ tbody tr.selected-row {
 
 .school-dashboard-section-title h2 {
   margin: 0;
-  font-size: 17px;
+  font-size: 15px;
 }
 
 .school-dashboard-section-title p {
   margin: 4px 0 0;
   color: #7a8593;
-  font-size: 18px;
+  font-size: 10px;
 }
 
 .school-dashboard-status {
   padding: 5px 9px;
   border-radius: 6px;
-  font-size: 15px;
+  font-size: 9px;
   font-weight: 800;
 }
 
@@ -4713,7 +4713,7 @@ button.homebase-card:hover {
 .labor-status {
   padding: 6px 9px;
   border-radius: 7px;
-  font-size: 18px;
+  font-size: 9px;
   font-weight: 800;
   text-transform: uppercase;
 }
@@ -6367,9 +6367,9 @@ button.homebase-card:hover {
   align-items: center;
   justify-content: center;
   min-height: 32px;
-  padding: 8px 14px;
+  padding: 7px 12px;
   border-radius: 8px;
-  font-size: 18px;
+  font-size: 12px;
   font-weight: 800;
   line-height: 1;
   white-space: nowrap;
@@ -6385,7 +6385,7 @@ button.homebase-card:hover {
   background: #f7fbff;
   color: #176ed5;
   font-family: inherit;
-  font-size: 18px;
+  font-size: 11px;
   font-weight: 800;
   cursor: pointer;
   transition:
@@ -6426,7 +6426,7 @@ button.homebase-card:hover {
   background: transparent;
   color: #627080;
   font-family: inherit;
-  font-size: 15px;
+  font-size: 11px;
   font-weight: 800;
   cursor: pointer;
   transition:
@@ -6451,7 +6451,7 @@ button.homebase-card:hover {
   .school-dashboard-status.date-badge {
     min-height: 30px;
     padding: 6px 10px;
-    font-size: 18px;
+    font-size: 11px;
   }
 
   .meal-analytics-button {
@@ -6467,26 +6467,208 @@ button.homebase-card:hover {
     flex: 1;
   }
 }
+
 /* =========================================================
-   MEAL ANALYTICS DATE BADGES
-   ========================================================= */
+   SPARK LAUNCH INTRO
+   White light -> SPARK logo -> existing welcome screen.
+   Plays once per browser/app session via sessionStorage.
+========================================================= */
+.spark-launch-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #07182d;
+  animation: sparkIntroExit 1.65s ease forwards;
+}
 
-.school-hub-page
-  .dashboard-card
-  .school-dashboard-section-title
-  > .school-dashboard-status.complete {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.spark-launch-light {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow:
+    0 0 14px 8px rgba(255,255,255,.96),
+    0 0 42px 24px rgba(255,255,255,.72);
+  animation: sparkLightBloom 1.05s ease-out forwards;
+}
 
-  min-height: 36px;
-  padding: 8px 14px;
+.spark-launch-logo {
+  position: relative;
+  z-index: 2;
+  width: min(180px, 42vw);
+  height: auto;
+  object-fit: contain;
+  opacity: 0;
+  transform: scale(.92);
+  filter: drop-shadow(0 10px 28px rgba(0,0,0,.2));
+  animation: sparkLogoReveal .72s .72s ease-out forwards;
+}
 
-  border-radius: 8px;
+@keyframes sparkLightBloom {
+  0% { transform: scale(.15); opacity: 0; }
+  18% { opacity: 1; }
+  62% {
+    transform: scale(30);
+    opacity: 1;
+    box-shadow:
+      0 0 32px 24px rgba(255,255,255,1),
+      0 0 110px 80px rgba(255,255,255,.96);
+  }
+  100% {
+    transform: scale(70);
+    opacity: .12;
+    box-shadow:
+      0 0 80px 70px rgba(255,255,255,.45),
+      0 0 180px 130px rgba(255,255,255,.18);
+  }
+}
 
-  font-size: 18px;
-  font-weight: 800;
+@keyframes sparkLogoReveal {
+  0% { opacity: 0; transform: scale(.92); }
+  45% { opacity: 1; transform: scale(1.035); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes sparkIntroExit {
+  0%, 82% { opacity: 1; }
+  100% { opacity: 0; visibility: hidden; pointer-events: none; }
+}
+
+/* =========================================================
+   FINISH LINE STREAK CELEBRATION
+========================================================= */
+.spark-finish-celebration {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: rgba(5, 20, 40, .76);
+  backdrop-filter: blur(4px);
+  animation: sparkCelebrationFade 2.2s ease forwards;
+}
+
+.spark-celebration-card {
+  position: relative;
+  z-index: 3;
+  width: min(390px, calc(100vw - 36px));
+  box-sizing: border-box;
+  padding: 28px 28px 26px;
+  text-align: center;
+  border: 1px solid rgba(255,255,255,.55);
+  border-radius: 22px;
+  background: rgba(255,255,255,.96);
+  box-shadow: 0 24px 70px rgba(0,0,0,.3);
+  animation: sparkCardPop .55s cubic-bezier(.2,.8,.2,1.15) both;
+}
+
+.spark-celebration-logo {
+  width: 68px;
+  height: 68px;
+  object-fit: contain;
+  margin-bottom: 8px;
+}
+
+.spark-celebration-kicker {
+  color: #0b2a55;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: .13em;
+}
+
+.spark-celebration-streak {
+  margin-top: 8px;
+  color: #e2a52f;
+  font-size: clamp(38px, 10vw, 58px);
   line-height: 1;
+  font-weight: 950;
+}
 
-  white-space: nowrap;
+.spark-celebration-label {
+  margin-top: 4px;
+  color: #0b2a55;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: .2em;
+}
+
+.spark-celebration-card p {
+  margin: 12px 0 0;
+  color: #516274;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.spark-firework {
+  --spark-size: 5px;
+  position: absolute;
+  width: var(--spark-size);
+  height: var(--spark-size);
+  border-radius: 50%;
+  opacity: 0;
+  background: #fff;
+  box-shadow:
+    0 -36px 0 0 #fff,
+    26px -26px 0 0 #e7ad3c,
+    36px 0 0 0 #fff,
+    26px 26px 0 0 #e7ad3c,
+    0 36px 0 0 #fff,
+    -26px 26px 0 0 #e7ad3c,
+    -36px 0 0 0 #fff,
+    -26px -26px 0 0 #e7ad3c,
+    0 -54px 0 -1px rgba(255,255,255,.9),
+    38px -38px 0 -1px rgba(255,255,255,.9),
+    54px 0 0 -1px rgba(255,255,255,.9),
+    38px 38px 0 -1px rgba(255,255,255,.9),
+    0 54px 0 -1px rgba(255,255,255,.9),
+    -38px 38px 0 -1px rgba(255,255,255,.9),
+    -54px 0 0 -1px rgba(255,255,255,.9),
+    -38px -38px 0 -1px rgba(255,255,255,.9);
+  animation: sparkFireworkBurst .7s ease-out both;
+}
+
+.spark-firework-one { left: 18%; top: 28%; animation-delay: .08s; }
+.spark-firework-two { right: 18%; top: 22%; animation-delay: .28s; }
+.spark-firework-three { left: 24%; bottom: 24%; animation-delay: .46s; }
+.spark-firework-four { right: 22%; bottom: 27%; animation-delay: .64s; }
+
+.spark-finish-celebration.milestone .spark-firework {
+  --spark-size: 6px;
+}
+
+@keyframes sparkFireworkBurst {
+  0% { opacity: 0; transform: scale(.12); }
+  18% { opacity: 1; }
+  72% { opacity: 1; transform: scale(1.05); }
+  100% { opacity: 0; transform: scale(1.25); }
+}
+
+@keyframes sparkCardPop {
+  0% { opacity: 0; transform: translateY(14px) scale(.9); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes sparkCelebrationFade {
+  0%, 78% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spark-launch-intro,
+  .spark-launch-light,
+  .spark-launch-logo,
+  .spark-finish-celebration,
+  .spark-celebration-card,
+  .spark-firework {
+    animation-duration: .01ms !important;
+    animation-delay: 0ms !important;
+  }
+
+  .spark-firework { display: none; }
 }
