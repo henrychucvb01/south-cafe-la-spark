@@ -161,7 +161,7 @@ export default function SparkIntro({ children }) {
 
           <div className="spark-intro-overlay" aria-label="Opening SPARK">
             <img
-              src="/spark-burst-navy.gif"
+             src={`/spark-burst-navy.gif?play=${Date.now()}`}
               alt=""
               className="spark-intro-burst"
               aria-hidden="true"
