@@ -146,6 +146,7 @@ function FinishLinePage({
   const [pageLoading, setPageLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [isEditing, setIsEditing] = useState(false);
+  const [celebration, setCelebration] = useState(null);
   // Snapshot of the Finish Line as it existed when this page loaded.
   // Used only to create an audit trail when an existing submission is edited.
   const [originalCheck, setOriginalCheck] = useState(null);
@@ -839,7 +840,24 @@ audit editing is confirmed working.
         );
         return;
       }
-      onComplete();
+      // Edits should return normally. Only a brand-new Finish Line
+      // submission earns the completion celebration.
+      if (isEditing) {
+        onComplete();
+        return;
+      }
+
+      const streak = await calculateFinishLineStreak(serviceDate);
+      setCelebration({
+        streak,
+        message: getStreakMessage(streak),
+        milestone: [5, 10, 25, 50, 100].includes(streak),
+      });
+
+      window.setTimeout(() => {
+        setCelebration(null);
+        onComplete();
+      }, 2200);
     } catch (error) {
       console.error("Unexpected Finish Line save error:", error);
       setMessage(`Could not save Finish Line Check: ${error.message}`);
@@ -864,6 +882,30 @@ PAGE
 ========================================================= */
   return (
     <div className="login-app">
+      {celebration && (
+        <div
+          className={`spark-finish-celebration ${
+            celebration.milestone ? "milestone" : ""
+          }`}
+          role="status"
+          aria-live="polite"
+        >
+          <div className="spark-firework spark-firework-one" aria-hidden="true" />
+          <div className="spark-firework spark-firework-two" aria-hidden="true" />
+          <div className="spark-firework spark-firework-three" aria-hidden="true" />
+          <div className="spark-firework spark-firework-four" aria-hidden="true" />
+
+          <div className="spark-celebration-card">
+            <img src="/spark-clear.png" alt="" className="spark-celebration-logo" />
+            <div className="spark-celebration-kicker">FINISH LINE COMPLETE</div>
+            <div className="spark-celebration-streak">
+              {celebration.streak} Day{celebration.streak === 1 ? "" : "s"}
+            </div>
+            <div className="spark-celebration-label">STREAK</div>
+            <p>{celebration.message}</p>
+          </div>
+        </div>
+      )}
       {/* HEADER */}
       <header className="login-header">
         <div className="login-brand">
