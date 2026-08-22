@@ -18,13 +18,13 @@ export default function SparkIntro({ children }) {
       "(prefers-reduced-motion: reduce)"
     )?.matches;
 
-    const duration = reduceMotion ? 250 : 2350;
+    const duration = reduceMotion ? 300 : 3600;
 
     const timer = window.setTimeout(() => {
       try {
         sessionStorage.setItem(INTRO_KEY, "yes");
       } catch {
-        // Storage may be unavailable; the intro can still finish.
+        // Intro still closes if browser storage is unavailable.
       }
 
       setShowIntro(false);
@@ -38,65 +38,69 @@ export default function SparkIntro({ children }) {
       position: fixed;
       inset: 0;
       z-index: 99999;
+      overflow: hidden;
+      background: #07182d;
       display: flex;
       align-items: center;
       justify-content: center;
-      overflow: hidden;
-      background: #07182d;
-      animation: sparkIntroOverlayFade 2.35s ease-in-out forwards;
+      animation: sparkOverlayExit 3.6s ease-in-out forwards;
     }
 
     .spark-intro-burst {
       position: absolute;
       left: 50%;
       top: 50%;
-      width: min(430px, 78vw);
+      width: min(430px, 82vw);
       height: auto;
-      transform: translate(-50%, -55%);
+      transform: translate(-50%, -52%);
       object-fit: contain;
-      opacity: 1;
-      animation: sparkIntroBurstFade 1.55s ease-out forwards;
+      z-index: 1;
+      animation: sparkBurstSequence 1.45s ease-out forwards;
     }
 
-    .spark-intro-logo {
-      position: relative;
-      z-index: 2;
-      width: min(180px, 38vw);
-      height: auto;
-      object-fit: contain;
+    .spark-intro-cover {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
       opacity: 0;
-      transform: scale(0.84);
-      filter: drop-shadow(0 10px 28px rgba(0, 0, 0, 0.28));
-      animation: sparkIntroLogoReveal 0.85s 1.08s
-        cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+      z-index: 2;
+      animation: sparkCoverReveal 2.15s 1.15s ease-in-out forwards;
     }
 
-    @keyframes sparkIntroBurstFade {
+    @keyframes sparkBurstSequence {
       0% {
         opacity: 1;
-        transform: translate(-50%, -55%) scale(0.92);
+        transform: translate(-50%, -52%) scale(0.94);
       }
 
-      72% {
+      70% {
         opacity: 1;
-        transform: translate(-50%, -55%) scale(1);
+        transform: translate(-50%, -52%) scale(1);
       }
 
       100% {
         opacity: 0;
-        transform: translate(-50%, -55%) scale(1.04);
+        transform: translate(-50%, -52%) scale(1.05);
       }
     }
 
-    @keyframes sparkIntroLogoReveal {
+    @keyframes sparkCoverReveal {
       0% {
         opacity: 0;
-        transform: scale(0.84);
+        transform: scale(1.02);
       }
 
-      45% {
+      18% {
         opacity: 1;
-        transform: scale(1.04);
+        transform: scale(1);
+      }
+
+      82% {
+        opacity: 1;
+        transform: scale(1);
       }
 
       100% {
@@ -105,9 +109,9 @@ export default function SparkIntro({ children }) {
       }
     }
 
-    @keyframes sparkIntroOverlayFade {
+    @keyframes sparkOverlayExit {
       0%,
-      84% {
+      88% {
         opacity: 1;
       }
 
@@ -118,13 +122,14 @@ export default function SparkIntro({ children }) {
       }
     }
 
-    @media (max-width: 600px) {
+    @media (max-width: 700px) {
       .spark-intro-burst {
-        width: min(340px, 88vw);
+        width: min(360px, 88vw);
       }
 
-      .spark-intro-logo {
-        width: min(150px, 42vw);
+      .spark-intro-cover {
+        object-fit: contain;
+        background: #07182d;
       }
     }
 
@@ -133,14 +138,15 @@ export default function SparkIntro({ children }) {
         display: none;
       }
 
-      .spark-intro-logo {
+      .spark-intro-cover {
         opacity: 1;
-        transform: none;
         animation: none;
+        object-fit: contain;
+        background: #07182d;
       }
 
       .spark-intro-overlay {
-        animation-duration: 250ms;
+        animation-duration: 300ms;
       }
     }
   `;
@@ -162,9 +168,9 @@ export default function SparkIntro({ children }) {
             />
 
             <img
-              src="/spark-clear.png"
+              src="/spark-cover-art.png"
               alt="SPARK"
-              className="spark-intro-logo"
+              className="spark-intro-cover"
             />
           </div>
         </>
