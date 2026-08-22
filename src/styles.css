@@ -6467,3 +6467,26 @@ button.homebase-card:hover {
     flex: 1;
   }
 }
+/* =========================================================
+   MEAL ANALYTICS DATE BADGES
+   ========================================================= */
+
+.school-hub-page
+  .dashboard-card
+  .school-dashboard-section-title
+  > .school-dashboard-status.complete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 36px;
+  padding: 8px 14px;
+
+  border-radius: 8px;
+
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+
+  white-space: nowrap;
+}
