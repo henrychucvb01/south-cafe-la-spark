@@ -10,6 +10,32 @@ import {
 } from "recharts";
 import { supabase } from "../supabaseClient";
 
+function isFinishLineCommentItem(item) {
+  return String(item?.item_key || "").endsWith("_comment");
+}
+
+function getFinishLineExplanation(items, itemKey) {
+  if (!itemKey || !Array.isArray(items)) {
+    return "";
+  }
+
+  const commentItem = items.find(
+    (item) => item.item_key === `${itemKey}_comment`
+  );
+
+  return commentItem?.answer || "";
+}
+
+function formatFinishLineAnswer(answer) {
+  const value = String(answer || "").toLowerCase();
+
+  if (value === "yes") return "YES";
+  if (value === "no") return "NO";
+  if (value === "na") return "N/A";
+
+  return String(answer || "—").toUpperCase();
+}
+
 const REIMBURSEMENT_RATES = {
   breakfast: 4.08,
   lunch: 5.9,
@@ -1292,39 +1318,106 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
                             <div className="command-flag-box">
                               <h4>⚠ Follow-Up Needed</h4>
 
-                              {selectedSchool.attentionItems.map((item) => (
-                                <div key={item.id}>• {item.item_label}</div>
-                              ))}
+                              {selectedSchool.attentionItems.map((item) => {
+                                const explanation = getFinishLineExplanation(
+                                  selectedSchool.check.finish_line_items,
+                                  item.item_key
+                                );
+
+                                return (
+                                  <div
+                                    key={item.id}
+                                    style={{ marginBottom: "9px" }}
+                                  >
+                                    <div>• {item.item_label}</div>
+
+                                    {explanation && (
+                                      <div
+                                        style={{
+                                          marginTop: "3px",
+                                          marginLeft: "13px",
+                                          fontSize: "11px",
+                                          opacity: 0.88,
+                                        }}
+                                      >
+                                        Explanation: {explanation}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
 
                           <h3>Full Finish Line</h3>
 
                           <div className="command-detail-list">
-                            {selectedSchool.check.finish_line_items?.map(
-                              (item) => (
-                                <div
-                                  className="command-detail-row"
-                                  key={item.id}
-                                >
-                                  <span>{item.item_label}</span>
+                            {selectedSchool.check.finish_line_items
+                              ?.filter((item) => !isFinishLineCommentItem(item))
+                              .map((item) => {
+                                const explanation = getFinishLineExplanation(
+                                  selectedSchool.check.finish_line_items,
+                                  item.item_key
+                                );
 
-                                  <div className="command-answer">
-                                    <span
-                                      className={`command-answer-dot ${
-                                        item.requires_attention ? "bad" : "good"
-                                      }`}
-                                    >
-                                      {item.requires_attention ? "!" : "✓"}
-                                    </span>
+                                const isNA =
+                                  String(item.answer || "").toLowerCase() === "na";
 
-                                    <strong>
-                                      {String(item.answer || "—").toUpperCase()}
-                                    </strong>
+                                return (
+                                  <div
+                                    className="command-detail-row"
+                                    key={item.id}
+                                    style={{
+                                      alignItems: "flex-start",
+                                      gap: "12px",
+                                    }}
+                                  >
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <span>{item.item_label}</span>
+
+                                      {explanation && (
+                                        <div
+                                          style={{
+                                            marginTop: "6px",
+                                            padding: "7px 9px",
+                                            borderRadius: "7px",
+                                            background: item.requires_attention
+                                              ? "#fff4f4"
+                                              : "#f5f7f9",
+                                            color: item.requires_attention
+                                              ? "#8f3535"
+                                              : "#667482",
+                                            fontSize: "11px",
+                                            lineHeight: "1.45",
+                                          }}
+                                        >
+                                          <strong>Explanation:</strong>{" "}
+                                          {explanation}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    <div className="command-answer">
+                                      <span
+                                        className={`command-answer-dot ${
+                                          item.requires_attention ? "bad" : "good"
+                                        }`}
+                                        title={
+                                          isNA
+                                            ? "Not applicable — explanation provided"
+                                            : undefined
+                                        }
+                                      >
+                                        {item.requires_attention ? "!" : "✓"}
+                                      </span>
+
+                                      <strong>
+                                        {formatFinishLineAnswer(item.answer)}
+                                      </strong>
+                                    </div>
                                   </div>
-                                </div>
-                              )
-                            )}
+                                );
+                              })}
                           </div>
 
                           {selectedSchool.check.comments && (
@@ -1629,6 +1722,7 @@ function RecentChangesView({
 
     if (text.toLowerCase() === "yes") return "YES";
     if (text.toLowerCase() === "no") return "NO";
+    if (text.toLowerCase() === "na") return "N/A";
     if (text.toLowerCase() === "complete") return "COMPLETE";
     if (text.toLowerCase() === "attention") return "NEEDS ATTENTION";
 
