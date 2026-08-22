@@ -112,6 +112,7 @@ function SchoolHub({
     return new Date(`${value}T12:00:00`).toLocaleDateString([], {
       month: "short",
       day: "numeric",
+      year: "numeric",
     });
   }
 
