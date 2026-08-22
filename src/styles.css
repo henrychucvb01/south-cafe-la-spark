@@ -6672,3 +6672,141 @@ button.homebase-card:hover {
 
   .spark-firework { display: none; }
 }
+/* =========================================================
+   SPARK — FINISH LINE TYPOGRAPHY PASS 1
+   ADD THIS TO THE VERY BOTTOM OF styles.css
+   Does not replace any existing CSS.
+========================================================= */
+
+/* Overall readable text */
+.finish-line-page {
+  font-size: 18px;
+}
+
+/* Main page title */
+.finish-line-top h1 {
+  font-size: 30px !important;
+  line-height: 1.15;
+}
+
+/* DATE — keep this exactly 18px */
+.finish-line-top p:first-of-type {
+  font-size: 18px !important;
+  line-height: 1.4;
+}
+
+/* School name below the date */
+.finish-line-top p {
+  font-size: 18px !important;
+}
+
+/* Back button and signed-in manager */
+.finish-line-back {
+  font-size: 17px !important;
+}
+
+.finish-line-user {
+  font-size: 17px !important;
+}
+
+/* Section headings */
+.check-section-heading h2 {
+  font-size: 21px !important;
+  line-height: 1.25;
+}
+
+.check-section-heading p {
+  font-size: 16px !important;
+  line-height: 1.45;
+}
+
+.section-number {
+  font-size: 16px !important;
+}
+
+/* Main checklist questions */
+.check-item strong {
+  font-size: 18px !important;
+  line-height: 1.45;
+}
+
+/* Supporting/helper text */
+.check-item small {
+  font-size: 16px !important;
+  line-height: 1.45;
+}
+
+/* Yes / No / N/A buttons */
+.yes-no-button {
+  font-size: 17px !important;
+}
+
+/* Any small inline font-size left inside FinishLinePage.js
+   (notices, comment-required messages, meal labels, helper notes,
+   Monday date chips, Closing & Readiness instructions) */
+.finish-line-page [style*="font-size"] {
+  font-size: 16px !important;
+  line-height: 1.45;
+}
+
+/* Meal count labels */
+.finish-line-form label {
+  font-size: 16px !important;
+}
+
+/* Meal count entry boxes */
+.finish-line-form input[type="text"] {
+  font-size: 18px !important;
+}
+
+/* Comment boxes */
+.finish-line-page .comments-box {
+  font-size: 18px !important;
+  line-height: 1.5;
+}
+
+/* Bottom submit area */
+.finish-line-submit-area strong {
+  font-size: 18px !important;
+}
+
+.finish-line-submit-area small {
+  font-size: 16px !important;
+  line-height: 1.45;
+}
+
+.finish-line-submit {
+  font-size: 17px !important;
+}
+
+/* =========================================================
+   MOBILE
+   Keep normal text readable while reducing only the big title.
+========================================================= */
+@media (max-width: 650px) {
+  .finish-line-top h1 {
+    font-size: 26px !important;
+  }
+
+  /* Date remains exactly 18px on mobile */
+  .finish-line-top p:first-of-type {
+    font-size: 18px !important;
+  }
+
+  .finish-line-top p {
+    font-size: 18px !important;
+  }
+
+  .check-section-heading h2 {
+    font-size: 20px !important;
+  }
+
+  .check-item strong {
+    font-size: 18px !important;
+  }
+
+  .yes-no-button {
+    font-size: 17px !important;
+    min-height: 44px;
+  }
+}
