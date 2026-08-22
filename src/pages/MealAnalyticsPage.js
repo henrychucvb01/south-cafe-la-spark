@@ -270,6 +270,7 @@ function MealAnalyticsPage({ location, employee, onBack }) {
           {
             month: "short",
             day: "numeric",
+            year: "numeric",
           }
         ),
 
