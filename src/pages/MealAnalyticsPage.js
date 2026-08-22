@@ -620,6 +620,7 @@ function MealAnalyticsPage({ location, employee, onBack }) {
                 {new Date().toLocaleDateString([], {
                   month: "short",
                   day: "numeric",
+                  year: "numeric",
                 })}
               </span>
             </div>
