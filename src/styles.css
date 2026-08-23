@@ -6481,7 +6481,7 @@ button.homebase-card:hover {
   place-items: center;
   overflow: hidden;
   background: #07182d;
-  animation: sparkIntroExit 1.65s ease forwards;
+  animation: sparkIntroExit 1.25s ease forwards;
 }
 
 .spark-launch-light {
