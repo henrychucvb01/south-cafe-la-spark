@@ -980,14 +980,12 @@ PAGE
 PAGE HEADER
 ===================================== */}
           <div className="finish-line-top">
-            <button type="button" className="finish-line-back" onClick={onBack}>
-              ←{" "}
-              {isPreviewMode
-                ? "Command Center"
-                : isEditing
-                ? "School Dashboard"
-                : "School Hub"}
-            </button>
+         <button type="button" className="finish-line-back" onClick={onBack}>
+          ←{" "}
+          {isPreviewMode
+            ? "Command Center"
+          : "Finish Line Overview"}
+        </button>
             <div>
               <h1>Finish Line Check</h1>
               <p
