@@ -808,7 +808,7 @@ records when the correction happened.
         .single();
       if (checkError) {
         console.error("Finish Line save error:", checkError);
-        setMessage(`Could not save Finish Line Check: ${checkError.message}`);
+        setMessage(`Could not save Finish Line Checklist: ${checkError.message}`);
         return;
       }
       /* =====================================
@@ -917,7 +917,7 @@ audit editing is confirmed working.
       }, 2200);
     } catch (error) {
       console.error("Unexpected Finish Line save error:", error);
-      setMessage(`Could not save Finish Line Check: ${error.message}`);
+      setMessage(`Could not save Finish Line Checklist: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -970,7 +970,7 @@ PAGE
 
           <div>
             <div className="login-brand-name">SOUTH CAFÉ LA</div>
-            <div className="login-brand-subtitle">OPERATIONS</div>
+            <div className="login-brand-subtitle">FINISH LINE CHECKLIST</div>
           </div>
         </div>
       </header>
@@ -987,7 +987,7 @@ PAGE HEADER
           : "Finish Line Overview"}
         </button>
             <div>
-              <h1>Finish Line Check</h1>
+              <h1>Finish Line Checklist</h1>
               <p
                 style={{
                   fontWeight: "700",
@@ -1029,7 +1029,7 @@ PAGE HEADER
                 fontSize: "11px",
               }}
             >
-              You are editing the Finish Line Check for {getTodayLabel()}.
+              You are editing the Finish Line Checklist for {getTodayLabel()}.
             </div>
           )}
           {message && <div className="login-error">{message}</div>}
@@ -1606,7 +1606,7 @@ SUBMIT
                   ? "Preview Complete"
                   : isEditing
                   ? "Save Finish Line Changes"
-                  : "Submit Finish Line Check"}
+                  : "Submit Finish Line Checklist"}
               </button>
             </div>
           </form>
