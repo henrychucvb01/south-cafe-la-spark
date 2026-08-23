@@ -146,7 +146,7 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
 
           <div>
             <div className="login-brand-name">SOUTH CAFÉ LA</div>
-            <div className="login-brand-subtitle">Finish Line Overview</div>
+            <div className="login-brand-subtitle">FINISH LINE OVERVIEW</div>
           </div>
         </div>
 
