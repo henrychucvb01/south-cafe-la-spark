@@ -146,12 +146,12 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
 
           <div>
             <div className="login-brand-name">SOUTH CAFÉ LA</div>
-            <div className="login-brand-subtitle">SCHOOL DASHBOARD</div>
+            <div className="login-brand-subtitle">SCHOOL HUB</div>
           </div>
         </div>
 
         <button className="supervisor-link" onClick={onBack}>
-          ← School Hub
+          ← School Dashboard
         </button>
       </header>
 
