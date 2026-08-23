@@ -715,7 +715,7 @@ function SchoolHub({
 
                     padding: "5px 8px",
 
-                    fontSize: "9px",
+                    fontSize: "13px",
 
                     fontWeight: "800",
                   }}
@@ -755,7 +755,7 @@ function SchoolHub({
                   <label
                     style={{
                       display: "block",
-                      fontSize: "10px",
+                      fontSize: "13px",
                       fontWeight: "800",
                       marginBottom: "5px",
                     }}
@@ -775,7 +775,7 @@ function SchoolHub({
                       border: "1px solid #d6dfe7",
                       borderRadius: "7px",
                       padding: "10px",
-                      fontSize: "14px",
+                      fontSize: "16px",
                       fontWeight: "700",
                     }}
                   />
@@ -863,7 +863,7 @@ function SchoolHub({
                   style={{
                     color: finishLineComplete ? "#237044" : "#9a6710",
                     fontWeight: "800",
-                    fontSize: "14px",
+                    fontSize: "16px",
                   }}
                 >
                   {getFinishLineStreakText()}
@@ -1043,7 +1043,7 @@ function SchoolHub({
                 }}
               >
                 {latest && (
-                  <span className="school-dashboard-status complete">
+                  <span className="school-dashboard-status complete date-badge">
                     {formatShortDate(latest.service_date)}
                   </span>
                 )}
