@@ -7139,7 +7139,7 @@ button.homebase-card:hover {
    School Status Overview
 */
 .command-section-header h3 {
-  font-size: 30px !important;
+  font-size: 20px !important;
   line-height: 1.25 !important;
   font-weight: 800 !important;
 }
@@ -7161,4 +7161,47 @@ button.homebase-card:hover {
   font-size: 16px !important;
   font-weight: 800 !important;
   padding: 5px 9px !important;
+}
+/* =========================================================
+   SUPERVISOR — READABILITY PASS
+   Operational text = 18px
+========================================================= */
+
+/* Priority Exception rows */
+.command-exception-school strong,
+.command-exception-school small,
+.command-exception-status {
+  font-size: 18px !important;
+  line-height: 1.4 !important;
+}
+
+/* What Needs Your Attention — 3 summary categories */
+.command-attention-item strong,
+.command-attention-item small {
+  font-size: 18px !important;
+  line-height: 1.4 !important;
+}
+
+/* Showing: All Good / Not Submitted / etc. */
+.command-filter-status,
+.command-filter-status strong,
+.command-filter-status span {
+  font-size: 18px !important;
+}
+
+/* Selected-school detail panel */
+.command-detail-location,
+.command-detail-location strong,
+.command-detail-location span,
+.command-detail-status {
+  font-size: 18px !important;
+}
+
+/* Finish Line Not Submitted empty state */
+.command-empty-state,
+.command-empty-state strong,
+.command-empty-state p,
+.command-empty-state span {
+  font-size: 18px !important;
+  line-height: 1.45 !important;
 }
