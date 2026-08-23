@@ -841,7 +841,7 @@ function SchoolHub({
               </div>
 
               <div style={{ flex: 1, minWidth: 0 }}>
-                <strong>Finish Line Check</strong>
+                <strong>Finish Line Checklist</strong>
 
                 <small>
                   {finishLineComplete
@@ -877,7 +877,7 @@ function SchoolHub({
               <div className="hub-action-icon">📋</div>
 
               <div>
-                <strong>Finish Line History</strong>
+                <strong>Finish Line Checklist History</strong>
 
                 <small>Review today's status and previous submissions</small>
               </div>
