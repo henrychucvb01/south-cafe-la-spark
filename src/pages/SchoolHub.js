@@ -46,6 +46,10 @@ function SchoolHub({
 }) {
   const [mealCounts, setMealCounts] = useState([]);
 
+  // Finish Line dashboard status / streak
+  const [todayFinishLine, setTodayFinishLine] = useState(null);
+  const [finishLineStreak, setFinishLineStreak] = useState(0);
+
   // Weekly / Monthly
   const [range, setRange] = useState("weekly");
 
@@ -81,7 +85,106 @@ function SchoolHub({
 
     loadMealCounts();
     loadPendingSupper();
+    loadFinishLineDashboardStatus();
   }, [location?.id, range]);
+
+  /* =========================================================
+     FINISH LINE DASHBOARD STATUS + STREAK
+  ========================================================= */
+
+  function previousWeekday(date) {
+    const previous = new Date(date);
+    previous.setDate(previous.getDate() - 1);
+
+    while (previous.getDay() === 0 || previous.getDay() === 6) {
+      previous.setDate(previous.getDate() - 1);
+    }
+
+    return previous;
+  }
+
+  async function loadFinishLineDashboardStatus() {
+    if (!location?.id) {
+      return;
+    }
+
+    try {
+      const today = getDateString(new Date());
+
+      const { data: todayData, error: todayError } = await supabase
+        .from("finish_line_checks")
+        .select("id, service_date, status")
+        .eq("location_id", location.id)
+        .eq("service_date", today)
+        .maybeSingle();
+
+      if (todayError) {
+        throw todayError;
+      }
+
+      setTodayFinishLine(todayData || null);
+
+      const { data: completedRows, error: streakError } = await supabase
+        .from("finish_line_checks")
+        .select("service_date")
+        .eq("location_id", location.id)
+        .eq("status", "complete")
+        .lte("service_date", today)
+        .order("service_date", { ascending: false })
+        .limit(100);
+
+      if (streakError) {
+        throw streakError;
+      }
+
+      const completedDates = new Set(
+        (completedRows || []).map((row) => row.service_date)
+      );
+
+      const todayIsComplete = todayData?.status === "complete";
+
+      let expectedDate = todayIsComplete
+        ? new Date(`${today}T12:00:00`)
+        : previousWeekday(new Date(`${today}T12:00:00`));
+
+      let streak = 0;
+
+      while (streak < 100) {
+        const expectedString = getDateString(expectedDate);
+
+        if (!completedDates.has(expectedString)) {
+          break;
+        }
+
+        streak += 1;
+        expectedDate = previousWeekday(expectedDate);
+      }
+
+      setFinishLineStreak(streak);
+    } catch (error) {
+      console.error("Finish Line dashboard status error:", error);
+      setTodayFinishLine(null);
+      setFinishLineStreak(0);
+    }
+  }
+
+  const finishLineComplete = todayFinishLine?.status === "complete";
+
+  function getFinishLineStreakText() {
+    if (finishLineComplete) {
+      if (finishLineStreak <= 1) {
+        return "🔥 Streak started — Complete ✓";
+      }
+
+      return `🔥 ${finishLineStreak}-day streak — Complete ✓`;
+    }
+
+    if (finishLineStreak > 0) {
+      return `🔥 ${finishLineStreak}-day streak — Keep it going!`;
+    }
+
+    return "🔥 Start your streak today";
+  }
 
   /* =========================================================
      DATE HELPERS
@@ -554,7 +657,7 @@ function SchoolHub({
           <div>
             <div className="login-brand-name">SOUTH CAFÉ LA</div>
 
-            <div className="login-brand-subtitle">OPERATIONS</div>
+            <div className="login-brand-subtitle">SCHOOL DASHBOARD</div>
           </div>
         </div>
       </header>
@@ -712,16 +815,62 @@ function SchoolHub({
               </div>
             </div>
 
-            <button className="hub-action primary" onClick={onFinishLine}>
-              <div className="hub-action-icon">🏁</div>
-
-              <div>
-                <strong>Finish Line Check</strong>
-
-                <small>Complete today's end-of-day verification</small>
+            <button
+              className="hub-action primary"
+              onClick={onFinishLine}
+              style={
+                finishLineComplete
+                  ? {
+                      background: "#eff9f3",
+                      borderColor: "#8fd0a8",
+                    }
+                  : undefined
+              }
+            >
+              <div
+                className="hub-action-icon"
+                style={
+                  finishLineComplete
+                    ? {
+                        background: "#dff4e7",
+                      }
+                    : undefined
+                }
+              >
+                {finishLineComplete ? "✓" : "🏁"}
               </div>
 
-              <span>›</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <strong>Finish Line Check</strong>
+
+                <small>
+                  {finishLineComplete
+                    ? "Today's Finish Line is complete"
+                    : "Complete today's end-of-day verification"}
+                </small>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "14px",
+                  marginLeft: "auto",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <span
+                  style={{
+                    color: finishLineComplete ? "#237044" : "#9a6710",
+                    fontWeight: "800",
+                    fontSize: "14px",
+                  }}
+                >
+                  {getFinishLineStreakText()}
+                </span>
+
+                <span>›</span>
+              </div>
             </button>
 
             <button className="hub-action" onClick={onDashboard}>
