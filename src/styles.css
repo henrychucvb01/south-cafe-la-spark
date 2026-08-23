@@ -7117,24 +7117,15 @@ button.homebase-card:hover {
    SPARK — MANAGER CONTROL SIZE FIX
 ========================================================= */
 
-/* Date badge */
-.school-dashboard-status.complete {
-  font-size: 18px !important;
-  padding: 9px 13px !important;
-  line-height: 1.1 !important;
-}
-
-/* Meals / Reimbursement toggle container */
 .revenue-range-toggle,
 .meal-range-toggle {
   min-height: 42px;
 }
 
-/* Meals / Reimbursement buttons */
 .revenue-range-toggle button,
 .meal-range-toggle button {
-  font-size: 16px !important;
-  font-weight: 800 !important;
   min-height: 38px;
   padding: 8px 15px !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
 }
