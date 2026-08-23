@@ -7129,3 +7129,36 @@ button.homebase-card:hover {
   font-size: 16px !important;
   font-weight: 800 !important;
 }
+/* =========================================================
+   SUPERVISOR TYPOGRAPHY CLEANUP
+========================================================= */
+
+/* Section titles:
+   What Needs Your Attention
+   Priority Exceptions
+   School Status Overview
+*/
+.command-section-header h3 {
+  font-size: 19px !important;
+  line-height: 1.25 !important;
+  font-weight: 800 !important;
+}
+
+/* Descriptions under those section titles */
+.command-section-header p {
+  font-size: 16px !important;
+  line-height: 1.45 !important;
+}
+
+/* MPLH number in School Status Overview */
+.mplh-supervisor-cell strong {
+  font-size: 16px !important;
+  font-weight: 800 !important;
+}
+
+/* Below Target / On Target / High Productivity badges */
+.mplh-supervisor-status {
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  padding: 5px 9px !important;
+}
