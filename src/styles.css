@@ -7162,46 +7162,53 @@ button.homebase-card:hover {
   font-weight: 800 !important;
   padding: 5px 9px !important;
 }
+
 /* =========================================================
-   SUPERVISOR — READABILITY PASS
-   Operational text = 18px
+   SUPERVISOR — 18PX READABILITY PASS
 ========================================================= */
 
-/* Priority Exception rows */
-.command-exception-school strong,
-.command-exception-school small,
-.command-exception-status {
-  font-size: 18px !important;
-  line-height: 1.4 !important;
-}
-
-/* What Needs Your Attention — 3 summary categories */
+/* What Needs Your Attention */
 .command-attention-item strong,
 .command-attention-item small {
   font-size: 18px !important;
   line-height: 1.4 !important;
 }
 
-/* Showing: All Good / Not Submitted / etc. */
-.command-filter-status,
-.command-filter-status strong,
-.command-filter-status span {
+/* Priority Exceptions — school, description, Missing/issues */
+.priority-exception-row > div strong,
+.priority-exception-row > div small,
+.priority-exception-row > span:last-child {
+  font-size: 18px !important;
+  line-height: 1.4 !important;
+}
+
+/* Showing: All Schools / Not Submitted / etc. */
+.command-filter-bar,
+.command-filter-bar strong,
+.command-filter-bar span,
+.command-filter-bar button {
   font-size: 18px !important;
 }
 
-/* Selected-school detail panel */
-.command-detail-location,
-.command-detail-location strong,
-.command-detail-location span,
-.command-detail-status {
+/* Selected school detail */
+.command-detail-location {
   font-size: 18px !important;
 }
 
-/* Finish Line Not Submitted empty state */
-.command-empty-state,
-.command-empty-state strong,
-.command-empty-state p,
-.command-empty-state span {
+/* Selected school status pill */
+.command-detail-pill {
+  font-size: 18px !important;
+}
+
+/* Finish Line Not Submitted */
+.command-no-submission h3,
+.command-no-submission p {
   font-size: 18px !important;
   line-height: 1.45 !important;
+}
+
+/* MPLH value + status badge */
+.mplh-supervisor-cell strong,
+.mplh-supervisor-status {
+  font-size: 18px !important;
 }
