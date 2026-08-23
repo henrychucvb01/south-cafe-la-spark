@@ -6811,3 +6811,305 @@ button.homebase-card:hover {
   }
 }
 
+
+/* =========================================================
+   SPARK — MANAGER TYPOGRAPHY STANDARD
+   August 2026
+   Keeps manager-facing pages visually consistent.
+========================================================= */
+
+/* ---------- HOME BASE ---------- */
+.homebase-eyebrow {
+  font-size: 13px !important;
+}
+
+.homebase-welcome h1 {
+  font-size: 30px !important;
+  line-height: 1.15;
+}
+
+.homebase-welcome p {
+  font-size: 16px !important;
+}
+
+.homebase-intro h2 {
+  font-size: 21px !important;
+}
+
+.homebase-intro p {
+  font-size: 16px !important;
+  line-height: 1.45;
+}
+
+.homebase-card-body strong {
+  font-size: 16px !important;
+  line-height: 1.3;
+}
+
+.homebase-card-body span {
+  font-size: 14px !important;
+  line-height: 1.45;
+}
+
+.homebase-coming-soon {
+  font-size: 12px !important;
+}
+
+.homebase-exit-button {
+  font-size: 15px !important;
+}
+
+/* ---------- MANAGER PAGE HEADER ---------- */
+.school-dashboard-header h1 {
+  font-size: 30px !important;
+  line-height: 1.15;
+}
+
+.school-dashboard-header p {
+  font-size: 16px !important;
+  line-height: 1.4;
+}
+
+.dashboard-small-label {
+  font-size: 13px !important;
+}
+
+.dashboard-exit,
+.supervisor-link {
+  font-size: 15px !important;
+}
+
+/* ---------- GENERAL MANAGER CARDS ---------- */
+.dashboard-card .school-dashboard-section-title h2 {
+  font-size: 19px !important;
+  line-height: 1.25;
+}
+
+.dashboard-card .school-dashboard-section-title p {
+  font-size: 16px !important;
+  line-height: 1.45;
+}
+
+/* ---------- TODAY'S OPERATIONS ---------- */
+.hub-action strong {
+  font-size: 16px !important;
+  line-height: 1.3;
+}
+
+.hub-action small {
+  font-size: 14px !important;
+  line-height: 1.4;
+}
+
+.hub-action > span {
+  font-size: 22px;
+}
+
+/* ---------- STATUS / DATE BADGES ---------- */
+.school-dashboard-status {
+  font-size: 13px !important;
+}
+
+/* User preference: displayed dates should be 18px */
+.school-dashboard-status.date-badge {
+  min-height: 38px;
+  padding: 8px 13px;
+  font-size: 18px !important;
+  line-height: 1;
+}
+
+/* View Meal Analytics should visually match the larger date control */
+.meal-analytics-button {
+  min-height: 42px !important;
+  padding: 0 16px !important;
+  font-size: 16px !important;
+  font-weight: 800;
+}
+
+/* ---------- LABOR PRODUCTIVITY ---------- */
+.labor-mplh-main span,
+.labor-stat span {
+  font-size: 13px !important;
+  line-height: 1.3;
+}
+
+.labor-mplh-main strong {
+  font-size: 34px !important;
+}
+
+.labor-stat strong {
+  font-size: 28px !important;
+}
+
+.labor-mplh-main small,
+.labor-stat small {
+  font-size: 13px !important;
+  line-height: 1.4;
+}
+
+.labor-status {
+  font-size: 12px !important;
+}
+
+.labor-status-message {
+  font-size: 14px !important;
+  line-height: 1.5;
+}
+
+.labor-adjustment-heading {
+  font-size: 16px !important;
+}
+
+.labor-adjustment-help {
+  font-size: 14px !important;
+  line-height: 1.45;
+}
+
+.labor-adjustment-grid label {
+  font-size: 13px !important;
+}
+
+.labor-adjustment-grid input {
+  font-size: 16px !important;
+}
+
+.labor-save-row .finish-line-submit {
+  font-size: 16px !important;
+}
+
+.labor-message-success,
+.labor-message-error {
+  font-size: 14px !important;
+}
+
+/* ---------- LATEST MEAL COUNTS ---------- */
+.meal-summary-card span {
+  font-size: 14px !important;
+}
+
+.meal-summary-card strong {
+  font-size: 28px !important;
+}
+
+.meal-summary-card small {
+  font-size: 13px !important;
+}
+
+/* ---------- FINISH LINE OVERVIEW ---------- */
+.school-status-banner strong {
+  font-size: 16px !important;
+}
+
+.school-status-banner span {
+  font-size: 14px !important;
+}
+
+.school-status-time small {
+  font-size: 13px !important;
+}
+
+.school-status-time strong {
+  font-size: 15px !important;
+}
+
+.school-check-row {
+  font-size: 15px !important;
+}
+
+.school-check-label > div > span {
+  font-size: 15px !important;
+  line-height: 1.4;
+}
+
+.school-check-row > strong {
+  font-size: 15px !important;
+}
+
+.school-history-date strong {
+  font-size: 18px !important;
+}
+
+.school-history-date small,
+.school-history-right small {
+  font-size: 14px !important;
+}
+
+.school-history-pill {
+  font-size: 13px !important;
+}
+
+/* ---------- MEAL ANALYTICS ---------- */
+.meal-analytics-stat span {
+  font-size: 13px !important;
+}
+
+.meal-analytics-stat strong {
+  font-size: 30px !important;
+}
+
+.meal-analytics-stat small {
+  font-size: 13px !important;
+  line-height: 1.4;
+}
+
+.participation-donut-label {
+  font-size: 13px !important;
+  line-height: 1.25;
+}
+
+.participation-donut-center strong {
+  font-size: 15px !important;
+}
+
+.participation-donut-card small {
+  font-size: 12px !important;
+  line-height: 1.35;
+}
+
+.meal-analytics-attendance-note {
+  font-size: 14px !important;
+}
+
+.meal-insight-row {
+  font-size: 14px !important;
+  line-height: 1.5;
+}
+
+.meal-analytics-table th {
+  font-size: 13px !important;
+}
+
+.meal-analytics-table td {
+  font-size: 15px !important;
+}
+
+/* Revenue / analytics controls */
+.revenue-range-toggle button,
+.meal-range-toggle button,
+.meal-analytics-filter-row button {
+  font-size: 14px !important;
+}
+
+/* ---------- MOBILE ---------- */
+@media (max-width: 760px) {
+  .homebase-welcome h1,
+  .school-dashboard-header h1 {
+    font-size: 26px !important;
+  }
+
+  .dashboard-card .school-dashboard-section-title h2 {
+    font-size: 18px !important;
+  }
+
+  .dashboard-card .school-dashboard-section-title p {
+    font-size: 15px !important;
+  }
+
+  .school-dashboard-status.date-badge {
+    font-size: 18px !important;
+  }
+
+  .meal-analytics-button {
+    font-size: 15px !important;
+  }
+}
