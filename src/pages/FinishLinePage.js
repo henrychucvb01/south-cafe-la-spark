@@ -700,6 +700,63 @@ AUDIT HELPERS
     }
     return auditRows;
   }
+
+  /* =========================================================
+  FINISH LINE STREAK HELPERS
+  ========================================================= */
+  async function calculateFinishLineStreak(serviceDate) {
+    const { data, error } = await supabase
+      .from("finish_line_checks")
+      .select("service_date, status")
+      .eq("location_id", location.id)
+      .eq("status", "complete")
+      .lte("service_date", serviceDate)
+      .order("service_date", { ascending: false })
+      .limit(100);
+
+    if (error) {
+      console.error("Could not calculate Finish Line streak:", error);
+      return 1;
+    }
+
+    if (!data || data.length === 0) {
+      return 1;
+    }
+
+    let streak = 0;
+    let expectedDate = new Date(`${serviceDate}T12:00:00`);
+
+    for (const row of data) {
+      while (
+        expectedDate.getDay() === 0 ||
+        expectedDate.getDay() === 6
+      ) {
+        expectedDate.setDate(expectedDate.getDate() - 1);
+      }
+
+      const expected = expectedDate.toISOString().split("T")[0];
+
+      if (row.service_date !== expected) {
+        break;
+      }
+
+      streak += 1;
+      expectedDate.setDate(expectedDate.getDate() - 1);
+    }
+
+    return Math.max(streak, 1);
+  }
+
+  function getStreakMessage(streak) {
+    if (streak >= 100) return "Incredible consistency. Keep SPARKing!";
+    if (streak >= 50) return "Outstanding Finish Line consistency!";
+    if (streak >= 25) return "Amazing work keeping the streak alive!";
+    if (streak >= 10) return "Double digits! Great consistency!";
+    if (streak >= 5) return "Five days strong. Keep it going!";
+    if (streak >= 2) return "Another Finish Line complete. Nice work!";
+    return "Finish Line complete. Great job today!";
+  }
+
   /* =========================================================
 SAVE
 ========================================================= */
