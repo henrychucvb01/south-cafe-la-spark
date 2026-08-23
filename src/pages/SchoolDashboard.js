@@ -190,7 +190,7 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
             </div>
 
             <div>
-              <strong>Today's Finish Line Check</strong>
+              <strong>Today's Finish Line Checklist</strong>
 
               <span>
                 {!todayCheck && "Not submitted today"}
@@ -239,7 +239,7 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
                     className="dashboard-exit"
                     onClick={() => onEditFinishLine(todayCheck)}
                   >
-                    Edit Finish Line
+                    Edit Finish Line Checklist
                   </button>
                 </div>
               </div>
@@ -324,7 +324,7 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
           <section className="dashboard-card">
             <div className="school-dashboard-section-title">
               <div>
-                <h2>Finish Line History</h2>
+                <h2>Finish Line Checklist History</h2>
                 <p>Most recent submissions</p>
               </div>
             </div>
