@@ -578,7 +578,7 @@ function MealAnalyticsPage({ location, employee, onBack }) {
         </div>
 
         <button type="button" className="supervisor-link" onClick={onBack}>
-          ← School Hub
+          ← School Dashboard
         </button>
       </header>
 
