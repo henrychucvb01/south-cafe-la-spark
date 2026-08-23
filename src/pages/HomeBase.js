@@ -58,7 +58,7 @@ function HomeBase({
               <div className="homebase-card-icon">🏫</div>
 
               <div className="homebase-card-body">
-                <strong>School Hub</strong>
+                <strong>School Dashboard</strong>
 
                 <span>
                   Meal counts, trends, Finish Line Check, and daily operations.
