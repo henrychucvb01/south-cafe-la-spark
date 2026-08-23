@@ -616,7 +616,7 @@ function MealAnalyticsPage({ location, employee, onBack }) {
                 <p>Meal participation and labor productivity for today.</p>
               </div>
 
-              <span className="school-dashboard-status complete">
+              <span className="school-dashboard-status complete date-badge">
                 {new Date().toLocaleDateString([], {
                   month: "short",
                   day: "numeric",
@@ -818,7 +818,7 @@ function MealAnalyticsPage({ location, employee, onBack }) {
                         <XAxis
                           dataKey="dateLabel"
                           tick={{
-                            fontSize: 11,
+                            fontSize: 13,
                           }}
                           axisLine={false}
                           tickLine={false}
@@ -826,7 +826,7 @@ function MealAnalyticsPage({ location, employee, onBack }) {
 
                         <YAxis
                           tick={{
-                            fontSize: 11,
+                            fontSize: 13,
                           }}
                           axisLine={false}
                           tickLine={false}
@@ -871,7 +871,7 @@ function MealAnalyticsPage({ location, employee, onBack }) {
                   </div>
 
                   {selectedRevenueRow && (
-                    <span className="school-dashboard-status complete">
+                    <span className="school-dashboard-status complete date-badge">
                       {selectedRevenueRow.dateLabel}
                     </span>
                   )}
@@ -974,7 +974,7 @@ function MealAnalyticsPage({ location, employee, onBack }) {
                   </div>
 
                   {selectedPerformanceRow && (
-                    <span className="school-dashboard-status complete">
+                    <span className="school-dashboard-status complete date-badge">
                       {selectedPerformanceRow.dateLabel}
                     </span>
                   )}
