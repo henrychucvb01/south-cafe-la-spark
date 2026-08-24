@@ -149,6 +149,20 @@ function ManagerPinPage({ location, employee, onSuccess, onBack }) {
   const creating = mode === "create";
   const covering = mode === "verify-covering";
 
+  const resetEmailHref = `mailto:huy.l.nguyen@lausd.net?subject=${encodeURIComponent(
+    "SPARK PIN Reset Request"
+  )}&body=${encodeURIComponent(
+    `Hello Huy,
+
+I need my SPARK PIN reset.
+
+Manager: ${employee?.employee_name || "Manager"}
+School: ${location?.school_name || "School"}
+Location: ${location?.location_code || ""}
+
+Please contact me to verify my identity before resetting my PIN.`
+  )}`;
+
   return (
     <div className="login-app">
       <header className="login-header">
@@ -235,25 +249,16 @@ function ManagerPinPage({ location, employee, onSuccess, onBack }) {
                 placeholder="••••"
               />
 
+              {!creating && !covering && (
+                <a
+                  className="manager-pin-reset-link"
+                  href={resetEmailHref}
+                >
+                  Forgot your PIN? Request a reset
+                </a>
+              )}
+
               {creating && (
-                  <a
-  className="manager-pin-reset-link"
-  href={`mailto:huy.l.nguyen@lausd.net?subject=${encodeURIComponent(
-    "SPARK PIN Reset Request"
-  )}&body=${encodeURIComponent(
-    `Hello Huy,
-
-I need my SPARK PIN reset.
-
-Manager: ${employee?.employee_name || "Manager"}
-School: ${location?.school_name || "School"}
-Location: ${location?.location_code || ""}
-
-Please contact me to verify my identity before resetting my PIN.`
-  )}`}
->
-  Forgot your PIN? Request a reset
-</a>
                 <>
                   <label
                     className="manager-pin-label"
