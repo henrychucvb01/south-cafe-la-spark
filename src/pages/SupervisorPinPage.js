@@ -1,24 +1,47 @@
 import React, { useState } from "react";
+import { supabase } from "../supabaseClient";
 
 function SupervisorPinPage({ onSuccess, onBack }) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  // Prototype PIN only.
-  // Later we will move this to Supabase.
-  const supervisorPin = "0928";
-
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
 
-    if (pin === supervisorPin) {
-      setError("");
-      onSuccess();
+    if (pin.length !== 4) {
+      setError("Enter your 4-digit supervisor PIN.");
       return;
     }
 
-    setError("Incorrect supervisor PIN.");
-    setPin("");
+    setSubmitting(true);
+    setError("");
+
+    try {
+      const { data, error: verifyError } = await supabase.rpc(
+        "verify_supervisor_pin",
+        {
+          p_pin: pin,
+        }
+      );
+
+      if (verifyError) {
+        throw verifyError;
+      }
+
+      if (data !== true) {
+        setError("Incorrect supervisor PIN.");
+        setPin("");
+        return;
+      }
+
+      onSuccess(pin);
+    } catch (err) {
+      console.error("Supervisor PIN error:", err);
+      setError("SPARK could not verify supervisor access. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -28,9 +51,9 @@ function SupervisorPinPage({ onSuccess, onBack }) {
           <div className="login-logo spark-login-logo">
             <img src="/spark-192.png" alt="Spark" />
           </div>
+
           <div>
             <div className="login-brand-name">SOUTH CAFÉ LA</div>
-
             <div className="login-brand-subtitle">SUPERVISOR ACCESS</div>
           </div>
         </div>
@@ -55,8 +78,7 @@ function SupervisorPinPage({ onSuccess, onBack }) {
               placeholder="••••"
               value={pin}
               onChange={(e) => {
-                const value = e.target.value.replace(/\D/g, "");
-
+                const value = e.target.value.replace(/\D/g, "").slice(0, 4);
                 setPin(value);
                 setError("");
               }}
@@ -68,9 +90,9 @@ function SupervisorPinPage({ onSuccess, onBack }) {
             <button
               type="submit"
               className="login-primary-button supervisor-primary-button"
-              disabled={pin.length !== 4}
+              disabled={pin.length !== 4 || submitting}
             >
-              Open Command Center
+              {submitting ? "Checking..." : "Open Command Center"}
             </button>
           </form>
         </div>
