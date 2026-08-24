@@ -42,13 +42,21 @@ const REIMBURSEMENT_RATES = {
   supper: 4.6,
 };
 
-function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
+function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, supervisorPin }) {
   const [schools, setSchools] = useState([]);
   const [selectedSchool, setSelectedSchool] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("all");
   const [view, setView] = useState("dashboard");
+
+  // Manager PIN reset
+  const [pinResetSchoolId, setPinResetSchoolId] = useState("");
+  const [pinResetEmployees, setPinResetEmployees] = useState([]);
+  const [pinResetEmployeeId, setPinResetEmployeeId] = useState("");
+  const [pinResetLoading, setPinResetLoading] = useState(false);
+  const [pinResetMessage, setPinResetMessage] = useState("");
+  const [pinResetError, setPinResetError] = useState("");
 
   // =========================================
   // DASHBOARD DATE
@@ -512,6 +520,94 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
   }
 
   // =========================================
+  // MANAGER PIN RESET
+  // =========================================
+
+  async function loadPinResetEmployees(locationId) {
+    setPinResetSchoolId(locationId);
+    setPinResetEmployeeId("");
+    setPinResetEmployees([]);
+    setPinResetMessage("");
+    setPinResetError("");
+
+    if (!locationId) {
+      return;
+    }
+
+    setPinResetLoading(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("employees")
+        .select("id, employee_name, email, active")
+        .eq("location_id", locationId)
+        .eq("active", true)
+        .order("employee_name");
+
+      if (error) {
+        throw error;
+      }
+
+      setPinResetEmployees(data || []);
+    } catch (error) {
+      console.error("PIN reset employee load error:", error);
+      setPinResetError("Could not load managers for this school.");
+    } finally {
+      setPinResetLoading(false);
+    }
+  }
+
+  async function resetSelectedManagerPin() {
+    if (!pinResetEmployeeId) {
+      setPinResetError("Select a manager first.");
+      return;
+    }
+
+    const selectedManager = pinResetEmployees.find(
+      (employee) => String(employee.id) === String(pinResetEmployeeId)
+    );
+
+    const confirmed = window.confirm(
+      `Reset ${selectedManager?.employee_name || "this manager"}'s SPARK PIN?\n\nTheir current PIN will stop working immediately. The next time they sign in, SPARK will ask them to create a new PIN.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setPinResetLoading(true);
+    setPinResetMessage("");
+    setPinResetError("");
+
+    try {
+      const { data, error } = await supabase.rpc("reset_manager_pin", {
+        p_employee_id: String(pinResetEmployeeId),
+        p_supervisor_pin: supervisorPin,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data !== true) {
+        setPinResetError("SPARK could not reset this PIN.");
+        return;
+      }
+
+      setPinResetMessage(
+        `${selectedManager?.employee_name || "Manager"}'s PIN has been reset. They can create a new PIN the next time they sign in.`
+      );
+    } catch (error) {
+      console.error("PIN reset error:", error);
+      setPinResetError(
+        "SPARK could not reset the PIN. Please confirm supervisor access and try again."
+      );
+    } finally {
+      setPinResetLoading(false);
+    }
+  }
+
+  // =========================================
   // SUMMARY
   // =========================================
 
@@ -668,6 +764,20 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
           </button>
 
           <button
+            className={`command-nav-button ${
+              view === "pin-reset" ? "active" : ""
+            }`}
+            onClick={() => {
+              setView("pin-reset");
+              setPinResetMessage("");
+              setPinResetError("");
+            }}
+          >
+            <span>🔐</span>
+            Manager PIN Reset
+          </button>
+
+          <button
             type="button"
             className="command-nav-button command-nav-exit"
             onClick={onExit}
@@ -694,6 +804,8 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
                 ? "South Café LA MPLH Report"
                 : view === "finish-line" || view === "recent-changes"
                 ? "South Café LA Finish Line"
+                : view === "pin-reset"
+                ? "South Café LA Manager PIN Reset"
                 : "South Café LA Command Center"}
             </h2>
 
@@ -708,6 +820,8 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
                 ? `Finish Line status and audit history for ${formatDate(
                     dashboardDate
                   )}.`
+                : view === "pin-reset"
+                ? "Reset a verified manager's SPARK PIN."
                 : `Area operations overview for ${formatDate(
                     dashboardDate
                   )}.`}
@@ -745,18 +859,20 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
               </>
             )}
 
-            <button
-              className="command-refresh"
-              onClick={
-                view === "meal-trends"
-                  ? loadMealTrends
-                  : view === "recent-changes"
-                  ? loadRecentChanges
-                  : loadCommandCenter
-              }
-            >
-              ↻ Refresh
-            </button>
+            {view !== "pin-reset" && (
+              <button
+                className="command-refresh"
+                onClick={
+                  view === "meal-trends"
+                    ? loadMealTrends
+                    : view === "recent-changes"
+                    ? loadRecentChanges
+                    : loadCommandCenter
+                }
+              >
+                ↻ Refresh
+              </button>
+            )}
 
             {view === "meal-trends" ? (
               <div
@@ -859,6 +975,96 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
               dashboardDate={dashboardDate}
               formatDate={formatDate}
             />
+          ) : view === "pin-reset" ? (
+            <section className="dashboard-card manager-pin-reset-panel">
+              <div className="command-section-header">
+                <div>
+                  <h3>Reset Manager PIN</h3>
+                  <p>
+                    Verify the request, choose the school and manager, then reset
+                    the PIN. The manager will create a new PIN at their next login.
+                  </p>
+                </div>
+              </div>
+
+              <div className="manager-pin-reset-form">
+                <div>
+                  <label>School</label>
+                  <select
+                    value={pinResetSchoolId}
+                    onChange={(e) => loadPinResetEmployees(e.target.value)}
+                  >
+                    <option value="">Select a school</option>
+                    {schools.map((school) => (
+                      <option key={school.id} value={school.id}>
+                        {school.school_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label>Manager</label>
+                  <select
+                    value={pinResetEmployeeId}
+                    onChange={(e) => {
+                      setPinResetEmployeeId(e.target.value);
+                      setPinResetMessage("");
+                      setPinResetError("");
+                    }}
+                    disabled={!pinResetSchoolId || pinResetLoading}
+                  >
+                    <option value="">
+                      {pinResetLoading ? "Loading managers..." : "Select a manager"}
+                    </option>
+
+                    {pinResetEmployees.map((employee) => (
+                      <option key={employee.id} value={employee.id}>
+                        {employee.employee_name}
+                        {employee.email ? ` • ${employee.email}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {pinResetEmployeeId && (
+                  <div className="manager-pin-reset-summary">
+                    <span>Selected Manager</span>
+                    <strong>
+                      {pinResetEmployees.find(
+                        (employee) =>
+                          String(employee.id) === String(pinResetEmployeeId)
+                      )?.employee_name || "Manager"}
+                    </strong>
+                    <small>
+                      {pinResetEmployees.find(
+                        (employee) =>
+                          String(employee.id) === String(pinResetEmployeeId)
+                      )?.email || "No email on file"}
+                    </small>
+                  </div>
+                )}
+
+                {pinResetError && (
+                  <div className="login-error">{pinResetError}</div>
+                )}
+
+                {pinResetMessage && (
+                  <div className="manager-pin-reset-success">
+                    ✓ {pinResetMessage}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  className="manager-pin-reset-button"
+                  disabled={!pinResetEmployeeId || pinResetLoading}
+                  onClick={resetSelectedManagerPin}
+                >
+                  {pinResetLoading ? "Working..." : "Reset Manager PIN"}
+                </button>
+              </div>
+            </section>
           ) : view === "recent-changes" ? (
             <>
               <div className="finish-line-supervisor-tabs">
