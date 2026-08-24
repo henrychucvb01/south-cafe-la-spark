@@ -7289,3 +7289,87 @@ button.homebase-card:hover {
     width: 100%;
   }
 }
+/* =========================================================
+   SPARK — MANAGER PIN PAGE
+   ADD TO THE VERY BOTTOM OF styles.css
+========================================================= */
+
+.manager-pin-card {
+  max-width: 470px;
+}
+
+.manager-pin-lock {
+  margin: 8px 0 10px;
+  text-align: center;
+  font-size: 40px;
+}
+
+.manager-pin-card h1 {
+  margin-bottom: 6px;
+  text-align: center;
+  font-size: 28px;
+  line-height: 1.2;
+}
+
+.manager-pin-name {
+  margin: 12px 0 18px;
+  color: #0b2a55;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.manager-pin-instruction {
+  margin: 0 0 18px;
+  color: #63707e;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.manager-pin-label {
+  display: block;
+  margin: 14px 0 7px;
+  color: #34414d;
+  font-size: 16px;
+  font-weight: 800;
+  text-align: left;
+}
+
+.manager-pin-input {
+  width: 100%;
+  min-height: 54px;
+  box-sizing: border-box;
+  border: 1px solid #d6dfe7;
+  border-radius: 10px;
+  background: white;
+  padding: 10px 14px;
+  color: #172033;
+  font-family: inherit;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0.35em;
+  text-align: center;
+  outline: none;
+}
+
+.manager-pin-input:focus {
+  border-color: #0b2a55;
+  box-shadow: 0 0 0 3px rgba(11, 42, 85, 0.10);
+}
+
+.manager-pin-submit {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 20px;
+  font-size: 18px !important;
+}
+
+@media (max-width: 600px) {
+  .manager-pin-card h1 {
+    font-size: 25px;
+  }
+
+  .manager-pin-input {
+    font-size: 24px;
+  }
+}
