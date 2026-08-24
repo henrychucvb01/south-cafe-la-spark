@@ -7113,102 +7113,97 @@ button.homebase-card:hover {
     font-size: 15px !important;
   }
 }
+
+
 /* =========================================================
-   SPARK — MANAGER CONTROL SIZE FIX
+   SPARK — SUPERVISOR NAVIGATION REFACTOR
+   Dashboard / Finish Line / Meal Analytics / MPLH
 ========================================================= */
 
-.revenue-range-toggle,
-.meal-range-toggle {
+.finish-line-supervisor-tabs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.finish-line-supervisor-tabs button {
   min-height: 42px;
+  padding: 9px 16px;
+  border: 1px solid #d7e0e8;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #0b2a55;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 800;
+  cursor: pointer;
 }
 
-.revenue-range-toggle button,
-.meal-range-toggle button {
-  min-height: 38px;
-  padding: 8px 15px !important;
-  font-size: 16px !important;
-  font-weight: 800 !important;
+.finish-line-supervisor-tabs button:hover {
+  background: #f5f8fb;
 }
-/* =========================================================
-   SUPERVISOR TYPOGRAPHY CLEANUP
-========================================================= */
 
-/* Section titles:
-   What Needs Your Attention
-   Priority Exceptions
-   School Status Overview
-*/
+.finish-line-supervisor-tabs button.active {
+  background: #0b2a55;
+  border-color: #0b2a55;
+  color: #ffffff;
+}
+
+/* Supervisor section titles match manager card titles */
 .command-section-header h3 {
-  font-size: 20px !important;
+  font-size: 19px !important;
   line-height: 1.25 !important;
   font-weight: 800 !important;
 }
 
-/* Descriptions under those section titles */
 .command-section-header p {
-  font-size: 18px !important;
+  font-size: 16px !important;
   line-height: 1.45 !important;
 }
 
-/* MPLH number in School Status Overview */
-.mplh-supervisor-cell strong {
-  font-size: 16px !important;
-  font-weight: 800 !important;
-}
-
-/* Below Target / On Target / High Productivity badges */
-.mplh-supervisor-status {
-  font-size: 16px !important;
-  font-weight: 800 !important;
-  padding: 5px 9px !important;
-}
-
-/* =========================================================
-   SUPERVISOR — 18PX READABILITY PASS
-========================================================= */
-
-/* What Needs Your Attention */
+/* Supervisor operational readability */
 .command-attention-item strong,
-.command-attention-item small {
-  font-size: 18px !important;
-  line-height: 1.4 !important;
-}
-
-/* Priority Exceptions — school, description, Missing/issues */
+.command-attention-item small,
 .priority-exception-row > div strong,
 .priority-exception-row > div small,
-.priority-exception-row > span:last-child {
-  font-size: 18px !important;
-  line-height: 1.4 !important;
-}
-
-/* Showing: All Schools / Not Submitted / etc. */
+.priority-exception-row > span:last-child,
 .command-filter-bar,
 .command-filter-bar strong,
 .command-filter-bar span,
-.command-filter-bar button {
-  font-size: 18px !important;
-}
-
-/* Selected school detail */
-.command-detail-location {
-  font-size: 18px !important;
-}
-
-/* Selected school status pill */
-.command-detail-pill {
-  font-size: 18px !important;
-}
-
-/* Finish Line Not Submitted */
+.command-filter-bar button,
+.command-detail-location,
+.command-detail-pill,
 .command-no-submission h3,
-.command-no-submission p {
-  font-size: 18px !important;
-  line-height: 1.45 !important;
-}
-
-/* MPLH value + status badge */
+.command-no-submission p,
 .mplh-supervisor-cell strong,
 .mplh-supervisor-status {
   font-size: 18px !important;
+  line-height: 1.4 !important;
+}
+
+/* Table body should be easy to scan without making headers oversized */
+.command-table td {
+  font-size: 16px !important;
+}
+
+.command-table th {
+  font-size: 16px !important;
+}
+
+/* Keep sidebar controls readable and consistent */
+.command-nav-button {
+  font-size: 16px !important;
+}
+
+.command-nav-label {
+  font-size: 12px !important;
+}
+
+@media (max-width: 760px) {
+  .finish-line-supervisor-tabs button {
+    flex: 1;
+    min-width: 145px;
+    font-size: 16px;
+  }
 }
