@@ -7396,53 +7396,55 @@ button.homebase-card:hover {
 
 .manager-pin-card {
   max-width: 470px !important;
-  background: #ffffff !important;
-  color: #172033 !important;
+  background: #0b2f63 !important;
+  color: #ffffff !important;
   padding: 28px 30px !important;
   border-radius: 16px !important;
+  border: 1px solid #f4b63d !important;
 }
 
 /* Back link */
 .manager-pin-card .back-button {
-  color: #176ed5 !important;
+  color: #78b9ff !important;
 }
 
 /* Main title */
 .manager-pin-card h1 {
-  color: #0b2a55 !important;
+  color: #ffffff !important;
   font-size: 28px !important;
   line-height: 1.2 !important;
-  text-align: center;
+  text-align: center !important;
 }
 
 /* School name */
 .manager-pin-card .login-description {
-  color: #5f6d7a !important;
+  color: #dce7f5 !important;
   font-size: 18px !important;
-  text-align: center;
+  text-align: center !important;
 }
 
 /* Manager name */
 .manager-pin-name {
-  color: #0b2a55 !important;
+  color: #ffffff !important;
   font-size: 18px !important;
   font-weight: 800 !important;
-  text-align: center;
+  text-align: center !important;
 }
 
 /* Instructions */
 .manager-pin-instruction {
   margin: 18px 0 !important;
-  color: #5f6d7a !important;
+  color: #dce7f5 !important;
   font-size: 16px !important;
   line-height: 1.5 !important;
+  text-align: center !important;
 }
 
 /* PIN label */
 .manager-pin-label {
   display: block !important;
   margin: 16px 0 7px !important;
-  color: #34414d !important;
+  color: #ffffff !important;
   font-size: 16px !important;
   font-weight: 800 !important;
 }
@@ -7456,7 +7458,7 @@ button.homebase-card:hover {
   border: 1px solid #d6dfe7 !important;
   border-radius: 10px !important;
   background: #ffffff !important;
-  color: #172033 !important;
+  color: #0b2f63 !important;
   padding: 10px 14px !important;
   font-size: 26px !important;
   font-weight: 800 !important;
@@ -7468,7 +7470,7 @@ button.homebase-card:hover {
 .manager-pin-reset-link {
   display: block !important;
   margin: 14px 0 4px !important;
-  color: #176ed5 !important;
+  color: #78b9ff !important;
   font-size: 16px !important;
   font-weight: 700 !important;
   text-align: center !important;
@@ -7476,6 +7478,7 @@ button.homebase-card:hover {
 }
 
 .manager-pin-reset-link:hover {
+  color: #ffffff !important;
   text-decoration: underline !important;
 }
 
@@ -7485,10 +7488,20 @@ button.homebase-card:hover {
   width: 100% !important;
   min-height: 50px !important;
   margin-top: 22px !important;
+  background: #12a05c !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 9px !important;
   font-size: 18px !important;
+  font-weight: 800 !important;
 }
 
-/* Keep disabled button readable */
+.manager-pin-submit:hover:not(:disabled) {
+  background: #0d8c50 !important;
+}
+
 .manager-pin-submit:disabled {
-  opacity: .55 !important;
+  background: #7e93aa !important;
+  color: #eaf0f6 !important;
+  opacity: .7 !important;
 }
