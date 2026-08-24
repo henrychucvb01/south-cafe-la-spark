@@ -7207,3 +7207,85 @@ button.homebase-card:hover {
     font-size: 16px;
   }
 }
+
+
+/* =========================================================
+   SPARK — SUPERVISOR REPORT CONTROL REFINEMENTS
+========================================================= */
+
+/* Top report date control */
+.command-date-label {
+  font-size: 16px;
+  font-weight: 800;
+  color: #5f6d7a;
+}
+
+.command-date input[type="date"] {
+  font-size: 16px !important;
+  min-height: 40px;
+}
+
+/* Priority Exceptions collapse button */
+.priority-collapse-button {
+  font-size: 18px !important;
+  min-height: 42px;
+  padding: 8px 14px !important;
+}
+
+/* MPLH school filter */
+.supervisor-report-filter {
+  display: flex;
+  gap: 16px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.supervisor-report-filter > div {
+  min-width: 280px;
+  flex: 1;
+}
+
+.supervisor-report-filter label {
+  display: block;
+  margin-bottom: 6px;
+  color: #5f6d7a;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.supervisor-report-filter select {
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  border: 1px solid #d7e0e8;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 9px 12px;
+  color: #172033;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+/* Keep report buttons consistently readable */
+.command-refresh,
+.command-small-button {
+  font-size: 16px;
+}
+
+/* Existing manager preference: primary report controls can read at 18px */
+.meal-view-toggle button {
+  font-size: 18px !important;
+  min-height: 42px;
+  padding: 8px 15px !important;
+}
+
+@media (max-width: 760px) {
+  .supervisor-report-filter > div {
+    min-width: 100%;
+  }
+
+  .priority-collapse-button {
+    width: 100%;
+  }
+}
