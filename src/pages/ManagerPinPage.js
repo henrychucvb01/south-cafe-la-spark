@@ -236,6 +236,24 @@ function ManagerPinPage({ location, employee, onSuccess, onBack }) {
               />
 
               {creating && (
+                  <a
+  className="manager-pin-reset-link"
+  href={`mailto:huy.l.nguyen@lausd.net?subject=${encodeURIComponent(
+    "SPARK PIN Reset Request"
+  )}&body=${encodeURIComponent(
+    `Hello Huy,
+
+I need my SPARK PIN reset.
+
+Manager: ${employee?.employee_name || "Manager"}
+School: ${location?.school_name || "School"}
+Location: ${location?.location_code || ""}
+
+Please contact me to verify my identity before resetting my PIN.`
+  )}`}
+>
+  Forgot your PIN? Request a reset
+</a>
                 <>
                   <label
                     className="manager-pin-label"
