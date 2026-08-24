@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 
 import LoginPage from "./pages/LoginPage";
 import EmployeeSelectPage from "./pages/EmployeeSelectPage";
+import ManagerPinPage from "./pages/ManagerPinPage";
 import SchoolHub from "./pages/SchoolHub";
 import FinishLinePage from "./pages/FinishLinePage";
 import SchoolDashboard from "./pages/SchoolDashboard";
@@ -29,23 +30,18 @@ function App() {
 
   useEffect(() => {
     function handleBeforeInstallPrompt(event) {
-      // Stop the browser from immediately showing
-      // its own installation prompt.
       event.preventDefault();
 
-      // Save the install event so our own button can use it.
       setInstallPrompt(event);
       setCanInstall(true);
     }
 
     function handleAppInstalled() {
-      // The app has been installed.
       setInstallPrompt(null);
       setCanInstall(false);
     }
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-
     window.addEventListener("appinstalled", handleAppInstalled);
 
     return () => {
@@ -59,7 +55,6 @@ function App() {
   }, []);
 
   async function handleInstallApp() {
-    // Chrome/Edge gave us the native install prompt.
     if (installPrompt) {
       installPrompt.prompt();
 
@@ -75,14 +70,11 @@ function App() {
         console.error("Install prompt error:", error);
       }
 
-      // The browser install prompt can only be used once.
       setInstallPrompt(null);
       setCanInstall(false);
       return;
     }
 
-    // Fallback when the browser does not expose
-    // beforeinstallprompt to the page.
     alert(
       "To install SPARK on this computer, click the Install icon in the browser address bar, then select Install."
     );
@@ -146,10 +138,29 @@ function App() {
         onEmployeeSelected={(employee) => {
           setSelectedEmployee(employee);
           setEditingCheck(null);
-          setScreen("homeBase");
+          setScreen("managerPin");
         }}
         onBack={() => {
           resetToLogin();
+        }}
+      />
+    );
+  }
+
+  // ---------------------------------------------------
+  // MANAGER PIN
+  // ---------------------------------------------------
+  if (screen === "managerPin") {
+    return (
+      <ManagerPinPage
+        location={selectedLocation}
+        employee={selectedEmployee}
+        onSuccess={() => {
+          setScreen("homeBase");
+        }}
+        onBack={() => {
+          setSelectedEmployee(null);
+          setScreen("employeeSelect");
         }}
       />
     );
@@ -215,6 +226,7 @@ function App() {
       />
     );
   }
+
   // ---------------------------------------------------
   // MEAL ANALYTICS
   // ---------------------------------------------------
@@ -229,6 +241,7 @@ function App() {
       />
     );
   }
+
   // ---------------------------------------------------
   // FINISH LINE
   // ---------------------------------------------------
@@ -239,16 +252,12 @@ function App() {
         employee={selectedEmployee}
         existingCheck={editingCheck}
         onBack={() => {
-          // If this is a supervisor preview,
-          // go back to the Command Center.
           if (editingCheck?.previewMode) {
             setEditingCheck(null);
             setScreen("commandCenter");
             return;
           }
 
-          // Normal manager flow:
-          // go back to the School Dashboard.
           setEditingCheck(null);
           setScreen("schoolDashboard");
         }}
