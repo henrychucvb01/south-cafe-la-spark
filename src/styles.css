@@ -7373,3 +7373,16 @@ button.homebase-card:hover {
     font-size: 24px;
   }
 }
+.manager-pin-reset-link {
+  display: block;
+  margin-top: 12px;
+  text-align: center;
+  color: #176ed5;
+  font-size: 16px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.manager-pin-reset-link:hover {
+  text-decoration: underline;
+}
