@@ -7390,3 +7390,105 @@ button.homebase-card:hover {
   font-size: 16px;
   font-weight: 800;
 }
+/* =========================================================
+   SPARK — MANAGER PIN PAGE FINAL FIX
+========================================================= */
+
+.manager-pin-card {
+  max-width: 470px !important;
+  background: #ffffff !important;
+  color: #172033 !important;
+  padding: 28px 30px !important;
+  border-radius: 16px !important;
+}
+
+/* Back link */
+.manager-pin-card .back-button {
+  color: #176ed5 !important;
+}
+
+/* Main title */
+.manager-pin-card h1 {
+  color: #0b2a55 !important;
+  font-size: 28px !important;
+  line-height: 1.2 !important;
+  text-align: center;
+}
+
+/* School name */
+.manager-pin-card .login-description {
+  color: #5f6d7a !important;
+  font-size: 18px !important;
+  text-align: center;
+}
+
+/* Manager name */
+.manager-pin-name {
+  color: #0b2a55 !important;
+  font-size: 18px !important;
+  font-weight: 800 !important;
+  text-align: center;
+}
+
+/* Instructions */
+.manager-pin-instruction {
+  margin: 18px 0 !important;
+  color: #5f6d7a !important;
+  font-size: 16px !important;
+  line-height: 1.5 !important;
+}
+
+/* PIN label */
+.manager-pin-label {
+  display: block !important;
+  margin: 16px 0 7px !important;
+  color: #34414d !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+}
+
+/* PIN entry box */
+.manager-pin-input {
+  display: block !important;
+  width: 100% !important;
+  min-height: 54px !important;
+  box-sizing: border-box !important;
+  border: 1px solid #d6dfe7 !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  color: #172033 !important;
+  padding: 10px 14px !important;
+  font-size: 26px !important;
+  font-weight: 800 !important;
+  letter-spacing: .30em !important;
+  text-align: center !important;
+}
+
+/* Forgot PIN link */
+.manager-pin-reset-link {
+  display: block !important;
+  margin: 14px 0 4px !important;
+  color: #176ed5 !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+  text-decoration: none !important;
+}
+
+.manager-pin-reset-link:hover {
+  text-decoration: underline !important;
+}
+
+/* Continue / Create PIN button */
+.manager-pin-submit {
+  display: block !important;
+  width: 100% !important;
+  min-height: 50px !important;
+  margin-top: 22px !important;
+  font-size: 18px !important;
+}
+
+/* Keep disabled button readable */
+.manager-pin-submit:disabled {
+  opacity: .55 !important;
+}
