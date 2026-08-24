@@ -83,7 +83,13 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
   const [mealTrendError, setMealTrendError] = useState("");
   const [trendSchoolId, setTrendSchoolId] = useState("all");
   const [trendDays, setTrendDays] = useState(30);
+  const [mealAnalyticsEndDate, setMealAnalyticsEndDate] = useState(
+    getLocalDateString()
+  );
   const [mealAnalyticsMode, setMealAnalyticsMode] = useState("meals");
+
+  // Finish Line page controls
+  const [priorityExceptionsOpen, setPriorityExceptionsOpen] = useState(true);
   const [visibleMeals, setVisibleMeals] = useState({
     breakfast: true,
     lunch: true,
@@ -284,14 +290,16 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
     if (view === "meal-trends") {
       loadMealTrends();
     }
-  }, [view, trendSchoolId, trendDays]);
+  }, [view, trendSchoolId, trendDays, mealAnalyticsEndDate]);
 
   async function loadMealTrends() {
     setMealTrendLoading(true);
     setMealTrendError("");
 
     try {
-      const startDate = new Date();
+      const endDateString = mealAnalyticsEndDate || todayString;
+      const endDate = new Date(`${endDateString}T12:00:00`);
+      const startDate = new Date(endDate);
 
       if (trendDays === "ytd") {
         startDate.setMonth(0, 1);
@@ -313,6 +321,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
         `
         )
         .gte("service_date", startDateString)
+        .lte("service_date", endDateString)
         .order("service_date", { ascending: true });
 
       if (trendSchoolId !== "all") {
@@ -749,7 +758,30 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
               ↻ Refresh
             </button>
 
-            {view === "dashboard" || view === "finish-line" || view === "mplh-report" || view === "recent-changes" ? (
+            {view === "meal-trends" ? (
+              <div
+                className="command-date"
+                style={{ display: "flex", alignItems: "center", gap: "6px" }}
+              >
+                <span className="command-date-label">Through</span>
+                <input
+                  type="date"
+                  value={mealAnalyticsEndDate}
+                  max={todayString}
+                  onChange={(e) => setMealAnalyticsEndDate(e.target.value)}
+                  style={{
+                    border: "1px solid #d7dee5",
+                    borderRadius: "7px",
+                    padding: "7px 9px",
+                    fontWeight: "700",
+                    background: "white",
+                  }}
+                />
+              </div>
+            ) : view === "dashboard" ||
+              view === "finish-line" ||
+              view === "mplh-report" ||
+              view === "recent-changes" ? (
               <div
                 className="command-date"
                 style={{ display: "flex", alignItems: "center", gap: "6px" }}
@@ -797,11 +829,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
                   </button>
                 )}
               </div>
-            ) : (
-              <div className="command-date">
-                📅 {new Date().toLocaleDateString()}
-              </div>
-            )}
+            ) : null}
           </div>
         </header>
 
@@ -816,6 +844,8 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
               setTrendSchoolId={setTrendSchoolId}
               trendDays={trendDays}
               setTrendDays={setTrendDays}
+              mealAnalyticsEndDate={mealAnalyticsEndDate}
+              setMealAnalyticsEndDate={setMealAnalyticsEndDate}
               visibleMeals={visibleMeals}
               toggleMealLine={toggleMealLine}
               loadMealTrends={loadMealTrends}
@@ -1054,9 +1084,20 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
 
                       <p>Start here before reviewing all schools.</p>
                     </div>
+
+                    <button
+                      type="button"
+                      className="command-small-button priority-collapse-button"
+                      onClick={() =>
+                        setPriorityExceptionsOpen((current) => !current)
+                      }
+                    >
+                      {priorityExceptionsOpen ? "Collapse ▲" : "Expand ▼"}
+                    </button>
                   </div>
 
-                  <div className="priority-exception-list">
+                  {priorityExceptionsOpen && (
+                    <div className="priority-exception-list">
                     {attentionSchools.slice(0, 5).map((school) => (
                       <button
                         key={`attention-${school.id}`}
@@ -1109,7 +1150,8 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
                         <span>Missing</span>
                       </button>
                     ))}
-                  </div>
+                    </div>
+                  )}
                 </section>
               )}
 
@@ -1482,19 +1524,37 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
   );
 }
 function MplhReportView({ schools, dashboardDate, formatDate }) {
-  const belowTarget = schools.filter(
+  const [mplhSchoolId, setMplhSchoolId] = useState("all");
+
+  const filteredMplhSchools =
+    mplhSchoolId === "all"
+      ? schools
+      : schools.filter(
+          (school) => String(school.id) === String(mplhSchoolId)
+        );
+
+  const selectedMplhSchool =
+    mplhSchoolId === "all"
+      ? null
+      : schools.find(
+          (school) => String(school.id) === String(mplhSchoolId)
+        );
+
+  const belowTarget = filteredMplhSchools.filter(
     (school) => school.mplhStatus === "below"
   ).length;
 
-  const onTarget = schools.filter(
+  const onTarget = filteredMplhSchools.filter(
     (school) => school.mplhStatus === "target"
   ).length;
 
-  const highProductivity = schools.filter(
+  const highProductivity = filteredMplhSchools.filter(
     (school) => school.mplhStatus === "high"
   ).length;
 
-  const noData = schools.filter((school) => school.mplh === null).length;
+  const noData = filteredMplhSchools.filter(
+    (school) => school.mplh === null
+  ).length;
 
   function getTypeLabel(type) {
     if (type === "secondary") {
@@ -1581,7 +1641,31 @@ function MplhReportView({ schools, dashboardDate, formatDate }) {
             }}
           >
             {formatDate(dashboardDate)}
+            {selectedMplhSchool
+              ? ` • ${selectedMplhSchool.school_name}`
+              : " • All Schools"}
           </p>
+        </div>
+      </section>
+
+      {/* SCHOOL FILTER */}
+
+      <section className="dashboard-card" style={{ padding: "16px 20px" }}>
+        <div className="supervisor-report-filter">
+          <div>
+            <label>School</label>
+            <select
+              value={mplhSchoolId}
+              onChange={(e) => setMplhSchoolId(e.target.value)}
+            >
+              <option value="all">All Schools</option>
+              {schools.map((school) => (
+                <option key={school.id} value={school.id}>
+                  {school.school_name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </section>
 
@@ -1641,7 +1725,11 @@ function MplhReportView({ schools, dashboardDate, formatDate }) {
           <div>
             <h3>School Labor Productivity</h3>
 
-            <p>Compare meal volume and labor across all locations.</p>
+            <p>
+              {selectedMplhSchool
+                ? `Meal volume and labor for ${selectedMplhSchool.school_name}.`
+                : "Compare meal volume and labor across all locations."}
+            </p>
           </div>
         </div>
 
@@ -1662,7 +1750,7 @@ function MplhReportView({ schools, dashboardDate, formatDate }) {
             </thead>
 
             <tbody>
-              {schools.map((school) => {
+              {filteredMplhSchools.map((school) => {
                 const addedHours =
                   (Number(school.laborRow?.additional_worker_hours) || 0) +
                   (Number(school.laborRow?.manager_overtime_hours) || 0);
@@ -2074,6 +2162,8 @@ function MealTrendsView({
   setTrendSchoolId,
   trendDays,
   setTrendDays,
+  mealAnalyticsEndDate,
+  setMealAnalyticsEndDate,
   visibleMeals,
   toggleMealLine,
   loadMealTrends,
@@ -2181,16 +2271,12 @@ function MealTrendsView({
               {selectedSchool
                 ? selectedSchool.school_name
                 : "All active locations"}
+              {" • Through "}
+              {new Date(`${mealAnalyticsEndDate}T12:00:00`).toLocaleDateString()}
             </p>
           </div>
 
-          <button
-            type="button"
-            className="command-small-button"
-            onClick={loadMealTrends}
-          >
-            ↻ Refresh
-          </button>
+
         </div>
       </section>
 
