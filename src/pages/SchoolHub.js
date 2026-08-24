@@ -267,43 +267,61 @@ function SchoolHub({
      FIND PENDING SUPPER
   ========================================================= */
 
-  async function loadPendingSupper() {
-    if (!location?.id) {
+ async function loadPendingSupper() {
+  if (!location?.id) {
+    return;
+  }
+
+  setSupperMessage("");
+
+  try {
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+
+    // No Supper service on Saturday or Sunday.
+    // Do not show a pending Supper prompt on weekends.
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+      setPendingSupper(null);
+      setSupperInput("");
       return;
     }
 
-    setSupperMessage("");
+    const today = getDateString(now);
 
-    try {
-      const today = getDateString(new Date());
+    const { data, error } = await supabase
+      .from("meal_counts")
+      .select("*")
+      .eq("location_id", location.id)
+      .eq("supper_status", "pending")
+      .lt("service_date", today)
+      .order("service_date", {
+        ascending: false,
+      })
+      .limit(10);
 
-      const { data, error } = await supabase
-        .from("meal_counts")
-        .select("*")
-        .eq("location_id", location.id)
-        .eq("supper_status", "pending")
-        .lt("service_date", today)
-        .order("service_date", {
-          ascending: false,
-        })
-        .limit(1)
-        .maybeSingle();
-
-      if (error) {
-        throw error;
-      }
-
-      setPendingSupper(data || null);
-
-      setSupperInput(data?.supper_count ?? "");
-    } catch (error) {
-      console.error("Pending Supper load error:", error);
-
-      setSupperMessage(
-        `Could not check pending Supper counts: ${error.message}`
-      );
+    if (error) {
+      throw error;
     }
+
+    // Ignore any Saturday/Sunday meal-count records.
+    const validPendingSupper =
+      (data || []).find((row) => {
+        const serviceDate = new Date(`${row.service_date}T12:00:00`);
+        const serviceDay = serviceDate.getDay();
+
+        return serviceDay >= 1 && serviceDay <= 5;
+      }) || null;
+
+    setPendingSupper(validPendingSupper);
+    setSupperInput(validPendingSupper?.supper_count ?? "");
+  } catch (error) {
+    console.error("Pending Supper load error:", error);
+
+    setSupperMessage(
+      `Could not check pending Supper counts: ${error.message}`
+    );
   }
+}
 
   /* =========================================================
      SAVE PENDING SUPPER
@@ -467,7 +485,7 @@ function SchoolHub({
           additionalWorkerHours: workerHours,
           managerOvertimeHours: managerOt,
         });
-        await loadLaborHours();
+        
       } else {
         setAdditionalWorkerHours("");
         setManagerOvertimeHours("");
