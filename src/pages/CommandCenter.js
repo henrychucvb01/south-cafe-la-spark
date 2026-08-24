@@ -371,8 +371,13 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
     }));
   }
 
-  function openDashboard(filterName = "all") {
+  function openDashboard() {
     setView("dashboard");
+    setFilter("all");
+  }
+
+  function openFinishLine(filterName = "all") {
+    setView("finish-line");
     setFilter(filterName);
   }
 
@@ -608,9 +613,9 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
         <nav className="command-nav">
           <button
             className={`command-nav-button ${
-              view === "dashboard" && filter === "all" ? "active" : ""
+              view === "dashboard" ? "active" : ""
             }`}
-            onClick={() => openDashboard("all")}
+            onClick={openDashboard}
           >
             <span>⌂</span>
             Dashboard
@@ -620,37 +625,16 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
 
           <button
             className={`command-nav-button ${
-              view === "dashboard" && filter === "good" ? "active" : ""
+              view === "finish-line" || view === "recent-changes" ? "active" : ""
             }`}
-            onClick={() => openDashboard("good")}
-          >
-            <span>✓</span>
-            All Good
-          </button>
-
-          <button
-            className={`command-nav-button ${
-              view === "dashboard" && filter === "attention" ? "active" : ""
-            }`}
-            onClick={() => openDashboard("attention")}
-          >
-            <span>⚠</span>
-            Needs Attention
-            {summary.attention > 0 && (
-              <span className="command-badge">{summary.attention}</span>
-            )}
-          </button>
-
-          <button
-            className={`command-nav-button ${
-              view === "dashboard" && filter === "not-submitted" ? "active" : ""
-            }`}
-            onClick={() => openDashboard("not-submitted")}
+            onClick={() => openFinishLine("all")}
           >
             <span>🏁</span>
-            Not Submitted
-            {summary.missing > 0 && (
-              <span className="command-badge">{summary.missing}</span>
+            Finish Line
+            {(summary.attention > 0 || summary.missing > 0) && (
+              <span className="command-badge">
+                {summary.attention + summary.missing}
+              </span>
             )}
           </button>
 
@@ -674,15 +658,6 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
             MPLH Report
           </button>
 
-          <button
-            className={`command-nav-button ${
-              view === "recent-changes" ? "active" : ""
-            }`}
-            onClick={openRecentChanges}
-          >
-            <span>↺</span>
-            Recent Changes
-          </button>
           <button
             type="button"
             className="command-nav-button command-nav-exit"
@@ -708,8 +683,8 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
                 ? "South Café LA Meal Analytics"
                 : view === "mplh-report"
                 ? "South Café LA MPLH Report"
-                : view === "recent-changes"
-                ? "South Café LA Recent Changes"
+                : view === "finish-line" || view === "recent-changes"
+                ? "South Café LA Finish Line"
                 : "South Café LA Command Center"}
             </h2>
 
@@ -720,16 +695,18 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
                 ? `Meals per labor hour for ${formatDate(
                     dashboardDate
                   )} across all active locations.`
-                : view === "recent-changes"
-                ? "Recent edits made to submitted Finish Line Checks."
-                : `Finish Line status for ${formatDate(
+                : view === "finish-line" || view === "recent-changes"
+                ? `Finish Line status and audit history for ${formatDate(
                     dashboardDate
-                  )} across all active locations.`}
+                  )}.`
+                : `Area operations overview for ${formatDate(
+                    dashboardDate
+                  )}.`}
             </p>
           </div>
 
           <div className="command-top-actions">
-            {view === "dashboard" && (
+            {view === "finish-line" && (
               <>
                 {/* TEST DAY */}
 
@@ -772,7 +749,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
               ↻ Refresh
             </button>
 
-            {view === "dashboard" || view === "mplh-report" ? (
+            {view === "dashboard" || view === "finish-line" || view === "mplh-report" || view === "recent-changes" ? (
               <div
                 className="command-date"
                 style={{ display: "flex", alignItems: "center", gap: "6px" }}
@@ -853,28 +830,53 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
               formatDate={formatDate}
             />
           ) : view === "recent-changes" ? (
-            <RecentChangesView
-              schools={schools}
-              recentChanges={recentChanges}
-              recentChangesLoading={recentChangesLoading}
-              recentChangesError={recentChangesError}
-              historySchoolId={historySchoolId}
-              setHistorySchoolId={setHistorySchoolId}
-              historyDate={historyDate}
-              setHistoryDate={setHistoryDate}
-              loadRecentChanges={loadRecentChanges}
-              formatDate={formatDate}
-              formatTime={formatTime}
-            />
+            <>
+              <div className="finish-line-supervisor-tabs">
+                <button
+                  type="button"
+                  onClick={() => openFinishLine("all")}
+                >
+                  Finish Line Status
+                </button>
+                <button type="button" className="active">
+                  Recent Changes
+                </button>
+              </div>
+
+              <RecentChangesView
+                schools={schools}
+                recentChanges={recentChanges}
+                recentChangesLoading={recentChangesLoading}
+                recentChangesError={recentChangesError}
+                historySchoolId={historySchoolId}
+                setHistorySchoolId={setHistorySchoolId}
+                historyDate={historyDate}
+                setHistoryDate={setHistoryDate}
+                loadRecentChanges={loadRecentChanges}
+                formatDate={formatDate}
+                formatTime={formatTime}
+              />
+            </>
           ) : (
             <>
               {error && <div className="command-error">{error}</div>}
+
+              {view === "finish-line" && (
+                <div className="finish-line-supervisor-tabs">
+                  <button type="button" className="active">
+                    Finish Line Status
+                  </button>
+                  <button type="button" onClick={openRecentChanges}>
+                    Recent Changes
+                  </button>
+                </div>
+              )}
 
               {/* =================================
               TEST MODE
           ================================= */}
 
-              {supervisorTestMode && (
+              {view === "finish-line" && supervisorTestMode && (
                 <div className="supervisor-test-banner">
                   <div>
                     <strong> SUPERVISOR TEST MODE </strong>
@@ -916,7 +918,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
               <section className="command-stats">
                 <button
                   className="command-stat-card clickable-card"
-                  onClick={() => setFilter("good")}
+                  onClick={() => openFinishLine("good")}
                 >
                   <div className="command-stat-icon green">✓</div>
 
@@ -931,7 +933,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
 
                 <button
                   className="command-stat-card clickable-card"
-                  onClick={() => setFilter("attention")}
+                  onClick={() => openFinishLine("attention")}
                 >
                   <div className="command-stat-icon yellow">!</div>
 
@@ -946,7 +948,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
 
                 <button
                   className="command-stat-card clickable-card"
-                  onClick={() => setFilter("not-submitted")}
+                  onClick={() => openFinishLine("not-submitted")}
                 >
                   <div className="command-stat-icon red">×</div>
 
@@ -986,7 +988,8 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
               NEEDS ATTENTION
           ================================= */}
 
-              <section className="command-attention-card">
+              {view === "finish-line" && (
+                <section className="command-attention-card">
                 <div className="command-section-header">
                   <div>
                     <h3>What Needs Your Attention</h3>
@@ -1035,14 +1038,16 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
                     </div>
                   </button>
                 </div>
-              </section>
+                </section>
+              )}
 
               {/* =================================
               PRIORITY EXCEPTIONS
           ================================= */}
 
-              {(attentionSchools.length > 0 || missingSchools.length > 0) && (
-                <section className="dashboard-card">
+              {view === "finish-line" &&
+                (attentionSchools.length > 0 || missingSchools.length > 0) && (
+                  <section className="dashboard-card">
                   <div className="command-section-header">
                     <div>
                       <h3>Priority Exceptions</h3>
@@ -1112,8 +1117,9 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
               FILTER
           ================================= */}
 
-              <div className="command-filter-bar">
-                <div>
+              {view === "finish-line" && (
+                <div className="command-filter-bar">
+                  <div>
                   <strong>Showing:</strong>
 
                   <span>
@@ -1130,7 +1136,8 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
                 {filter !== "all" && (
                   <button onClick={() => setFilter("all")}>Clear Filter</button>
                 )}
-              </div>
+                </div>
+              )}
 
               {/* =================================
               SCHOOL TABLE
@@ -1140,11 +1147,16 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
                 <div className="command-school-card">
                   <div className="command-section-header">
                     <div>
-                      <h3>School Status Overview</h3>
+                      <h3>
+                        {view === "dashboard"
+                          ? "School Performance Overview"
+                          : "School Status Overview"}
+                      </h3>
 
                       <p>
-                        Click a school to review the selected date's Finish
-                        Line.
+                        {view === "dashboard"
+                          ? "Compare your schools for the selected date. Click a school for individual detail."
+                          : "Click a school to review the selected date's Finish Line."}
                       </p>
                     </div>
 
@@ -1165,8 +1177,9 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
                           <th>Submitted By</th>
                           <th>Time</th>
                           <th>Issues</th>
-                          <th>Status</th>
+                          <th>Meals</th>
                           <th>MPLH</th>
+                          <th>Finish Line</th>
                         </tr>
                       </thead>
 
@@ -1196,6 +1209,19 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
                             <td>{formatTime(school.check?.submitted_at)}</td>
 
                             <td>{school.attentionItems.length}</td>
+
+                            <td>
+                              {school.mealRow
+                                ? (
+                                    (Number(school.mealRow.breakfast_count) || 0) +
+                                    (Number(school.mealRow.lunch_count) || 0) +
+                                    (school.mealRow.supper_status === "pending"
+                                      ? 0
+                                      : Number(school.mealRow.supper_count) || 0)
+                                  ).toLocaleString()
+                                : "—"}
+                            </td>
+
                             <td>
                               {school.mplh === null ? (
                                 <span className="mplh-supervisor-status no-data">
@@ -1435,7 +1461,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics }) {
                           <h3>Finish Line Not Submitted</h3>
 
                           <p>
-                            No Finish Line Check has been submitted for this
+                            No Finish Line Checklist has been submitted for this
                             location today.
                           </p>
                         </div>
