@@ -17,6 +17,7 @@ function App() {
 
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [supervisorSessionPin, setSupervisorSessionPin] = useState("");
 
   // Holds today's existing Finish Line when the manager is editing it.
   // null = creating a new Finish Line.
@@ -86,6 +87,7 @@ function App() {
   function resetToLogin() {
     setSelectedLocation(null);
     setSelectedEmployee(null);
+    setSupervisorSessionPin("");
     setEditingCheck(null);
     setScreen("login");
   }
@@ -118,10 +120,12 @@ function App() {
   if (screen === "supervisorPin") {
     return (
       <SupervisorPinPage
-        onSuccess={() => {
+        onSuccess={(verifiedPin) => {
+          setSupervisorSessionPin(verifiedPin);
           setScreen("commandCenter");
         }}
         onBack={() => {
+          setSupervisorSessionPin("");
           setScreen("login");
         }}
       />
@@ -295,6 +299,7 @@ function App() {
   if (screen === "commandCenter") {
     return (
       <CommandCenter
+        supervisorPin={supervisorSessionPin}
         onExit={() => {
           resetToLogin();
         }}
