@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
+import { awardSparkPoints } from "../sparkPoints";
 /* =========================================================
 DEVELOPMENT TEST MODE
 Normally leave these as:
@@ -897,8 +898,67 @@ audit editing is confirmed working.
         );
         return;
       }
+    /* =====================================
+      AWARD SPARK POINTS
+      ===================================== */
+
+      const employeeName =
+        employee.employee_name || "Covering Employee";
+
+      const employeeId = employee.id || null;
+
+      await awardSparkPoints({
+        locationId: location.id,
+        points: 5,
+        pointType: "breakfast_meal_count",
+        description: "Breakfast meal count entered",
+        serviceDate,
+        employeeId,
+        employeeName,
+        uniqueKey: `breakfast-${location.id}-${serviceDate}`,
+      });
+
+      await awardSparkPoints({
+        locationId: location.id,
+        points: 5,
+        pointType: "lunch_meal_count",
+        description: "Lunch meal count entered",
+        serviceDate,
+        employeeId,
+        employeeName,
+        uniqueKey: `lunch-${location.id}-${serviceDate}`,
+      });
+
+      if (supper !== null) {
+        await awardSparkPoints({
+          locationId: location.id,
+          points: 5,
+          pointType: "supper_meal_count",
+          description: "Supper meal count entered",
+          serviceDate,
+          employeeId,
+          employeeName,
+          uniqueKey: `supper-${location.id}-${serviceDate}`,
+        });
+      }
+
+      await awardSparkPoints({
+        locationId: location.id,
+        points: 5,
+        pointType: "finish_line",
+        description: "Finish Line Checklist completed",
+        serviceDate,
+        employeeId,
+        employeeName,
+        uniqueKey: `finish-line-${location.id}-${serviceDate}`,
+      });
+
       // Edits should return normally. Only a brand-new Finish Line
       // submission earns the completion celebration.
+      if (isEditing) {
+        onComplete();
+        return;
+      }
       if (isEditing) {
         onComplete();
         return;
