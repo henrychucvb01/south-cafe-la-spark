@@ -63,6 +63,10 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
   const [pointsSaving, setPointsSaving] = useState(false);
   const [pointsMessage, setPointsMessage] = useState("");
   const [pointsError, setPointsError] = useState("");
+  const [excludedDate, setExcludedDate] = useState("");
+  const [excludedReason, setExcludedReason] = useState("");
+  const [excludedDays, setExcludedDays] = useState([]);
+  const [excludedSaving, setExcludedSaving] = useState(false);
 
   // Manager PIN reset
   const [pinResetSchoolId, setPinResetSchoolId] = useState("");
@@ -466,8 +470,19 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
         throw historyError;
       }
 
+      const { data: excludedData, error: excludedError } = await supabase
+        .from("spark_excluded_days")
+        .select("*")
+        .eq("location_id", locationId)
+        .order("service_date", { ascending: false });
+
+      if (excludedError) {
+        throw excludedError;
+      }
+
       setPointsTotal(totalData?.total_points || 0);
       setPointsHistory(historyData || []);
+      setExcludedDays(excludedData || []);
     } catch (error) {
       console.error("SPARK Points supervisor load error:", error);
       setPointsError(error.message || "Could not load SPARK Points.");
@@ -538,6 +553,81 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
       setPointsError(error.message || "Could not save the point adjustment.");
     } finally {
       setPointsSaving(false);
+    }
+  }
+
+  async function saveExcludedDay() {
+    if (!pointsSchoolId) {
+      setPointsError("Select a school first.");
+      return;
+    }
+
+    if (!excludedDate) {
+      setPointsError("Select the unassigned/excluded date.");
+      return;
+    }
+
+    if (!excludedReason.trim()) {
+      setPointsError("Enter a reason for excluding this date.");
+      return;
+    }
+
+    setExcludedSaving(true);
+    setPointsError("");
+    setPointsMessage("");
+
+    try {
+      const { error } = await supabase.from("spark_excluded_days").upsert(
+        {
+          location_id: Number(pointsSchoolId),
+          service_date: excludedDate,
+          reason: excludedReason.trim(),
+          created_by: "Supervisor",
+        },
+        {
+          onConflict: "location_id,service_date",
+        }
+      );
+
+      if (error) {
+        throw error;
+      }
+
+      setExcludedDate("");
+      setExcludedReason("");
+      setPointsMessage("Excluded/unassigned day saved.");
+      await loadSparkPointsSupervisor(pointsSchoolId);
+    } catch (error) {
+      console.error("Excluded day save error:", error);
+      setPointsError(error.message || "Could not save the excluded day.");
+    } finally {
+      setExcludedSaving(false);
+    }
+  }
+
+  async function removeExcludedDay(rowId) {
+    if (!window.confirm("Remove this excluded/unassigned day?")) {
+      return;
+    }
+
+    setPointsError("");
+    setPointsMessage("");
+
+    try {
+      const { error } = await supabase
+        .from("spark_excluded_days")
+        .delete()
+        .eq("id", rowId);
+
+      if (error) {
+        throw error;
+      }
+
+      setPointsMessage("Excluded/unassigned day removed.");
+      await loadSparkPointsSupervisor(pointsSchoolId);
+    } catch (error) {
+      console.error("Excluded day remove error:", error);
+      setPointsError(error.message || "Could not remove the excluded day.");
     }
   }
 
@@ -1337,6 +1427,123 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
                         }}
                       >
                         {pointsMessage}
+                      </div>
+                    )}
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: "24px",
+                      paddingTop: "20px",
+                      borderTop: "1px solid #e1e7ec",
+                    }}
+                  >
+                    <h4 style={{ margin: "0 0 6px" }}>
+                      Unassigned / Excluded Days
+                    </h4>
+                    <p style={{ margin: "0 0 14px", color: "#667482" }}>
+                      Excluded dates do not break the school's Finish Line streak.
+                    </p>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "180px minmax(280px, 1fr) auto",
+                        gap: "12px",
+                        alignItems: "end",
+                      }}
+                    >
+                      <div>
+                        <label
+                          style={{
+                            display: "block",
+                            fontSize: "11px",
+                            fontWeight: "800",
+                            marginBottom: "6px",
+                          }}
+                        >
+                          Service Date
+                        </label>
+                        <input
+                          type="date"
+                          value={excludedDate}
+                          onChange={(e) => setExcludedDate(e.target.value)}
+                          style={{
+                            width: "100%",
+                            boxSizing: "border-box",
+                            padding: "10px",
+                            border: "1px solid #d6dfe7",
+                            borderRadius: "8px",
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label
+                          style={{
+                            display: "block",
+                            fontSize: "11px",
+                            fontWeight: "800",
+                            marginBottom: "6px",
+                          }}
+                        >
+                          Reason — required
+                        </label>
+                        <input
+                          type="text"
+                          value={excludedReason}
+                          onChange={(e) => setExcludedReason(e.target.value)}
+                          placeholder="Example: Manager position unassigned"
+                          style={{
+                            width: "100%",
+                            boxSizing: "border-box",
+                            padding: "10px",
+                            border: "1px solid #d6dfe7",
+                            borderRadius: "8px",
+                          }}
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        className="finish-line-submit finish-line-ready"
+                        disabled={excludedSaving}
+                        onClick={saveExcludedDay}
+                      >
+                        {excludedSaving ? "Saving..." : "Exclude Date"}
+                      </button>
+                    </div>
+
+                    {excludedDays.length > 0 && (
+                      <div style={{ overflowX: "auto", marginTop: "16px" }}>
+                        <table className="command-table">
+                          <thead>
+                            <tr>
+                              <th>Date</th>
+                              <th>Reason</th>
+                              <th>Entered By</th>
+                              <th></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {excludedDays.map((row) => (
+                              <tr key={row.id}>
+                                <td>{formatDate(row.service_date)}</td>
+                                <td>{row.reason}</td>
+                                <td>{row.created_by || "Supervisor"}</td>
+                                <td>
+                                  <button
+                                    type="button"
+                                    className="dashboard-exit"
+                                    onClick={() => removeExcludedDay(row.id)}
+                                  >
+                                    Remove
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     )}
                   </div>
