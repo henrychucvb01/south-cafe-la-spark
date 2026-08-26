@@ -1,107 +1,365 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
+import { awardSparkPoints } from "../sparkPoints";
 
-function isFinishLineCommentItem(item) {
-  return String(item?.item_key || "").endsWith("_comment");
-}
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from "recharts";
+const LABOR_TARGETS = {
+  secondary: {
+    label: "Secondary",
+    min: 18,
+    max: 20,
+  },
 
-function getFinishLineExplanation(items, itemKey) {
-  if (!itemKey || !Array.isArray(items)) {
-    return "";
-  }
+  elementary_prep: {
+    label: "Elementary Prep",
+    min: 20,
+    max: 22,
+  },
 
-  const commentItem = items.find(
-    (item) => item.item_key === `${itemKey}_comment`
-  );
+  elementary_nnc: {
+    label: "Elementary NNC",
+    min: 24,
+    max: 25,
+  },
 
-  return commentItem?.answer || "";
-}
+  special: {
+    label: "Special Education",
+    min: null,
+    max: null,
+  },
+};
+function SchoolHub({
+  location,
+  employee,
+  onFinishLine,
+  onDashboard,
+  onExit,
+  onMealAnalytics,
+}) {
+  const [mealCounts, setMealCounts] = useState([]);
+  const [sparkPoints, setSparkPoints] = useState(0);
 
-function formatFinishLineAnswer(answer) {
-  const value = String(answer || "").toLowerCase();
+  // Finish Line dashboard status / streak
+  const [todayFinishLine, setTodayFinishLine] = useState(null);
+  const [finishLineStreak, setFinishLineStreak] = useState(0);
 
-  if (value === "yes") return "YES";
-  if (value === "no") return "NO";
-  if (value === "na") return "N/A";
+  // Weekly / Monthly
+  const [range, setRange] = useState("weekly");
 
-  return String(answer || "—").toUpperCase();
-}
+  // all | breakfast | lunch | supper | total
+  const [chartView, setChartView] = useState("all");
 
-function getLocalDateString(date = new Date()) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
+  const [loadingMeals, setLoadingMeals] = useState(true);
+  const [mealError, setMealError] = useState("");
 
-  return `${year}-${month}-${day}`;
-}
+  // Pending Supper
+  const [pendingSupper, setPendingSupper] = useState(null);
+  const [supperInput, setSupperInput] = useState("");
+  const [savingSupper, setSavingSupper] = useState(false);
+  const [supperMessage, setSupperMessage] = useState("");
+  // Labor Productivity
+  const [additionalWorkerHours, setAdditionalWorkerHours] = useState("");
+  const [managerOvertimeHours, setManagerOvertimeHours] = useState("");
 
-function isWeekday(dateString) {
-  const date = new Date(`${dateString}T12:00:00`);
-  const day = date.getDay();
+  const [savedLaborAdjustments, setSavedLaborAdjustments] = useState(null);
 
-  return day >= 1 && day <= 5;
-}
-
-function getMonday(dateString) {
-  const date = new Date(`${dateString}T12:00:00`);
-  const day = date.getDay();
-  const distanceFromMonday = day === 0 ? 6 : day - 1;
-
-  date.setDate(date.getDate() - distanceFromMonday);
-
-  return getLocalDateString(date);
-}
-
-function addDays(dateString, numberOfDays) {
-  const date = new Date(`${dateString}T12:00:00`);
-  date.setDate(date.getDate() + numberOfDays);
-
-  return getLocalDateString(date);
-}
-
-function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
-  const [todayCheck, setTodayCheck] = useState(null);
-  const [history, setHistory] = useState([]);
-  const [excludedDays, setExcludedDays] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  // History filters
-  const [historyPeriod, setHistoryPeriod] = useState("month");
-  const [historyStatus, setHistoryStatus] = useState("all");
-  const [weekOf, setWeekOf] = useState(getLocalDateString());
-  const [monthValue, setMonthValue] = useState(
-    getLocalDateString().slice(0, 7)
-  );
-  const [rangeStart, setRangeStart] = useState("");
-  const [rangeEnd, setRangeEnd] = useState("");
+  const [loadingLabor, setLoadingLabor] = useState(false);
+  const [savingLabor, setSavingLabor] = useState(false);
+  const [laborMessage, setLaborMessage] = useState("");
+  const [laborHistory, setLaborHistory] = useState([]);
+  /* =========================================================
+     LOAD DATA
+  ========================================================= */
 
   useEffect(() => {
-    loadDashboard();
-  }, [location?.id]);
-
-  async function loadDashboard() {
     if (!location?.id) {
-      setError("Location information is missing.");
-      setLoading(false);
       return;
     }
 
-    setLoading(true);
-    setError("");
+    loadMealCounts();
+    loadPendingSupper();
+    loadFinishLineDashboardStatus();
+    loadSparkPoints();
+  }, [location?.id, range]);
+
+  async function loadSparkPoints() {
+    if (!location?.id) {
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("spark_school_point_totals")
+      .select("total_points")
+      .eq("location_id", location.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error("SPARK Points load error:", error);
+      return;
+    }
+
+    setSparkPoints(data?.total_points || 0);
+  }
+
+  /* =========================================================
+     FINISH LINE DASHBOARD STATUS + STREAK
+  ========================================================= */
+
+  function previousWeekday(date) {
+    const previous = new Date(date);
+    previous.setDate(previous.getDate() - 1);
+
+    while (previous.getDay() === 0 || previous.getDay() === 6) {
+      previous.setDate(previous.getDate() - 1);
+    }
+
+    return previous;
+  }
+
+  function getMondayForDate(date) {
+    const monday = new Date(date);
+    const day = monday.getDay();
+    const distanceFromMonday = day === 0 ? 6 : day - 1;
+
+    monday.setDate(monday.getDate() - distanceFromMonday);
+    monday.setHours(12, 0, 0, 0);
+
+    return monday;
+  }
+
+  async function awardPerfectWeekBonuses({
+    completedDates,
+    excludedDates,
+    todayString,
+  }) {
+    if (!location?.id) {
+      return;
+    }
+
+    const todayDate = new Date(`${todayString}T12:00:00`);
+
+    // Look back far enough to cover the same Finish Line history window.
+    const oldestDate = new Date(todayDate);
+    oldestDate.setDate(oldestDate.getDate() - 100);
+
+    let monday = getMondayForDate(oldestDate);
+    const currentWeekMonday = getMondayForDate(todayDate);
+
+    while (monday <= currentWeekMonday) {
+      const friday = new Date(monday);
+      friday.setDate(friday.getDate() + 4);
+
+      // Do not award a week until Friday has arrived.
+      if (friday <= todayDate) {
+        let weekQualifies = true;
+        let completedDayCount = 0;
+
+        for (let offset = 0; offset < 5; offset += 1) {
+          const serviceDate = new Date(monday);
+          serviceDate.setDate(serviceDate.getDate() + offset);
+
+          const serviceDateString = getDateString(serviceDate);
+
+          // Approved excluded/unassigned dates are neutral:
+          // they do not break the week and do not count as completed days.
+          if (excludedDates.has(serviceDateString)) {
+            continue;
+          }
+
+          if (!completedDates.has(serviceDateString)) {
+            weekQualifies = false;
+            break;
+          }
+
+          completedDayCount += 1;
+        }
+
+        // Require at least one real completed Finish Line day so an entirely
+        // excluded week cannot earn a Perfect Week bonus.
+        if (weekQualifies && completedDayCount > 0) {
+          const mondayString = getDateString(monday);
+          const fridayString = getDateString(friday);
+
+          await awardSparkPoints({
+            locationId: location.id,
+            points: 25,
+            pointType: "perfect_week",
+            description: "Perfect Finish Line Week",
+            serviceDate: fridayString,
+            employeeId: employee?.id || null,
+            employeeName: employee?.employee_name || "Covering Employee",
+            uniqueKey: `perfect-week-${location.id}-${mondayString}`,
+          });
+        }
+      }
+
+      monday = new Date(monday);
+      monday.setDate(monday.getDate() + 7);
+    }
+  }
+
+  function getSchoolYearStart(todayString) {
+    const todayDate = new Date(`${todayString}T12:00:00`);
+    const year = todayDate.getFullYear();
+
+    // School-year point cycle: July 1 through June 30.
+    const startYear = todayDate.getMonth() >= 6 ? year : year - 1;
+
+    return `${startYear}-07-01`;
+  }
+
+  function getMonthKey(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+
+    return `${year}-${month}`;
+  }
+
+  function getMonthStartDate(monthKey) {
+    return `${monthKey}-01`;
+  }
+
+  function getMonthEndDate(monthKey) {
+    const [year, month] = monthKey.split("-").map(Number);
+    const endDate = new Date(year, month, 0, 12, 0, 0);
+
+    return getDateString(endDate);
+  }
+
+  function getNextMonthKey(monthKey) {
+    const [year, month] = monthKey.split("-").map(Number);
+    const next = new Date(year, month, 1, 12, 0, 0);
+
+    return getMonthKey(next);
+  }
+
+  function getMonthlyStreakBonus(streakMonths) {
+    if (streakMonths <= 0) {
+      return 0;
+    }
+
+    // 1 perfect month = +100
+    if (streakMonths === 1) {
+      return 100;
+    }
+
+    // 2 perfect months in a row = +250
+    if (streakMonths === 2) {
+      return 250;
+    }
+
+    // Each additional consecutive perfect month is +25 more.
+    // 3 = 275, 4 = 300, 5 = 325, etc.
+    return 250 + (streakMonths - 2) * 25;
+  }
+
+  async function awardPerfectMonthBonuses({
+    completedDates,
+    excludedDates,
+    todayString,
+  }) {
+    if (!location?.id) {
+      return;
+    }
+
+    const todayDate = new Date(`${todayString}T12:00:00`);
+    const schoolYearStart = getSchoolYearStart(todayString);
+    let monthKey = schoolYearStart.slice(0, 7);
+
+    // Only fully completed calendar months can earn a monthly bonus.
+    // If today is in August, August will not be evaluated until September.
+    const currentMonthKey = getMonthKey(todayDate);
+
+    let consecutivePerfectMonths = 0;
+
+    while (monthKey < currentMonthKey) {
+      const monthStart = getMonthStartDate(monthKey);
+      const monthEnd = getMonthEndDate(monthKey);
+
+      let cursor = new Date(`${monthStart}T12:00:00`);
+      const endDate = new Date(`${monthEnd}T12:00:00`);
+
+      let monthQualifies = true;
+      let completedDayCount = 0;
+
+      while (cursor <= endDate) {
+        const dayOfWeek = cursor.getDay();
+
+        // Only Monday-Friday are required service days by default.
+        if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+          const serviceDateString = getDateString(cursor);
+
+          // Approved exclusions are neutral. They neither break the month
+          // nor count as completed Finish Line days.
+          if (excludedDates.has(serviceDateString)) {
+            cursor.setDate(cursor.getDate() + 1);
+            continue;
+          }
+
+          if (!completedDates.has(serviceDateString)) {
+            monthQualifies = false;
+            break;
+          }
+
+          completedDayCount += 1;
+        }
+
+        cursor.setDate(cursor.getDate() + 1);
+      }
+
+      // Prevent an entirely excluded month from earning a bonus.
+      if (monthQualifies && completedDayCount > 0) {
+        consecutivePerfectMonths += 1;
+
+        const bonusPoints = getMonthlyStreakBonus(
+          consecutivePerfectMonths
+        );
+
+        const description =
+          consecutivePerfectMonths === 1
+            ? "Perfect Finish Line Month"
+            : `Perfect Finish Line Month — ${consecutivePerfectMonths}-Month Streak`;
+
+        await awardSparkPoints({
+          locationId: location.id,
+          points: bonusPoints,
+          pointType: "perfect_month",
+          description,
+          serviceDate: monthEnd,
+          employeeId: employee?.id || null,
+          employeeName:
+            employee?.employee_name || "Covering Employee",
+          uniqueKey: `perfect-month-${location.id}-${monthKey}`,
+        });
+      } else {
+        // One missed required day resets the consecutive-month tier.
+        consecutivePerfectMonths = 0;
+      }
+
+      monthKey = getNextMonthKey(monthKey);
+    }
+  }
+
+  async function loadFinishLineDashboardStatus() {
+    if (!location?.id) {
+      return;
+    }
 
     try {
-      const today = getLocalDateString();
+      const today = getDateString(new Date());
 
-      // Today's Finish Line with detail items
       const { data: todayData, error: todayError } = await supabase
         .from("finish_line_checks")
-        .select(
-          `
-          *,
-          finish_line_items (*)
-        `
-        )
+        .select("id, service_date, status")
         .eq("location_id", location.id)
         .eq("service_date", today)
         .maybeSingle();
@@ -110,21 +368,435 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
         throw todayError;
       }
 
-      setTodayCheck(todayData || null);
+      setTodayFinishLine(todayData || null);
 
-      // Load the location's full Finish Line history.
-      // We generate missing service-day rows from this history below.
-      const { data: historyData, error: historyError } = await supabase
+      const { data: completedRows, error: streakError } = await supabase
         .from("finish_line_checks")
-        .select(
-          `
-          id,
-          service_date,
-          submitted_at,
-          employee_name,
-          status
-        `
-        )
+        .select("service_date")
+        .eq("location_id", location.id)
+        .eq("status", "complete")
+        .lte("service_date", today)
+        .order("service_date", { ascending: false })
+        .limit(400);
+
+      if (streakError) {
+        throw streakError;
+      }
+
+      const { data: excludedRows, error: excludedError } = await supabase
+        .from("spark_excluded_days")
+        .select("service_date")
+        .eq("location_id", location.id)
+        .lte("service_date", today)
+        .order("service_date", { ascending: false })
+        .limit(400);
+
+      if (excludedError) {
+        throw excludedError;
+      }
+
+      const completedDates = new Set(
+        (completedRows || []).map((row) => row.service_date)
+      );
+
+      const excludedDates = new Set(
+        (excludedRows || []).map((row) => row.service_date)
+      );
+
+      const todayIsComplete = todayData?.status === "complete";
+
+      let expectedDate = todayIsComplete
+        ? new Date(`${today}T12:00:00`)
+        : previousWeekday(new Date(`${today}T12:00:00`));
+
+      let streak = 0;
+
+      while (streak < 100) {
+        const expectedString = getDateString(expectedDate);
+
+        // Approved unassigned/excluded weekdays do not break the streak
+        // and do not add a completed day to the streak count.
+        if (excludedDates.has(expectedString)) {
+          expectedDate = previousWeekday(expectedDate);
+          continue;
+        }
+
+        if (!completedDates.has(expectedString)) {
+          break;
+        }
+
+        streak += 1;
+        expectedDate = previousWeekday(expectedDate);
+      }
+
+      setFinishLineStreak(streak);
+
+      // Award +25 for every eligible perfect Monday-Friday week.
+      // unique_key inside spark_points prevents duplicate weekly bonuses.
+      await awardPerfectWeekBonuses({
+        completedDates,
+        excludedDates,
+        todayString: today,
+      });
+
+      // Award monthly Finish Line streak bonuses for fully completed months.
+      // Tier:
+      // 1 month = +100
+      // 2 consecutive months = +250
+      // 3 = +275, 4 = +300, then +25 for each additional month.
+      // A single missed required day resets the next perfect month to +100.
+      await awardPerfectMonthBonuses({
+        completedDates,
+        excludedDates,
+        todayString: today,
+      });
+
+      // Refresh the visible school total in case a weekly or monthly bonus
+      // was just earned.
+      await loadSparkPoints();
+    } catch (error) {
+      console.error("Finish Line dashboard status error:", error);
+      setTodayFinishLine(null);
+      setFinishLineStreak(0);
+    }
+  }
+
+  const finishLineComplete = todayFinishLine?.status === "complete";
+
+  function getFinishLineStreakText() {
+    if (finishLineComplete) {
+      if (finishLineStreak <= 1) {
+        return "🔥 Streak started — Complete ✓";
+      }
+
+      return `🔥 ${finishLineStreak}-day streak — Complete ✓`;
+    }
+
+    if (finishLineStreak > 0) {
+      return `🔥 ${finishLineStreak}-day streak — Keep it going!`;
+    }
+
+    return "🔥 Start your streak today";
+  }
+
+  /* =========================================================
+     DATE HELPERS
+  ========================================================= */
+
+  function getDateString(date) {
+    return date.toISOString().split("T")[0];
+  }
+
+  function formatServiceDate(value) {
+    if (!value) {
+      return "";
+    }
+
+    return new Date(`${value}T12:00:00`).toLocaleDateString([], {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+  }
+
+  function formatShortDate(value) {
+    if (!value) {
+      return "";
+    }
+
+    return new Date(`${value}T12:00:00`).toLocaleDateString([], {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  }
+
+  /* =========================================================
+     LOAD MEAL COUNTS
+  ========================================================= */
+
+  async function loadMealCounts() {
+    if (!location?.id) {
+      return;
+    }
+
+    setLoadingMeals(true);
+    setMealError("");
+
+    try {
+      const daysBack = range === "weekly" ? 14 : 45;
+
+      const startDate = new Date();
+
+      startDate.setDate(startDate.getDate() - daysBack);
+
+      const startString = getDateString(startDate);
+
+      const { data, error } = await supabase
+        .from("meal_counts")
+        .select("*")
+        .eq("location_id", location.id)
+        .gte("service_date", startString)
+        .order("service_date", {
+          ascending: true,
+        });
+
+      if (error) {
+        throw error;
+      }
+
+      setMealCounts(data || []);
+    } catch (error) {
+      console.error("Meal count load error:", error);
+
+      setMealError(error.message || "Could not load meal counts.");
+    } finally {
+      setLoadingMeals(false);
+    }
+  }
+
+  /* =========================================================
+     FIND PENDING SUPPER
+  ========================================================= */
+
+ async function loadPendingSupper() {
+  if (!location?.id) {
+    return;
+  }
+
+  setSupperMessage("");
+
+  try {
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+
+    // No Supper service on Saturday or Sunday.
+    // Do not show a pending Supper prompt on weekends.
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+      setPendingSupper(null);
+      setSupperInput("");
+      return;
+    }
+
+    const today = getDateString(now);
+
+    const { data, error } = await supabase
+      .from("meal_counts")
+      .select("*")
+      .eq("location_id", location.id)
+      .eq("supper_status", "pending")
+      .lt("service_date", today)
+      .order("service_date", {
+        ascending: false,
+      })
+      .limit(10);
+
+    if (error) {
+      throw error;
+    }
+
+    // Ignore any Saturday/Sunday meal-count records.
+    const validPendingSupper =
+      (data || []).find((row) => {
+        const serviceDate = new Date(`${row.service_date}T12:00:00`);
+        const serviceDay = serviceDate.getDay();
+
+        return serviceDay >= 1 && serviceDay <= 5;
+      }) || null;
+
+    setPendingSupper(validPendingSupper);
+    setSupperInput(validPendingSupper?.supper_count ?? "");
+  } catch (error) {
+    console.error("Pending Supper load error:", error);
+
+    setSupperMessage(
+      `Could not check pending Supper counts: ${error.message}`
+    );
+  }
+}
+
+  /* =========================================================
+     SAVE PENDING SUPPER
+  ========================================================= */
+
+  function handleSupperChange(value) {
+    const clean = value.replace(/\D/g, "");
+
+    setSupperInput(clean);
+    setSupperMessage("");
+  }
+
+  async function savePendingSupper() {
+    if (!pendingSupper) {
+      return;
+    }
+
+    if (supperInput === "") {
+      setSupperMessage("Enter the final Supper count.");
+
+      return;
+    }
+
+    setSavingSupper(true);
+    setSupperMessage("");
+
+    try {
+      const { error } = await supabase
+        .from("meal_counts")
+        .update({
+          supper_count: Number(supperInput),
+
+          supper_status: "complete",
+
+          entered_by: employee?.employee_name || "Covering Employee",
+
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", pendingSupper.id);
+
+      if (error) {
+        throw error;
+      }
+      await awardSparkPoints({
+        locationId: location.id,
+        points: 5,
+        pointType: "supper_meal_count",
+        description: "Supper meal count entered",
+        serviceDate: pendingSupper.service_date,
+        employeeId: employee?.id || null,
+        employeeName:
+          employee?.employee_name || "Covering Employee",
+        uniqueKey: `supper-${location.id}-${pendingSupper.service_date}`,
+      });
+      setPendingSupper(null);
+      setSupperInput("");
+
+      await loadMealCounts();
+      await loadPendingSupper();
+    } catch (error) {
+      console.error("Supper save error:", error);
+
+      setSupperMessage(`Could not save Supper count: ${error.message}`);
+    } finally {
+      setSavingSupper(false);
+    }
+  }
+
+  /* =========================================================
+     CHART VIEW
+  ========================================================= */
+
+  function handleChartView(view) {
+    setChartView((current) => (current === view ? "all" : view));
+  }
+
+  /* =========================================================
+     CHART DATA
+  ========================================================= */
+
+  const chartData = useMemo(() => {
+    let rows = [...mealCounts];
+
+    if (range === "weekly") {
+      rows = rows.slice(-5);
+    }
+
+    if (range === "monthly") {
+      rows = rows.slice(-22);
+    }
+
+    return rows.map((row) => {
+      const breakfast = row.breakfast_count ?? 0;
+
+      const lunch = row.lunch_count ?? 0;
+
+      const supper =
+        row.supper_status === "pending" ? null : row.supper_count ?? 0;
+
+      const total = breakfast + lunch + (supper ?? 0);
+
+      return {
+        date: formatShortDate(row.service_date),
+
+        breakfast,
+        lunch,
+        supper,
+        total,
+
+        supperPending: row.supper_status === "pending",
+      };
+    });
+  }, [mealCounts, range]);
+
+  /* =========================================================
+     LATEST COUNTS
+  ========================================================= */
+
+  const latest =
+    mealCounts.length > 0 ? mealCounts[mealCounts.length - 1] : null;
+
+  const latestBreakfast = latest?.breakfast_count ?? 0;
+
+  const latestLunch = latest?.lunch_count ?? 0;
+
+  const latestSupper = latest?.supper_count;
+
+  const latestTotal = latestBreakfast + latestLunch + (latestSupper ?? 0);
+
+  useEffect(() => {
+    if (!location?.id || !latest?.service_date) {
+      setAdditionalWorkerHours("");
+      setManagerOvertimeHours("");
+      setSavedLaborAdjustments(null);
+      return;
+    }
+
+    loadLaborHours();
+  }, [location?.id, latest?.service_date]);
+
+  async function loadLaborHours() {
+    if (!location?.id || !latest?.service_date) {
+      return;
+    }
+
+    setLoadingLabor(true);
+    setLaborMessage("");
+
+    try {
+      const { data, error } = await supabase
+        .from("labor_hours")
+        .select("*")
+        .eq("location_id", location.id)
+        .eq("service_date", latest.service_date)
+        .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
+
+      if (data) {
+        const workerHours = Number(data.additional_worker_hours) || 0;
+
+        const managerOt = Number(data.manager_overtime_hours) || 0;
+
+        setAdditionalWorkerHours(workerHours === 0 ? "" : String(workerHours));
+
+        setManagerOvertimeHours(managerOt === 0 ? "" : String(managerOt));
+
+        setSavedLaborAdjustments({
+          additionalWorkerHours: workerHours,
+          managerOvertimeHours: managerOt,
+        });
+        
+      } else {
+        setAdditionalWorkerHours("");
+        setManagerOvertimeHours("");
+        setSavedLaborAdjustments(null);
+      }
+      const { data: historyData, error: historyError } = await supabase
+        .from("labor_hours")
+        .select("*")
         .eq("location_id", location.id)
         .order("service_date", {
           ascending: true,
@@ -134,764 +806,920 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
         throw historyError;
       }
 
-      const { data: excludedData, error: excludedError } = await supabase
-        .from("spark_excluded_days")
-        .select("id, service_date, reason, notes, created_by")
-        .eq("location_id", location.id)
-        .order("service_date", {
-          ascending: true,
-        });
+      setLaborHistory(historyData || []);
+    } catch (error) {
+      console.error("Labor hours load error:", error);
 
-      if (excludedError) {
-        throw excludedError;
-      }
-
-      setHistory(historyData || []);
-      setExcludedDays(excludedData || []);
-    } catch (err) {
-      console.error("School dashboard error:", err);
-      setError(err.message || "Could not load school dashboard.");
+      setLaborMessage(error.message || "Could not load labor information.");
     } finally {
-      setLoading(false);
+      setLoadingLabor(false);
     }
   }
-
-  const attentionCount =
-    todayCheck?.finish_line_items?.filter(
-      (item) => item.requires_attention === true
-    ).length || 0;
-
-  function formatDate(dateString) {
-    if (!dateString) {
-      return "—";
-    }
-
-    return new Date(`${dateString}T12:00:00`).toLocaleDateString([], {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  }
-
-  function formatTime(dateString) {
-    if (!dateString) {
-      return "—";
-    }
-
-    return new Date(dateString).toLocaleTimeString([], {
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  }
-
-  /*
-  Build the real service-day history.
-
-  Rules:
-  - Existing Finish Line submissions always appear.
-  - Existing weekend submissions remain visible if they already exist.
-  - Past weekdays with no Finish Line appear as Not Completed.
-  - Excluded / Unassigned dates appear as Excluded.
-  - Weekends do not generate Not Completed rows.
-  - Today does not become Not Completed until the day has passed.
-  */
-  const serviceDayHistory = useMemo(() => {
-    const today = getLocalDateString();
-
-    const checksByDate = new Map(
-      history.map((check) => [check.service_date, check])
-    );
-
-    const excludedByDate = new Map(
-      excludedDays.map((row) => [row.service_date, row])
-    );
-
-    const knownDates = [
-      ...history.map((row) => row.service_date),
-      ...excludedDays.map((row) => row.service_date),
-    ].filter(Boolean);
-
-    if (knownDates.length === 0) {
-      return [];
-    }
-
-    knownDates.sort();
-
-    // Start the calendar at the first real Finish Line/excluded record for
-    // this location. This avoids inventing missing days before SPARK began.
-    const firstDate = knownDates[0];
-
-    const calendarDates = new Set(knownDates);
-
-    let cursor = firstDate;
-
-    while (cursor <= today) {
-      if (isWeekday(cursor)) {
-        calendarDates.add(cursor);
-      }
-
-      cursor = addDays(cursor, 1);
-    }
-
-    return Array.from(calendarDates)
-      .filter((dateString) => dateString <= today)
-      .sort((a, b) => b.localeCompare(a))
-      .map((dateString) => {
-        const check = checksByDate.get(dateString);
-        const excluded = excludedByDate.get(dateString);
-
-        if (check) {
-          return {
-            ...check,
-            historyStatus: check.status,
-            isMissing: false,
-            isExcluded: false,
-          };
-        }
-
-        if (excluded) {
-          return {
-            id: `excluded-${excluded.id}`,
-            service_date: dateString,
-            submitted_at: null,
-            employee_name: excluded.created_by || "Supervisor",
-            status: "excluded",
-            historyStatus: "excluded",
-            isMissing: false,
-            isExcluded: true,
-            excludedReason: excluded.reason || excluded.notes || "",
-          };
-        }
-
-        // Only a PAST weekday becomes Not Completed.
-        if (dateString < today && isWeekday(dateString)) {
-          return {
-            id: `missing-${dateString}`,
-            service_date: dateString,
-            submitted_at: null,
-            employee_name: "",
-            status: "missing",
-            historyStatus: "missing",
-            isMissing: true,
-            isExcluded: false,
-          };
-        }
-
-        return null;
-      })
-      .filter(Boolean);
-  }, [history, excludedDays]);
-
-  const filteredHistory = useMemo(() => {
-    let rows = [...serviceDayHistory];
-
-    if (historyPeriod === "week") {
-      const monday = getMonday(weekOf);
-      const friday = addDays(monday, 4);
-
-      rows = rows.filter(
-        (row) =>
-          row.service_date >= monday && row.service_date <= friday
-      );
-    }
-
-    if (historyPeriod === "month") {
-      rows = rows.filter((row) =>
-        row.service_date.startsWith(monthValue)
-      );
-    }
-
-    if (historyPeriod === "range") {
-      if (rangeStart) {
-        rows = rows.filter((row) => row.service_date >= rangeStart);
-      }
-
-      if (rangeEnd) {
-        rows = rows.filter((row) => row.service_date <= rangeEnd);
-      }
-    }
-
-    if (historyStatus !== "all") {
-      rows = rows.filter(
-        (row) => row.historyStatus === historyStatus
-      );
-    }
-
-    return rows;
-  }, [
-    serviceDayHistory,
-    historyPeriod,
-    historyStatus,
-    weekOf,
-    monthValue,
-    rangeStart,
-    rangeEnd,
-  ]);
-
-  function getHistoryVisual(row) {
-    if (row.historyStatus === "complete") {
-      return {
-        icon: "✓",
-        label: "Complete",
-        background: "#e6f7ec",
-        color: "#169c55",
-        iconBackground: "#16ad64",
-      };
-    }
-
-    if (row.historyStatus === "attention") {
-      return {
-        icon: "!",
-        label: "Needs Attention",
-        background: "#fff1e7",
-        color: "#a85b18",
-        iconBackground: "#e79032",
-      };
-    }
-
-    if (row.historyStatus === "excluded") {
-      return {
-        icon: "—",
-        label: "Excluded",
-        background: "#eef2f6",
-        color: "#667482",
-        iconBackground: "#8b98a5",
-      };
-    }
-
-    return {
-      icon: "×",
-      label: "Not Completed",
-      background: "#fff0f0",
-      color: "#a63d3d",
-      iconBackground: "#d95c5c",
-    };
-  }
-
-  function openHistoryRow(row) {
-    if (row.isExcluded) {
+  async function saveLaborHours() {
+    if (!location?.id || !latest?.service_date) {
+      setLaborMessage("No meal-count date is available.");
       return;
     }
 
-    if (row.isMissing) {
-      // FinishLinePage already uses existingCheck.service_date as its
-      // active service date. Passing a date-only object opens a blank
-      // checklist for that historical date.
-      onEditFinishLine({
-        service_date: row.service_date,
-        backfillMode: true,
+    const workerHours = Number(additionalWorkerHours) || 0;
+    const managerOt = Number(managerOvertimeHours) || 0;
+
+    setSavingLabor(true);
+    setLaborMessage("");
+
+    try {
+      const { error } = await supabase.from("labor_hours").upsert(
+        {
+          location_id: location.id,
+          service_date: latest.service_date,
+          additional_worker_hours: workerHours,
+          manager_overtime_hours: managerOt,
+          entered_by: employee?.employee_name || "Covering Employee",
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: "location_id,service_date",
+        }
+      );
+
+      if (error) {
+        throw error;
+      }
+
+      setSavedLaborAdjustments({
+        additionalWorkerHours: workerHours,
+        managerOvertimeHours: managerOt,
       });
 
+      setLaborMessage("Labor hours saved.");
+    } catch (error) {
+      console.error("Labor save error:", error);
+
+      setLaborMessage(error.message || "Could not save labor hours.");
+    } finally {
+      setSavingLabor(false);
+    }
+  }
+
+  /* =========================================================
+   MPLH CALCULATIONS
+========================================================= */
+
+  const laborTarget = LABOR_TARGETS[location?.labor_type] || {
+    label: "Not Classified",
+    min: null,
+    max: null,
+  };
+
+  const budgetLaborHours = Number(location?.budget_labor_hours) || 0;
+
+  const savedAdditionalWorkerHours =
+    savedLaborAdjustments?.additionalWorkerHours ?? 0;
+
+  const savedManagerOvertimeHours =
+    savedLaborAdjustments?.managerOvertimeHours ?? 0;
+
+  const actualLaborHours =
+    budgetLaborHours + savedAdditionalWorkerHours + savedManagerOvertimeHours;
+
+  // Supper should not count until the final Supper count is complete.
+  const supperForMplh =
+    latest?.supper_status === "pending" ? 0 : Number(latestSupper) || 0;
+
+  const mealEquivalents =
+    Number(latestBreakfast) * 0.66 + Number(latestLunch) + supperForMplh;
+
+  const mplh = actualLaborHours > 0 ? mealEquivalents / actualLaborHours : null;
+
+  let mplhStatus = {
+    label: "No Target",
+    type: "neutral",
+    message:
+      "This location does not have an MPLH target yet. You can still use the MPLH number to track productivity over time.",
+  };
+
+  if (mplh !== null && laborTarget.min !== null && laborTarget.max !== null) {
+    if (mplh < laborTarget.min) {
+      mplhStatus = {
+        label: "Below Target",
+        type: "low",
+        message:
+          "Your meals per labor hour are below the target. Focus on increasing meal participation and review labor hours, since continued low productivity may affect staffing.",
+      };
+    } else if (mplh <= laborTarget.max) {
+      mplhStatus = {
+        label: "On Target",
+        type: "good",
+        message:
+          "Your meals and labor hours are in the target range. Staffing appears to match the current meal volume.",
+      };
+    } else {
+      mplhStatus = {
+        label: "High Productivity",
+        type: "high",
+        message:
+          "Your team is serving more meals per labor hour than the target. This shows strong productivity, but make sure the team has enough help to run the operation smoothly.",
+      };
+    }
+  }
+  const laborHistoryByDate = new Map(
+    laborHistory.map((row) => [row.service_date, row])
+  );
+
+  let totalHistoricalMealEquivalents = 0;
+  let totalHistoricalLaborHours = 0;
+
+  mealCounts.forEach((row) => {
+    const laborRow = laborHistoryByDate.get(row.service_date);
+
+    if (!laborRow) {
       return;
     }
 
-    onEditFinishLine(row);
-  }
+    const breakfast = Number(row.breakfast_count) || 0;
+    const lunch = Number(row.lunch_count) || 0;
 
-  if (loading) {
-    return (
-      <div className="login-app">
-        <main className="login-main">
-          <div className="login-card">Loading school dashboard...</div>
-        </main>
-      </div>
-    );
-  }
+    const supper =
+      row.supper_status === "pending" ? 0 : Number(row.supper_count) || 0;
+
+    const dailyMealEquivalents = breakfast * 0.66 + lunch + supper;
+
+    const extraWorkerHours = Number(laborRow.additional_worker_hours) || 0;
+
+    const managerOt = Number(laborRow.manager_overtime_hours) || 0;
+
+    const dailyLaborHours = budgetLaborHours + extraWorkerHours + managerOt;
+
+    if (dailyLaborHours > 0) {
+      totalHistoricalMealEquivalents += dailyMealEquivalents;
+      totalHistoricalLaborHours += dailyLaborHours;
+    }
+  });
+
+  const averageMplh =
+    totalHistoricalLaborHours > 0
+      ? totalHistoricalMealEquivalents / totalHistoricalLaborHours
+      : null;
+  /* =========================================================
+     PAGE
+  ========================================================= */
 
   return (
     <div className="login-app">
+      {/* HEADER */}
+
       <header className="login-header">
         <div className="login-brand">
-          <img src="/spark-192.png" alt="SPARK" className="spark-header-logo" />
-
+          <img
+            src="/spark-192.png"
+            alt="SPARK"
+            className="school-hub-spark-logo"
+          />
           <div>
             <div className="login-brand-name">SOUTH CAFÉ LA</div>
-            <div className="login-brand-subtitle">FINISH LINE OVERVIEW</div>
+
+            <div className="login-brand-subtitle">SCHOOL DASHBOARD</div>
           </div>
         </div>
-
-        <button className="supervisor-link" onClick={onBack}>
-          ← School Dashboard
-        </button>
       </header>
 
       <main className="login-main">
         <div className="school-dashboard-page">
+          {/* =================================================
+              SCHOOL HEADER
+          ================================================= */}
           <div className="school-dashboard-header">
-            <div>
-              <div className="dashboard-small-label">
-                LOCATION {location?.location_code}
-              </div>
-
-              <h1>{location?.school_name}</h1>
-              <p>Signed in as {employee?.employee_name}</p>
-            </div>
-
-            <button className="dashboard-exit" onClick={loadDashboard}>
-              ↻ Refresh
-            </button>
-          </div>
-
-          {error && <div className="command-error">{error}</div>}
-
-          <section
-            className={`school-status-banner ${
-              todayCheck?.status === "attention"
-                ? "school-status-attention"
-                : ""
-            }`}
-          >
-            <div className="status-banner-icon">
-              {todayCheck
-                ? todayCheck.status === "attention"
-                  ? "!"
-                  : "✓"
-                : "🏁"}
-            </div>
-
-            <div>
-              <strong>Today's Finish Line Checklist</strong>
-
-              <span>
-                {!todayCheck && "Not submitted today"}
-                {todayCheck?.status === "complete" && "Completed successfully"}
-                {todayCheck?.status === "attention" &&
-                  `${attentionCount} item${
-                    attentionCount === 1 ? "" : "s"
-                  } need attention`}
-              </span>
-            </div>
-
-            {todayCheck && (
-              <div className="school-status-time">
-                <small>Submitted by</small>
-                <strong>{todayCheck.employee_name}</strong>
-                <small>{formatTime(todayCheck.submitted_at)}</small>
-              </div>
-            )}
-          </section>
-
-          {todayCheck && (
-            <section className="dashboard-card">
-              <div className="school-dashboard-section-title">
-                <div>
-                  <h2>Today's Finish Line</h2>
-                  <p>End-of-day verification details</p>
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "8px",
-                    alignItems: "center",
-                  }}
-                >
-                  <span
-                    className={`school-dashboard-status ${todayCheck.status}`}
-                  >
-                    {todayCheck.status === "complete"
-                      ? "Complete"
-                      : "Needs Attention"}
-                  </span>
-
-                  <button
-                    type="button"
-                    className="dashboard-exit"
-                    onClick={() => onEditFinishLine(todayCheck)}
-                  >
-                    Edit Finish Line Checklist
-                  </button>
-                </div>
-              </div>
-
-              <div className="school-check-list">
-                {todayCheck.finish_line_items
-                  ?.filter((item) => !isFinishLineCommentItem(item))
-                  .map((item) => {
-                    const explanation = getFinishLineExplanation(
-                      todayCheck.finish_line_items,
-                      item.item_key
-                    );
-
-                    return (
-                      <div
-                        className="school-check-row"
-                        key={item.id}
-                        style={{ alignItems: "flex-start" }}
-                      >
-                        <div
-                          className="school-check-label"
-                          style={{ flex: 1, minWidth: 0 }}
-                        >
-                          <span
-                            className={`school-check-dot ${
-                              item.requires_attention ? "bad" : "good"
-                            }`}
-                          >
-                            {item.requires_attention ? "!" : "✓"}
-                          </span>
-
-                          <div style={{ minWidth: 0 }}>
-                            <span>{item.item_label}</span>
-
-                            {explanation && (
-                              <div
-                                style={{
-                                  marginTop: "5px",
-                                  padding: "6px 8px",
-                                  background: item.requires_attention
-                                    ? "#fff4f4"
-                                    : "#f5f7f9",
-                                  borderRadius: "6px",
-                                  color: item.requires_attention
-                                    ? "#8f3535"
-                                    : "#667482",
-                                  fontSize: "11px",
-                                  lineHeight: "1.4",
-                                }}
-                              >
-                                <strong>Explanation:</strong> {explanation}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <strong>
-                          {formatFinishLineAnswer(item.answer)}
-                        </strong>
-                      </div>
-                    );
-                  })}
-              </div>
-
-              {todayCheck.comments && (
-                <div className="school-dashboard-comments">
-                  <h3>Comments</h3>
-                  <p>{todayCheck.comments}</p>
-                </div>
-              )}
-            </section>
-          )}
-
-          {!todayCheck && (
-            <section className="dashboard-card">
-              <div className="school-empty-history">
-                No Finish Line Check has been submitted today.
-              </div>
-            </section>
-          )}
-
-          <section className="dashboard-card">
-            <div className="school-dashboard-section-title">
-              <div>
-                <h2>Finish Line Checklist History</h2>
-                <p>
-                  Review completed, missed, and excluded service days. Past
-                  missed days can be completed to correct the record.
-                </p>
-              </div>
-            </div>
-
-            {/* HISTORY FILTERS */}
             <div
               style={{
                 display: "flex",
-                gap: "10px",
+                alignItems: "center",
+                gap: "18px",
                 flexWrap: "wrap",
-                alignItems: "end",
-                padding: "14px",
-                marginBottom: "14px",
-                border: "1px solid #e1e7ec",
-                borderRadius: "10px",
-                background: "#f8fafc",
               }}
             >
               <div>
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "11px",
-                    fontWeight: "800",
-                    marginBottom: "5px",
-                  }}
-                >
-                  HISTORY
-                </label>
-
-                <select
-                  value={historyPeriod}
-                  onChange={(e) => setHistoryPeriod(e.target.value)}
-                  style={{
-                    padding: "9px 10px",
-                    border: "1px solid #d6dfe7",
-                    borderRadius: "7px",
-                  }}
-                >
-                  <option value="week">Week</option>
-                  <option value="month">Month</option>
-                  <option value="range">Date Range</option>
-                  <option value="all">All History</option>
-                </select>
-              </div>
-
-              {historyPeriod === "week" && (
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "11px",
-                      fontWeight: "800",
-                      marginBottom: "5px",
-                    }}
-                  >
-                    WEEK OF
-                  </label>
-
-                  <input
-                    type="date"
-                    value={weekOf}
-                    onChange={(e) => setWeekOf(e.target.value)}
-                    style={{
-                      padding: "8px 10px",
-                      border: "1px solid #d6dfe7",
-                      borderRadius: "7px",
-                    }}
-                  />
+                <div className="dashboard-small-label">
+                  LOCATION {location?.location_code}
                 </div>
-              )}
 
-              {historyPeriod === "month" && (
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "11px",
-                      fontWeight: "800",
-                      marginBottom: "5px",
-                    }}
-                  >
-                    MONTH
-                  </label>
+                <h1>{location?.school_name}</h1>
 
-                  <input
-                    type="month"
-                    value={monthValue}
-                    onChange={(e) => setMonthValue(e.target.value)}
-                    style={{
-                      padding: "8px 10px",
-                      border: "1px solid #d6dfe7",
-                      borderRadius: "7px",
-                    }}
-                  />
-                </div>
-              )}
-
-              {historyPeriod === "range" && (
-                <>
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: "11px",
-                        fontWeight: "800",
-                        marginBottom: "5px",
-                      }}
-                    >
-                      FROM
-                    </label>
-
-                    <input
-                      type="date"
-                      value={rangeStart}
-                      onChange={(e) => setRangeStart(e.target.value)}
-                      style={{
-                        padding: "8px 10px",
-                        border: "1px solid #d6dfe7",
-                        borderRadius: "7px",
-                      }}
-                    />
-                  </div>
-
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: "11px",
-                        fontWeight: "800",
-                        marginBottom: "5px",
-                      }}
-                    >
-                      TO
-                    </label>
-
-                    <input
-                      type="date"
-                      value={rangeEnd}
-                      onChange={(e) => setRangeEnd(e.target.value)}
-                      style={{
-                        padding: "8px 10px",
-                        border: "1px solid #d6dfe7",
-                        borderRadius: "7px",
-                      }}
-                    />
-                  </div>
-                </>
-              )}
-
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "11px",
-                    fontWeight: "800",
-                    marginBottom: "5px",
-                  }}
-                >
-                  STATUS
-                </label>
-
-                <select
-                  value={historyStatus}
-                  onChange={(e) => setHistoryStatus(e.target.value)}
-                  style={{
-                    padding: "9px 10px",
-                    border: "1px solid #d6dfe7",
-                    borderRadius: "7px",
-                  }}
-                >
-                  <option value="all">All Statuses</option>
-                  <option value="complete">Complete</option>
-                  <option value="attention">Needs Attention</option>
-                  <option value="missing">Not Completed</option>
-                  <option value="excluded">Excluded</option>
-                </select>
+                <p>
+                  Signed in as <strong>{employee?.employee_name}</strong>
+                </p>
               </div>
 
               <div
                 style={{
-                  marginLeft: "auto",
-                  color: "#667482",
-                  fontSize: "12px",
-                  paddingBottom: "8px",
+                  background: "#ffffff",
+                  border: "1px solid #d9e2ec",
+                  borderRadius: "10px",
+                  padding: "8px 16px",
+                  textAlign: "center",
+                  minWidth: "120px",
+                  boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
                 }}
               >
-                {filteredHistory.length} service day
-                {filteredHistory.length === 1 ? "" : "s"}
+                <div
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: "800",
+                    color: "#667085",
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  ⚡ SPARK POINTS
+                </div>
+
+                <div
+                  style={{
+                    fontSize: "30px",
+                    fontWeight: "800",
+                    lineHeight: "1.1",
+                    color: "#0b1f3a",
+                  }}
+                >
+                  {sparkPoints.toLocaleString()}
+                </div>
               </div>
             </div>
 
-            {filteredHistory.length === 0 ? (
+            <button className="dashboard-exit" onClick={onExit}>
+              Exit Location
+            </button>
+          </div>
+          {/* =================================================
+              PENDING SUPPER
+          ================================================= */}
+          {pendingSupper && (
+            <section
+              className="dashboard-card"
+              style={{
+                border: "1px solid #e7cb70",
+
+                background: "#fffaf0",
+              }}
+            >
+              <div className="school-dashboard-section-title">
+                <div>
+                  <h2>Action Needed — Supper Count</h2>
+
+                  <p>
+                    Enter the final Supper count from the previous service day.
+                  </p>
+                </div>
+
+                <span
+                  style={{
+                    background: "#fff0bd",
+
+                    color: "#775a00",
+
+                    borderRadius: "6px",
+
+                    padding: "5px 8px",
+
+                    fontSize: "9px",
+
+                    fontWeight: "800",
+                  }}
+                >
+                  PENDING
+                </span>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+
+                  gridTemplateColumns: "1fr 180px auto",
+
+                  gap: "12px",
+
+                  alignItems: "end",
+                }}
+              >
+                <div>
+                  <small
+                    style={{
+                      display: "block",
+                      color: "#7c8792",
+                      marginBottom: "4px",
+                    }}
+                  >
+                    Service Date
+                  </small>
+
+                  <strong>
+                    {formatServiceDate(pendingSupper.service_date)}
+                  </strong>
+                </div>
+
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "10px",
+                      fontWeight: "800",
+                      marginBottom: "5px",
+                    }}
+                  >
+                    Final Supper Count
+                  </label>
+
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="Enter count"
+                    value={supperInput}
+                    onChange={(e) => handleSupperChange(e.target.value)}
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      border: "1px solid #d6dfe7",
+                      borderRadius: "7px",
+                      padding: "10px",
+                      fontSize: "14px",
+                      fontWeight: "700",
+                    }}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  className="finish-line-submit finish-line-ready"
+                  disabled={savingSupper || supperInput === ""}
+                  onClick={savePendingSupper}
+                >
+                  {savingSupper ? "Saving..." : "Save Supper Count"}
+                </button>
+              </div>
+
+              {supperMessage && (
+                <div
+                  className="login-error"
+                  style={{
+                    marginTop: "10px",
+                  }}
+                >
+                  {supperMessage}
+                </div>
+              )}
+            </section>
+          )}
+          {/* =================================================
+              TODAY'S OPERATIONS
+          ================================================= */}
+          <section className="dashboard-card">
+            <div className="school-dashboard-section-title">
+              <div>
+                <h2>Today's Operations</h2>
+
+                <p>Complete your daily Finish Line.</p>
+              </div>
+            </div>
+
+            <button
+              className="hub-action primary"
+              onClick={onFinishLine}
+              style={
+                finishLineComplete
+                  ? {
+                      background: "#eff9f3",
+                      borderColor: "#8fd0a8",
+                    }
+                  : undefined
+              }
+            >
+              <div
+                className="hub-action-icon"
+                style={
+                  finishLineComplete
+                    ? {
+                        background: "#dff4e7",
+                      }
+                    : undefined
+                }
+              >
+                {finishLineComplete ? "✓" : "🏁"}
+              </div>
+
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <strong>Finish Line Checklist</strong>
+
+                <small>
+                  {finishLineComplete
+                    ? "Today's Finish Line is complete"
+                    : "Complete today's end-of-day verification"}
+                </small>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "14px",
+                  marginLeft: "auto",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <span
+                  style={{
+                    color: finishLineComplete ? "#237044" : "#9a6710",
+                    fontWeight: "800",
+                    fontSize: "14px",
+                  }}
+                >
+                  {getFinishLineStreakText()}
+                </span>
+
+                <span>›</span>
+              </div>
+            </button>
+
+            <button className="hub-action" onClick={onDashboard}>
+              <div className="hub-action-icon">📋</div>
+
+              <div>
+                <strong>Finish Line Checklist History</strong>
+
+                <small>Review today's status and previous submissions</small>
+              </div>
+
+              <span>›</span>
+            </button>
+          </section>
+
+          {/* =================================================
+    LABOR PRODUCTIVITY
+================================================= */}
+
+          <section className="dashboard-card">
+            <div className="school-dashboard-section-title">
+              <div>
+                <h2>Labor Productivity</h2>
+                <p>Compare meal volume with today's labor.</p>
+              </div>
+
+              {mplh !== null && (
+                <span
+                  className={`labor-status labor-status-${mplhStatus.type}`}
+                >
+                  {mplhStatus.label}
+                </span>
+              )}
+            </div>
+
+            {/* MPLH SUMMARY */}
+
+            <div className="labor-productivity-summary">
+              <div className="labor-mplh-main">
+                <span>Today's MPLH</span>
+
+                <strong>{mplh !== null ? mplh.toFixed(1) : "—"}</strong>
+
+                <small>
+                  Target:{" "}
+                  {laborTarget.min !== null
+                    ? `${laborTarget.min}–${laborTarget.max} MPLH`
+                    : "No target assigned"}
+                </small>
+
+                <small>{laborTarget.label}</small>
+              </div>
+
+              <div className="labor-stat">
+                <span>Avg MPLH to Date</span>
+
+                <strong>
+                  {averageMplh !== null ? averageMplh.toFixed(1) : "—"}
+                </strong>
+
+                <small>Saved labor days</small>
+              </div>
+
+              <div className="labor-stat">
+                <span>Meal Equivalents</span>
+
+                <strong>{mealEquivalents.toFixed(1)}</strong>
+              </div>
+
+              <div className="labor-stat">
+                <span>Actual Labor</span>
+
+                <strong>{actualLaborHours.toFixed(1)}</strong>
+
+                <small>Baseline {budgetLaborHours.toFixed(1)} hrs</small>
+              </div>
+            </div>
+
+            <div className="labor-status-message">{mplhStatus.message}</div>
+
+            {/* LABOR ADJUSTMENTS */}
+
+            <div className="labor-adjustment-heading">
+              Today's Labor Adjustments
+            </div>
+
+            <p className="labor-adjustment-help">
+              Enter only hours added above the school's normal labor allocation.
+            </p>
+
+            <div className="labor-adjustment-grid">
+              <div>
+                <label>Additional Worker Hours</label>
+
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0"
+                  value={additionalWorkerHours}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/[^0-9.]/g, "");
+
+                    if ((value.match(/\./g) || []).length <= 1) {
+                      setAdditionalWorkerHours(value);
+                      setLaborMessage("");
+                    }
+                  }}
+                />
+              </div>
+
+              <div>
+                <label>Manager Overtime Hours</label>
+
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0"
+                  value={managerOvertimeHours}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/[^0-9.]/g, "");
+
+                    if ((value.match(/\./g) || []).length <= 1) {
+                      setManagerOvertimeHours(value);
+                      setLaborMessage("");
+                    }
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="labor-save-row">
+              <button
+                type="button"
+                className="finish-line-submit finish-line-ready"
+                disabled={savingLabor || loadingLabor}
+                onClick={saveLaborHours}
+              >
+                {savingLabor ? "Saving..." : "Save Labor Hours"}
+              </button>
+
+              {laborMessage && (
+                <span
+                  className={
+                    laborMessage.toLowerCase().includes("saved")
+                      ? "labor-message-success"
+                      : "labor-message-error"
+                  }
+                >
+                  {laborMessage}
+                </span>
+              )}
+            </div>
+          </section>
+          {/* =================================================
+    LATEST MEAL COUNTS
+================================================= */}
+          <section className="dashboard-card">
+            <div className="school-dashboard-section-title">
+              <div>
+                <h2>Latest Meal Counts</h2>
+                <p>Most recent meal service counts.</p>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  flexWrap: "wrap",
+                }}
+              >
+                {latest && (
+                  <span className="school-dashboard-status complete">
+                    {formatShortDate(latest.service_date)}
+                  </span>
+                )}
+
+                <button
+                  type="button"
+                  className="meal-analytics-button"
+                  onClick={onMealAnalytics}
+                >
+                  View Meal Analytics →
+                </button>
+              </div>
+            </div>
+
+            {!latest ? (
               <div className="school-empty-history">
-                No Finish Line history matches these filters.
+                No meal-count data yet.
               </div>
             ) : (
-              <div className="school-history-list">
-                {filteredHistory.map((row) => {
-                  const visual = getHistoryVisual(row);
-                  const canOpen = !row.isExcluded;
+              <div className="meal-summary-grid">
+                {/* BREAKFAST */}
 
-                  return (
-                    <div
-                      className="school-history-row"
-                      key={row.id}
-                      onClick={() => {
-                        if (canOpen) {
-                          openHistoryRow(row);
-                        }
-                      }}
-                      role={canOpen ? "button" : undefined}
-                      tabIndex={canOpen ? 0 : undefined}
-                      onKeyDown={(e) => {
-                        if (
-                          canOpen &&
-                          (e.key === "Enter" || e.key === " ")
-                        ) {
-                          openHistoryRow(row);
-                        }
-                      }}
-                      style={{
-                        cursor: canOpen ? "pointer" : "default",
-                        opacity: row.isExcluded ? 0.85 : 1,
-                      }}
-                    >
-                      <div className="school-history-date">
-                        <span
-                          style={{
-                            width: "28px",
-                            height: "28px",
-                            borderRadius: "50%",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            flexShrink: 0,
-                            background: visual.iconBackground,
-                            color: "#ffffff",
-                            fontWeight: "900",
+                <button
+                  type="button"
+                  className={`meal-summary-card meal-summary-button ${
+                    chartView === "breakfast" ? "selected" : ""
+                  }`}
+                  onClick={() => handleChartView("breakfast")}
+                >
+                  <span>Breakfast</span>
+                  <strong>{latestBreakfast.toLocaleString()}</strong>
+                </button>
+
+                {/* LUNCH */}
+
+                <button
+                  type="button"
+                  className={`meal-summary-card meal-summary-button ${
+                    chartView === "lunch" ? "selected" : ""
+                  }`}
+                  onClick={() => handleChartView("lunch")}
+                >
+                  <span>Lunch</span>
+                  <strong>{latestLunch.toLocaleString()}</strong>
+                </button>
+
+                {/* SUPPER */}
+
+                <button
+                  type="button"
+                  className={`meal-summary-card meal-summary-button ${
+                    chartView === "supper" ? "selected" : ""
+                  }`}
+                  onClick={() => handleChartView("supper")}
+                >
+                  <span>Supper</span>
+
+                  <strong>
+                    {latestSupper === null
+                      ? "Pending"
+                      : latestSupper.toLocaleString()}
+                  </strong>
+                </button>
+
+                {/* TOTAL */}
+
+                <button
+                  type="button"
+                  className={`meal-summary-card meal-summary-button ${
+                    chartView === "total" ? "selected" : ""
+                  }`}
+                  onClick={() => handleChartView("total")}
+                >
+                  <span>Total</span>
+
+                  <strong>{latestTotal.toLocaleString()}</strong>
+
+                  {latestSupper === null && <small>Supper pending</small>}
+                </button>
+              </div>
+            )}
+          </section>
+          {/* =================================================
+              MEAL COUNT TREND
+          ================================================= */}
+          <section className="dashboard-card">
+            <div className="school-dashboard-section-title">
+              <div>
+                <h2>Meal Count Trend</h2>
+
+                <p>
+                  {chartView === "all" && "Breakfast, Lunch & Supper"}
+
+                  {chartView === "breakfast" && "Breakfast trend"}
+
+                  {chartView === "lunch" && "Lunch trend"}
+
+                  {chartView === "supper" && "Supper trend"}
+
+                  {chartView === "total" && "Daily total trend"}
+
+                  {" • "}
+
+                  {range === "weekly"
+                    ? "Last 5 service days"
+                    : "Last 22 service days"}
+                </p>
+              </div>
+
+              {/* WEEKLY / MONTHLY */}
+
+              <div className="meal-range-toggle">
+                <button
+                  type="button"
+                  className={range === "weekly" ? "active" : ""}
+                  onClick={() => setRange("weekly")}
+                >
+                  Weekly
+                </button>
+
+                <button
+                  type="button"
+                  className={range === "monthly" ? "active" : ""}
+                  onClick={() => setRange("monthly")}
+                >
+                  Monthly
+                </button>
+              </div>
+            </div>
+
+            {mealError && <div className="login-error">{mealError}</div>}
+
+            {loadingMeals ? (
+              <div className="school-empty-history">Loading meal trends...</div>
+            ) : chartData.length === 0 ? (
+              <div className="school-empty-history">
+                No meal-count history available yet.
+              </div>
+            ) : (
+              <div className="meal-chart-wrap">
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart
+                    data={chartData}
+                    margin={{
+                      top: 15,
+                      right: 25,
+                      left: 0,
+                      bottom: 5,
+                    }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+
+                    <XAxis dataKey="date" />
+
+                    <YAxis />
+
+                    <Tooltip />
+
+                    <Legend />
+
+                    {/* =================================
+                        ALL SERVICES
+                    ================================= */}
+
+                    {chartView === "all" && (
+                      <>
+                        <Line
+                          type="monotone"
+                          dataKey="breakfast"
+                          name="Breakfast"
+                          stroke="#2878d0"
+                          strokeWidth={3}
+                          connectNulls={false}
+                          dot={{
+                            r: 5,
+                            fill: "#2878d0",
+                            stroke: "#2878d0",
                           }}
-                        >
-                          {visual.icon}
-                        </span>
-
-                        <div>
-                          <strong>{formatDate(row.service_date)}</strong>
-
-                          {row.isMissing && (
-                            <small>
-                              Missed Finish Line — click to complete
-                            </small>
-                          )}
-
-                          {row.isExcluded && (
-                            <small>
-                              {row.excludedReason || "Excluded / Unassigned day"}
-                            </small>
-                          )}
-
-                          {!row.isMissing && !row.isExcluded && (
-                            <small>{row.employee_name}</small>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="school-history-right">
-                        <span
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            borderRadius: "6px",
-                            padding: "5px 8px",
-                            background: visual.background,
-                            color: visual.color,
-                            fontWeight: "800",
-                            fontSize: "11px",
+                          activeDot={{
+                            r: 7,
                           }}
-                        >
-                          {visual.label}
-                        </span>
+                        />
 
-                        {row.isMissing && (
-                          <button
-                            type="button"
-                            className="dashboard-exit"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openHistoryRow(row);
-                            }}
-                          >
-                            Complete Now
-                          </button>
-                        )}
+                        <Line
+                          type="monotone"
+                          dataKey="lunch"
+                          name="Lunch"
+                          stroke="#1b9b62"
+                          strokeWidth={3}
+                          connectNulls={false}
+                          dot={{
+                            r: 5,
+                            fill: "#1b9b62",
+                            stroke: "#1b9b62",
+                          }}
+                          activeDot={{
+                            r: 7,
+                          }}
+                        />
 
-                        {!row.isMissing &&
-                          !row.isExcluded &&
-                          row.submitted_at && (
-                            <small>{formatTime(row.submitted_at)}</small>
-                          )}
-                      </div>
-                    </div>
-                  );
-                })}
+                        <Line
+                          type="monotone"
+                          dataKey="supper"
+                          name="Supper"
+                          stroke="#e58b23"
+                          strokeWidth={3}
+                          connectNulls={false}
+                          dot={{
+                            r: 5,
+                            fill: "#e58b23",
+                            stroke: "#e58b23",
+                          }}
+                          activeDot={{
+                            r: 7,
+                          }}
+                        />
+                      </>
+                    )}
+
+                    {/* =================================
+                        BREAKFAST ONLY
+                    ================================= */}
+
+                    {(chartView === "all" || chartView === "breakfast") && (
+                      <Line
+                        type="monotone"
+                        dataKey="breakfast"
+                        name="Breakfast"
+                        stroke="#2878d0"
+                        strokeWidth={3}
+                        connectNulls={false}
+                        dot={{
+                          r: 5,
+                          fill: "#2878d0",
+                          stroke: "#2878d0",
+                        }}
+                        activeDot={{
+                          r: 7,
+                        }}
+                      />
+                    )}
+
+                    {/* =================================
+                        LUNCH ONLY
+                    ================================= */}
+
+                    {(chartView === "all" || chartView === "lunch") && (
+                      <Line
+                        type="monotone"
+                        dataKey="lunch"
+                        name="Lunch"
+                        stroke="#1b9b62"
+                        strokeWidth={3}
+                        connectNulls={false}
+                        dot={{
+                          r: 5,
+                          fill: "#1b9b62",
+                          stroke: "#1b9b62",
+                        }}
+                        activeDot={{
+                          r: 7,
+                        }}
+                      />
+                    )}
+
+                    {/* =================================
+                        SUPPER ONLY
+                    ================================= */}
+
+                    {(chartView === "all" || chartView === "supper") && (
+                      <Line
+                        type="monotone"
+                        dataKey="supper"
+                        name="Supper"
+                        stroke="#e58b23"
+                        strokeWidth={3}
+                        connectNulls={false}
+                        dot={{
+                          r: 5,
+                          fill: "#e58b23",
+                          stroke: "#e58b23",
+                        }}
+                        activeDot={{
+                          r: 7,
+                        }}
+                      />
+                    )}
+
+                    {/* =================================
+                        DAILY TOTAL
+                    ================================= */}
+
+                    {chartView === "total" && (
+                      <Line
+                        type="monotone"
+                        dataKey="total"
+                        name="Daily Total"
+                        stroke="#5b4bb7"
+                        strokeWidth={3}
+                        connectNulls={false}
+                        dot={{
+                          r: 5,
+                          fill: "#5b4bb7",
+                          stroke: "#5b4bb7",
+                        }}
+                        activeDot={{
+                          r: 7,
+                        }}
+                      />
+                    )}
+                  </LineChart>
+                </ResponsiveContainer>
               </div>
             )}
           </section>
@@ -901,4 +1729,4 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
   );
 }
 
-export default SchoolDashboard;
+export default SchoolHub;
