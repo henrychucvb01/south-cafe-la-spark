@@ -46,6 +46,7 @@ function SchoolHub({
   onMealAnalytics,
 }) {
   const [mealCounts, setMealCounts] = useState([]);
+  const [sparkPoints, setSparkPoints] = useState(0);
 
   // Finish Line dashboard status / streak
   const [todayFinishLine, setTodayFinishLine] = useState(null);
@@ -87,7 +88,27 @@ function SchoolHub({
     loadMealCounts();
     loadPendingSupper();
     loadFinishLineDashboardStatus();
+    loadSparkPoints();
   }, [location?.id, range]);
+
+  async function loadSparkPoints() {
+    if (!location?.id) {
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("spark_school_point_totals")
+      .select("total_points")
+      .eq("location_id", location.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error("SPARK Points load error:", error);
+      return;
+    }
+
+    setSparkPoints(data?.total_points || 0);
+  }
 
   /* =========================================================
      FINISH LINE DASHBOARD STATUS + STREAK
@@ -697,16 +718,59 @@ function SchoolHub({
               SCHOOL HEADER
           ================================================= */}
           <div className="school-dashboard-header">
-            <div>
-              <div className="dashboard-small-label">
-                LOCATION {location?.location_code}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "18px",
+                flexWrap: "wrap",
+              }}
+            >
+              <div>
+                <div className="dashboard-small-label">
+                  LOCATION {location?.location_code}
+                </div>
+
+                <h1>{location?.school_name}</h1>
+
+                <p>
+                  Signed in as <strong>{employee?.employee_name}</strong>
+                </p>
               </div>
 
-              <h1>{location?.school_name}</h1>
+              <div
+                style={{
+                  background: "#ffffff",
+                  border: "1px solid #d9e2ec",
+                  borderRadius: "10px",
+                  padding: "8px 16px",
+                  textAlign: "center",
+                  minWidth: "120px",
+                  boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: "800",
+                    color: "#667085",
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  ⚡ SPARK POINTS
+                </div>
 
-              <p>
-                Signed in as <strong>{employee?.employee_name}</strong>
-              </p>
+                <div
+                  style={{
+                    fontSize: "30px",
+                    fontWeight: "800",
+                    lineHeight: "1.1",
+                    color: "#0b1f3a",
+                  }}
+                >
+                  {sparkPoints.toLocaleString()}
+                </div>
+              </div>
             </div>
 
             <button className="dashboard-exit" onClick={onExit}>
