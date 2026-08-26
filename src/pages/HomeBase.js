@@ -5,6 +5,7 @@ function HomeBase({
   employee,
   onSchoolHub,
   onIncidentHelper,
+  onDailyBites,
   onExit,
 }) {
   return (
@@ -86,17 +87,23 @@ function HomeBase({
               <div className="homebase-card-arrow">›</div>
             </button>
 
-            <div className="homebase-card homebase-card-coming">
-              <div className="homebase-card-icon">👥</div>
+            <button
+              type="button"
+              className="homebase-card"
+              onClick={onDailyBites}
+            >
+              <div className="homebase-card-icon">🍎</div>
 
               <div className="homebase-card-body">
-                <strong>Coverage & Time Off</strong>
+                <strong>Daily Bites</strong>
 
-                <span>Track manager time off and operational coverage.</span>
+                <span>
+                  Quick tips, comics, SPARK Bingo, and school engagement.
+                </span>
               </div>
 
-              <span className="homebase-coming-soon">Coming Soon</span>
-            </div>
+              <div className="homebase-card-arrow">›</div>
+            </button>
 
             <div className="homebase-card homebase-card-coming">
               <div className="homebase-card-icon">📚</div>
