@@ -1161,6 +1161,38 @@ function DailyBitesPage({ location, employee, onBack }) {
             </p>
           </section>
 
+          <section className="dashboard-card">
+            <div className="school-dashboard-section-title">
+              <div>
+                <div className="dashboard-small-label">TODAY'S COMIC</div>
+                <h2>Daily Bites Comic</h2>
+                <p>A quick cafeteria comic for the day.</p>
+              </div>
+            </div>
+
+            <div
+              style={{
+                marginTop: "14px",
+                padding: "12px",
+                borderRadius: "16px",
+                background: "#ffffff",
+                border: "1px solid #e1e8dc",
+                overflow: "hidden",
+              }}
+            >
+              <img
+                src="/daily-bites-comics/regular_01.png"
+                alt="Daily Bites cafeteria comic"
+                style={{
+                  display: "block",
+                  width: "100%",
+                  height: "auto",
+                  borderRadius: "12px",
+                }}
+              />
+            </div>
+          </section>
+
           <section className="dashboard-card spark-bingo-section">
             <div className="spark-bingo-heading">
               <div>
