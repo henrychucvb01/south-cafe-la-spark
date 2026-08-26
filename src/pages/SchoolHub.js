@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
+import { awardSparkPoints } from "../sparkPoints";
 
 import {
   LineChart,
@@ -365,7 +366,17 @@ function SchoolHub({
       if (error) {
         throw error;
       }
-
+      await awardSparkPoints({
+        locationId: location.id,
+        points: 5,
+        pointType: "supper_meal_count",
+        description: "Supper meal count entered",
+        serviceDate: pendingSupper.service_date,
+        employeeId: employee?.id || null,
+        employeeName:
+          employee?.employee_name || "Covering Employee",
+        uniqueKey: `supper-${location.id}-${pendingSupper.service_date}`,
+      });
       setPendingSupper(null);
       setSupperInput("");
 
