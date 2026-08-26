@@ -159,8 +159,24 @@ function SchoolHub({
         throw streakError;
       }
 
+      const { data: excludedRows, error: excludedError } = await supabase
+        .from("spark_excluded_days")
+        .select("service_date")
+        .eq("location_id", location.id)
+        .lte("service_date", today)
+        .order("service_date", { ascending: false })
+        .limit(100);
+
+      if (excludedError) {
+        throw excludedError;
+      }
+
       const completedDates = new Set(
         (completedRows || []).map((row) => row.service_date)
+      );
+
+      const excludedDates = new Set(
+        (excludedRows || []).map((row) => row.service_date)
       );
 
       const todayIsComplete = todayData?.status === "complete";
@@ -173,6 +189,13 @@ function SchoolHub({
 
       while (streak < 100) {
         const expectedString = getDateString(expectedDate);
+
+        // Approved unassigned/excluded weekdays do not break the streak
+        // and do not add a completed day to the streak count.
+        if (excludedDates.has(expectedString)) {
+          expectedDate = previousWeekday(expectedDate);
+          continue;
+        }
 
         if (!completedDates.has(expectedString)) {
           break;
