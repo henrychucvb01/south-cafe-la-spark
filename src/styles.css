@@ -7505,3 +7505,202 @@ button.homebase-card:hover {
   color: #eaf0f6 !important;
   opacity: .7 !important;
 }
+.spark-bingo-section {
+  overflow: hidden;
+}
+
+.spark-bingo-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 14px;
+}
+
+.spark-bingo-heading h2 {
+  margin: 4px 0 4px;
+}
+
+.spark-bingo-heading p {
+  margin: 0;
+  color: #667482;
+  max-width: 680px;
+}
+
+.spark-bingo-progress-summary {
+  min-width: 132px;
+  padding: 12px 14px;
+  border: 1px solid #dce5ed;
+  border-radius: 12px;
+  background: #f7fafc;
+  text-align: center;
+}
+
+.spark-bingo-progress-summary strong {
+  display: block;
+  font-size: 22px;
+  line-height: 1.1;
+  color: #23313d;
+}
+
+.spark-bingo-progress-summary span {
+  display: block;
+  margin-top: 4px;
+  color: #667482;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.spark-bingo-progress-track {
+  height: 10px;
+  margin-bottom: 18px;
+  border-radius: 999px;
+  background: #e8eef3;
+  overflow: hidden;
+}
+
+.spark-bingo-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: #51b749;
+  transition: width 280ms ease;
+}
+
+.spark-bingo-board-wrap {
+  width: 100%;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.spark-bingo-board {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(112px, 1fr));
+  gap: 10px;
+  min-width: 600px;
+}
+
+.spark-bingo-square {
+  position: relative;
+  min-height: 112px;
+  padding: 14px 10px 12px;
+  border: 1px solid #d8e2e9;
+  border-radius: 12px;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.spark-bingo-square strong {
+  color: #243541;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.spark-bingo-square span {
+  margin-top: 5px;
+  color: #71808c;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.spark-bingo-square-icon {
+  margin-bottom: 7px;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.spark-bingo-square-complete {
+  border-color: #78be7a;
+  background: #f0faf2;
+}
+
+.spark-bingo-square-complete strong {
+  color: #1f6330;
+}
+
+.spark-bingo-check {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 23px;
+  height: 23px;
+  border-radius: 50%;
+  background: #51b749;
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.spark-bingo-rewards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 18px;
+  border: 1px solid #dce5ed;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f8fafb;
+}
+
+.spark-bingo-rewards > div {
+  padding: 12px 10px;
+  text-align: center;
+  border-right: 1px solid #dce5ed;
+}
+
+.spark-bingo-rewards > div:last-child {
+  border-right: 0;
+}
+
+.spark-bingo-rewards strong {
+  display: block;
+  color: #263944;
+  font-size: 14px;
+}
+
+.spark-bingo-rewards span {
+  display: block;
+  margin-top: 3px;
+  color: #5d6f7b;
+  font-size: 12px;
+}
+
+.spark-bingo-note {
+  margin: 12px 0 0;
+  color: #667482;
+  font-size: 13px;
+  text-align: center;
+}
+
+@media (max-width: 700px) {
+  .spark-bingo-heading {
+    flex-direction: column;
+  }
+
+  .spark-bingo-progress-summary {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .spark-bingo-rewards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .spark-bingo-rewards > div:nth-child(2) {
+    border-right: 0;
+  }
+
+  .spark-bingo-rewards > div:nth-child(-n + 2) {
+    border-bottom: 1px solid #dce5ed;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spark-bingo-progress-fill {
+    transition: none;
+  }
+}
