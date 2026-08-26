@@ -32,9 +32,11 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [sparkPoints, setSparkPoints] = useState(0);
 
   useEffect(() => {
     loadDashboard();
+    
   }, [location]);
 
   async function loadDashboard() {
@@ -92,6 +94,18 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
       }
 
       setHistory(historyData || []);
+            // Current SPARK Points total for this school
+      const { data: pointsData, error: pointsError } = await supabase
+        .from("spark_school_point_totals")
+        .select("total_points")
+        .eq("location_id", location.id)
+        .maybeSingle();
+
+      if (pointsError) {
+        throw pointsError;
+      }
+
+      setSparkPoints(pointsData?.total_points || 0);
     } catch (err) {
       console.error("School dashboard error:", err);
       setError(err.message || "Could not load school dashboard.");
@@ -157,20 +171,58 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
 
       <main className="login-main">
         <div className="school-dashboard-page">
-          <div className="school-dashboard-header">
-            <div>
-              <div className="dashboard-small-label">
-                LOCATION {location?.location_code}
-              </div>
+    <div className="school-dashboard-header">
+  <div>
+    <div className="dashboard-small-label">
+      LOCATION {location?.location_code}
+    </div>
 
-              <h1>{location?.school_name}</h1>
-              <p>Signed in as {employee?.employee_name}</p>
-            </div>
+    <h1>{location?.school_name}</h1>
+    <p>Signed in as {employee?.employee_name}</p>
+  </div>
 
-            <button className="dashboard-exit" onClick={loadDashboard}>
-              ↻ Refresh
-            </button>
-          </div>
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      gap: "16px",
+    }}
+  >
+    <div
+      style={{
+        textAlign: "center",
+        padding: "10px 18px",
+        borderRadius: "12px",
+        background: "#fff",
+        boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "14px",
+          fontWeight: "700",
+          opacity: 0.7,
+        }}
+      >
+        ⚡ SPARK POINTS
+      </div>
+
+      <div
+        style={{
+          fontSize: "30px",
+          fontWeight: "800",
+          lineHeight: "1.1",
+        }}
+      >
+        {sparkPoints.toLocaleString()}
+      </div>
+    </div>
+
+    <button className="dashboard-exit" onClick={loadDashboard}>
+      ↻ Refresh
+    </button>
+  </div>
+</div>
 
           {error && <div className="command-error">{error}</div>}
 
