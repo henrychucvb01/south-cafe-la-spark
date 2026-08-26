@@ -7507,6 +7507,10 @@ button.homebase-card:hover {
 }
 .spark-bingo-section {
   overflow: hidden;
+  background:
+    linear-gradient(180deg, #fffdf7 0%, #fffaf0 100%);
+  border: 1px solid #eadbbf;
+  box-shadow: 0 8px 24px rgba(122, 88, 34, 0.08);
 }
 
 .spark-bingo-heading {
@@ -7519,50 +7523,56 @@ button.homebase-card:hover {
 
 .spark-bingo-heading h2 {
   margin: 4px 0 4px;
+  color: #173f2a;
+  font-size: 26px;
+  letter-spacing: -0.02em;
 }
 
 .spark-bingo-heading p {
   margin: 0;
-  color: #667482;
+  color: #6f6456;
   max-width: 680px;
+  line-height: 1.5;
 }
 
 .spark-bingo-progress-summary {
   min-width: 132px;
   padding: 12px 14px;
-  border: 1px solid #dce5ed;
-  border-radius: 12px;
-  background: #f7fafc;
+  border: 1px solid #b8d3ad;
+  border-radius: 14px;
+  background: #fbfff8;
   text-align: center;
+  box-shadow: 0 4px 12px rgba(64, 111, 63, 0.08);
 }
 
 .spark-bingo-progress-summary strong {
   display: block;
-  font-size: 22px;
+  font-size: 24px;
   line-height: 1.1;
-  color: #23313d;
+  color: #1f6a35;
 }
 
 .spark-bingo-progress-summary span {
   display: block;
   margin-top: 4px;
-  color: #667482;
+  color: #66705f;
   font-size: 12px;
   font-weight: 700;
 }
 
 .spark-bingo-progress-track {
   height: 10px;
-  margin-bottom: 18px;
+  margin-bottom: 20px;
   border-radius: 999px;
-  background: #e8eef3;
+  background: #ece8da;
   overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(84, 71, 49, 0.08);
 }
 
 .spark-bingo-progress-fill {
   height: 100%;
   border-radius: inherit;
-  background: #51b749;
+  background: linear-gradient(90deg, #2f8a45 0%, #6cbc57 100%);
   transition: width 280ms ease;
 }
 
@@ -7583,97 +7593,184 @@ button.homebase-card:hover {
   position: relative;
   min-height: 112px;
   padding: 14px 10px 12px;
-  border: 1px solid #d8e2e9;
-  border-radius: 12px;
-  background: #ffffff;
+  border: 1px solid #e7d7bb;
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #fffaf2 100%);
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   text-align: center;
+  box-shadow: 0 3px 10px rgba(112, 85, 45, 0.05);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease;
+}
+
+.spark-bingo-square:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(112, 85, 45, 0.09);
 }
 
 .spark-bingo-square strong {
-  color: #243541;
+  color: #2f2a24;
   font-size: 14px;
   line-height: 1.2;
 }
 
 .spark-bingo-square span {
   margin-top: 5px;
-  color: #71808c;
+  color: #817466;
   font-size: 12px;
   line-height: 1.25;
 }
 
 .spark-bingo-square-icon {
-  margin-bottom: 7px;
-  font-size: 22px;
+  width: 38px;
+  height: 38px;
+  margin-bottom: 8px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #fff4da;
+  border: 1px solid #f2d9a8;
+  font-size: 21px;
   line-height: 1;
 }
 
 .spark-bingo-square-complete {
-  border-color: #78be7a;
-  background: #f0faf2;
+  border-color: #72b56f;
+  background:
+    linear-gradient(180deg, #f4fff2 0%, #e8f7e5 100%);
+  box-shadow: 0 5px 14px rgba(68, 140, 74, 0.12);
 }
 
 .spark-bingo-square-complete strong {
-  color: #1f6330;
+  color: #1f6a35;
+}
+
+.spark-bingo-square-complete .spark-bingo-square-icon {
+  background: #dff3db;
+  border-color: #abd5a6;
 }
 
 .spark-bingo-check {
   position: absolute;
   top: 7px;
   right: 7px;
-  width: 23px;
-  height: 23px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  background: #51b749;
+  background: #4eaf57;
   color: #ffffff;
   display: grid;
   place-items: center;
   font-size: 14px;
   font-weight: 900;
+  box-shadow: 0 2px 6px rgba(45, 104, 51, 0.18);
 }
 
 .spark-bingo-rewards {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin-top: 18px;
-  border: 1px solid #dce5ed;
-  border-radius: 12px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-top: 20px;
+  border: 1px solid #e2c994;
+  border-radius: 14px;
   overflow: hidden;
-  background: #f8fafb;
+  background:
+    linear-gradient(180deg, #fff8e8 0%, #fff3d8 100%);
+  box-shadow: 0 4px 12px rgba(120, 83, 24, 0.06);
 }
 
 .spark-bingo-rewards > div {
-  padding: 12px 10px;
+  position: relative;
+  padding: 14px 10px;
   text-align: center;
-  border-right: 1px solid #dce5ed;
+  border-right: 1px solid #ead5aa;
 }
 
 .spark-bingo-rewards > div:last-child {
   border-right: 0;
 }
 
+.spark-bingo-rewards > div::before {
+  content: "★";
+  display: block;
+  margin-bottom: 4px;
+  color: #e5a92b;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.spark-bingo-rewards > div:nth-child(4)::before {
+  content: "🏆";
+}
+
+.spark-bingo-rewards > div:nth-child(5)::before {
+  content: "⭐";
+  font-size: 21px;
+}
+
 .spark-bingo-rewards strong {
   display: block;
-  color: #263944;
+  color: #4c3a1e;
   font-size: 14px;
 }
 
 .spark-bingo-rewards span {
   display: block;
   margin-top: 3px;
-  color: #5d6f7b;
+  color: #7b6646;
   font-size: 12px;
+  font-weight: 600;
 }
 
 .spark-bingo-note {
-  margin: 12px 0 0;
-  color: #667482;
+  margin: 14px 0 0;
+  color: #7a6e5e;
   font-size: 13px;
   text-align: center;
+}
+
+/* Optional animation hooks for completed squares / bingo line */
+.spark-bingo-square.spark-bingo-pop {
+  animation: sparkBingoPop 0.55s ease;
+}
+
+.spark-bingo-line-celebration {
+  animation: sparkBingoRewardPulse 0.8s ease;
+}
+
+@keyframes sparkBingoPop {
+  0% {
+    transform: scale(1);
+  }
+
+  45% {
+    transform: scale(1.07);
+    box-shadow: 0 0 0 5px rgba(76, 175, 80, 0.12);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes sparkBingoRewardPulse {
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.02);
+  }
+
+  100% {
+    transform: scale(1);
+  }
 }
 
 @media (max-width: 700px) {
@@ -7690,17 +7787,35 @@ button.homebase-card:hover {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .spark-bingo-rewards > div:nth-child(2) {
+  .spark-bingo-rewards > div {
+    border-bottom: 1px solid #ead5aa;
+  }
+
+  .spark-bingo-rewards > div:nth-child(2n) {
     border-right: 0;
   }
 
-  .spark-bingo-rewards > div:nth-child(-n + 2) {
-    border-bottom: 1px solid #dce5ed;
+  .spark-bingo-rewards > div:last-child {
+    grid-column: 1 / -1;
+    border-bottom: 0;
+    border-right: 0;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .spark-bingo-square:hover {
+    transform: translateY(-2px);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .spark-bingo-progress-fill {
+  .spark-bingo-progress-fill,
+  .spark-bingo-square {
     transition: none;
+  }
+
+  .spark-bingo-square.spark-bingo-pop,
+  .spark-bingo-line-celebration {
+    animation: none;
   }
 }
