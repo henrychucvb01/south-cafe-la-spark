@@ -68,6 +68,16 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
   const [excludedDays, setExcludedDays] = useState([]);
   const [excludedSaving, setExcludedSaving] = useState(false);
 
+  // =========================================
+  // MONITORING POINTS
+  // Breakfast: 1 required
+  // Lunch: 1 required
+  // Supper: 3 required
+  // Pass = +10 | Perfect = +20
+  // Monitoring cycle resets July 1 each year.
+  // =========================================
+  const [monitoringSaving, setMonitoringSaving] = useState("");
+
   // Manager PIN reset
   const [pinResetSchoolId, setPinResetSchoolId] = useState("");
   const [pinResetEmployees, setPinResetEmployees] = useState([]);
@@ -553,6 +563,126 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
       setPointsError(error.message || "Could not save the point adjustment.");
     } finally {
       setPointsSaving(false);
+    }
+  }
+
+  function getMonitoringCycleStart() {
+    const now = new Date();
+    const year = now.getFullYear();
+
+    // July 1 through June 30
+    const startYear = now.getMonth() >= 6 ? year : year - 1;
+
+    return `${startYear}-07-01`;
+  }
+
+  function getMonitoringCycleEnd() {
+    const startYear = Number(getMonitoringCycleStart().slice(0, 4));
+    return `${startYear + 1}-06-30`;
+  }
+
+  function getMonitoringCount(serviceType) {
+    return pointsHistory.filter((row) => {
+      if (row.point_type !== `monitoring_${serviceType}`) {
+        return false;
+      }
+
+      const serviceDate = row.service_date;
+
+      return (
+        serviceDate >= getMonitoringCycleStart() &&
+        serviceDate <= getMonitoringCycleEnd()
+      );
+    }).length;
+  }
+
+  function getMonitoringLimit(serviceType) {
+    if (serviceType === "supper") {
+      return 3;
+    }
+
+    return 1;
+  }
+
+  async function awardMonitoringPoints(serviceType, result) {
+    if (!pointsSchoolId) {
+      setPointsError("Select a school first.");
+      return;
+    }
+
+    const currentCount = getMonitoringCount(serviceType);
+    const limit = getMonitoringLimit(serviceType);
+
+    if (currentCount >= limit) {
+      setPointsError(
+        `${serviceType.charAt(0).toUpperCase() + serviceType.slice(1)} monitoring requirement is already complete for this cycle.`
+      );
+      return;
+    }
+
+    const isPerfect = result === "perfect";
+    const points = isPerfect ? 20 : 10;
+    const serviceLabel =
+      serviceType.charAt(0).toUpperCase() + serviceType.slice(1);
+    const resultLabel = isPerfect ? "Perfect" : "Pass";
+
+    const confirmMessage =
+      `Award ${points} points to this school for a ${resultLabel} ` +
+      `${serviceLabel} monitoring?`;
+
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    setMonitoringSaving(`${serviceType}-${result}`);
+    setPointsError("");
+    setPointsMessage("");
+
+    try {
+      const now = new Date();
+      const cycleStart = getMonitoringCycleStart();
+
+      // The sequence number makes each required monitoring unique.
+      // Breakfast/Lunch will only ever be #1. Supper can be #1, #2, or #3.
+      const sequence = currentCount + 1;
+
+      const { error } = await supabase.from("spark_points").insert({
+        location_id: Number(pointsSchoolId),
+        points,
+        point_type: `monitoring_${serviceType}`,
+        description: `${resultLabel} ${serviceLabel} Monitoring`,
+        service_date: getLocalDateString(now),
+        source: "supervisor_monitoring",
+        awarded_by: "Supervisor",
+        adjustment_reason: `${resultLabel} ${serviceLabel} monitoring`,
+        unique_key:
+          `monitoring-${serviceType}-${pointsSchoolId}-` +
+          `${cycleStart}-${sequence}`,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      setPointsMessage(
+        `+${points} points awarded for ${resultLabel} ${serviceLabel} Monitoring.`
+      );
+
+      await loadSparkPointsSupervisor(pointsSchoolId);
+    } catch (error) {
+      console.error("Monitoring points error:", error);
+
+      if (error?.code === "23505") {
+        setPointsError(
+          "These monitoring points were already awarded for this requirement."
+        );
+      } else {
+        setPointsError(
+          error.message || "Could not award monitoring points."
+        );
+      }
+    } finally {
+      setMonitoringSaving("");
     }
   }
 
@@ -1429,6 +1559,158 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
                         {pointsMessage}
                       </div>
                     )}
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: "24px",
+                      paddingTop: "20px",
+                      borderTop: "1px solid #e1e7ec",
+                    }}
+                  >
+                    <h4 style={{ margin: "0 0 6px" }}>
+                      Monitoring Points
+                    </h4>
+
+                    <p style={{ margin: "0 0 14px", color: "#667482" }}>
+                      Award points after completing required school monitorings.
+                      Pass = +10 points. Perfect = +20 points.
+                    </p>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns:
+                          "repeat(auto-fit, minmax(260px, 1fr))",
+                        gap: "12px",
+                      }}
+                    >
+                      {[
+                        {
+                          key: "breakfast",
+                          label: "Breakfast",
+                          limit: 1,
+                        },
+                        {
+                          key: "lunch",
+                          label: "Lunch",
+                          limit: 1,
+                        },
+                        {
+                          key: "supper",
+                          label: "Supper",
+                          limit: 3,
+                        },
+                      ].map((monitoring) => {
+                        const completed = getMonitoringCount(monitoring.key);
+                        const isComplete = completed >= monitoring.limit;
+
+                        return (
+                          <div
+                            key={monitoring.key}
+                            style={{
+                              border: "1px solid #dce5ed",
+                              borderRadius: "10px",
+                              padding: "14px",
+                              background: isComplete ? "#f0faf4" : "#ffffff",
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                gap: "10px",
+                                marginBottom: "12px",
+                              }}
+                            >
+                              <div>
+                                <strong
+                                  style={{
+                                    display: "block",
+                                    fontSize: "15px",
+                                  }}
+                                >
+                                  {monitoring.label} Monitoring
+                                </strong>
+
+                                <span
+                                  style={{
+                                    color: "#667482",
+                                    fontSize: "12px",
+                                  }}
+                                >
+                                  {completed} / {monitoring.limit} completed
+                                </span>
+                              </div>
+
+                              {isComplete && (
+                                <span
+                                  style={{
+                                    background: "#dff4e7",
+                                    color: "#237044",
+                                    borderRadius: "999px",
+                                    padding: "5px 9px",
+                                    fontSize: "11px",
+                                    fontWeight: "800",
+                                  }}
+                                >
+                                  COMPLETE
+                                </span>
+                              )}
+                            </div>
+
+                            <div
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "1fr 1fr",
+                                gap: "8px",
+                              }}
+                            >
+                              <button
+                                type="button"
+                                className="dashboard-exit"
+                                disabled={
+                                  isComplete ||
+                                  Boolean(monitoringSaving)
+                                }
+                                onClick={() =>
+                                  awardMonitoringPoints(
+                                    monitoring.key,
+                                    "pass"
+                                  )
+                                }
+                              >
+                                {monitoringSaving ===
+                                `${monitoring.key}-pass`
+                                  ? "Saving..."
+                                  : "Pass +10"}
+                              </button>
+
+                              <button
+                                type="button"
+                                className="finish-line-submit finish-line-ready"
+                                disabled={
+                                  isComplete ||
+                                  Boolean(monitoringSaving)
+                                }
+                                onClick={() =>
+                                  awardMonitoringPoints(
+                                    monitoring.key,
+                                    "perfect"
+                                  )
+                                }
+                              >
+                                {monitoringSaving ===
+                                `${monitoring.key}-perfect`
+                                  ? "Saving..."
+                                  : "Perfect +20"}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   <div
