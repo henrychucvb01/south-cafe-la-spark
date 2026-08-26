@@ -4,38 +4,150 @@ import { awardSparkPoints } from "../sparkPoints";
 
 const CARD_ONE_START = "2026-08-01";
 const CARD_ONE_END = "2026-12-31";
+const CARD_ONE_KEY = "card1-fall-2026";
+const FREE_SPACE_INDEX = 12;
 
-const BINGO_CARD_ONE = [
+/*
+  Card 1 uses a larger approved goal pool.
+  Each school gets a deterministic 25-square card based on its location ID.
+  That means:
+  - different schools get different cards
+  - the card does NOT reshuffle on refresh/login
+  - FREE SPACE always stays in the center
+  - Perfect BIC Run is guaranteed on every Card 1
+  - Special Ed automatically excludes Supper and MPLH goals
+*/
+const BINGO_GOAL_POOL = [
+  { id: "finish-line-3", label: "Finish Line", detail: "Complete 3 days", icon: "✅" },
   { id: "finish-line-5", label: "Finish Line", detail: "Complete 5 days", icon: "✅" },
-  { id: "daily-bites-5", label: "Daily Bites", detail: "Visit 5 days", icon: "🍎" },
-  { id: "meal-counts-5", label: "Meal Counts", detail: "Enter 5 days", icon: "🍽️" },
-  { id: "mplh-3", label: "MPLH Target", detail: "Hit target 3 days", icon: "📈" },
-  { id: "finish-streak-5", label: "Finish Line", detail: "5-day streak", icon: "🔥" },
+  { id: "finish-line-7", label: "Finish Line", detail: "Complete 7 days", icon: "🏁" },
+  { id: "finish-line-10", label: "Finish Line", detail: "Complete 10 days", icon: "🏁" },
+  { id: "finish-line-15", label: "Finish Line", detail: "Complete 15 days", icon: "🏆" },
+  { id: "finish-line-20", label: "Finish Line", detail: "Complete 20 days", icon: "🏆" },
 
+  { id: "finish-streak-3", label: "Finish Line", detail: "3-day streak", icon: "🔥" },
+  { id: "finish-streak-5", label: "Finish Line", detail: "5-day streak", icon: "🔥" },
   { id: "perfect-week", label: "Perfect Week", detail: "Finish Line", icon: "⭐" },
+
+  { id: "daily-bites-3", label: "Daily Bites", detail: "Visit 3 days", icon: "🍎" },
+  { id: "daily-bites-5", label: "Daily Bites", detail: "Visit 5 days", icon: "🍎" },
+  { id: "daily-bites-7", label: "Daily Bites", detail: "Visit 7 days", icon: "🥕" },
+  { id: "daily-bites-10", label: "Daily Bites", detail: "Visit 10 days", icon: "🥕" },
+
+  { id: "meal-counts-3", label: "Meal Counts", detail: "Enter 3 days", icon: "🍽️" },
+  { id: "meal-counts-5", label: "Meal Counts", detail: "Enter 5 days", icon: "🍽️" },
+  { id: "meal-counts-7", label: "Meal Counts", detail: "Enter 7 days", icon: "🔢" },
+  { id: "meal-counts-10", label: "Meal Counts", detail: "Enter 10 days", icon: "🔢" },
+  { id: "meal-counts-15", label: "Meal Counts", detail: "Enter 15 days", icon: "🔢" },
+
+  { id: "production-record-3", label: "Production Record", detail: "Complete 3 days", icon: "📋" },
   { id: "production-record-5", label: "Production Record", detail: "Complete 5 days", icon: "📋" },
-  { id: "perfect-bic", label: "Perfect BIC Run", detail: "Supervisor verified", icon: "🌟" },
+  { id: "production-record-10", label: "Production Record", detail: "Complete 10 days", icon: "📋" },
+  { id: "production-worksheet-5", label: "Production Worksheet", detail: "Complete 5 days", icon: "📝" },
+  { id: "reports-reviewed-5", label: "Reports Reviewed", detail: "Complete 5 days", icon: "🔍" },
+  { id: "finish-meal-count-5", label: "Meal Count Check", detail: "Confirm 5 days", icon: "✔️" },
+
+  { id: "perfect-bic", label: "Perfect BIC Run", detail: "Supervisor verified", icon: "🌟", lockedCardOne: true },
   { id: "monitoring-1", label: "Monitoring", detail: "Complete 1", icon: "🔎" },
   { id: "perfect-lunch", label: "Perfect Lunch", detail: "Monitoring", icon: "🥗" },
+  { id: "all-monitorings", label: "Monitorings", detail: "Complete required", icon: "✔️" },
 
-  { id: "perfect-supper", label: "Perfect Supper", detail: "Monitoring", icon: "🌙" },
-  { id: "supper-monitorings-3", label: "Supper", detail: "3 monitorings", icon: "3️⃣" },
-  { id: "free", label: "FREE SPACE", detail: "Already yours", icon: "✨" },
-  { id: "labor-adjustment", label: "Labor", detail: "Enter adjustment", icon: "🕒" },
+  { id: "labor-adjustment", label: "Labor", detail: "Enter 1 adjustment", icon: "🕒" },
+  { id: "labor-adjustment-3", label: "Labor", detail: "Enter 3 adjustments", icon: "🕒" },
+
   { id: "inventory", label: "Inventory", detail: "Month-end complete", icon: "📦" },
-
   { id: "monday", label: "Monday Tasks", detail: "Complete all", icon: "M" },
   { id: "tuesday", label: "Tuesday Plan", detail: "Meal plan complete", icon: "T" },
   { id: "wednesday", label: "Wednesday", detail: "Ordering complete", icon: "W" },
   { id: "thursday", label: "Thursday", detail: "Orders complete", icon: "T" },
-  { id: "finish-line-10", label: "Finish Line", detail: "Complete 10 days", icon: "🏁" },
 
-  { id: "meal-counts-10", label: "Meal Counts", detail: "Enter 10 days", icon: "🔢" },
-  { id: "daily-bites-10", label: "Daily Bites", detail: "Visit 10 days", icon: "🥕" },
-  { id: "mplh-5", label: "MPLH Target", detail: "Hit target 5 days", icon: "📊" },
-  { id: "finish-line-15", label: "Finish Line", detail: "Complete 15 days", icon: "🏆" },
-  { id: "all-monitorings", label: "Monitorings", detail: "Complete required", icon: "✔️" },
+  { id: "perfect-supper", label: "Perfect Supper", detail: "Monitoring", icon: "🌙", requiresSupper: true },
+  { id: "supper-monitoring-1", label: "Supper", detail: "Complete 1 monitoring", icon: "🌙", requiresSupper: true },
+  { id: "supper-monitorings-3", label: "Supper", detail: "3 monitorings", icon: "3️⃣", requiresSupper: true },
+
+  { id: "mplh-2", label: "MPLH Target", detail: "Hit target 2 days", icon: "📈", requiresMplh: true },
+  { id: "mplh-3", label: "MPLH Target", detail: "Hit target 3 days", icon: "📈", requiresMplh: true },
+  { id: "mplh-5", label: "MPLH Target", detail: "Hit target 5 days", icon: "📊", requiresMplh: true },
 ];
+
+const FREE_SPACE = {
+  id: "free",
+  label: "FREE SPACE",
+  detail: "Already yours",
+  icon: "✨",
+};
+
+function hashString(value) {
+  let hash = 2166136261;
+
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return hash >>> 0;
+}
+
+function seededRandom(seed) {
+  let value = seed >>> 0;
+
+  return function nextRandom() {
+    value += 0x6d2b79f5;
+    let t = value;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function seededShuffle(items, seedText) {
+  const result = [...items];
+  const random = seededRandom(hashString(seedText));
+
+  for (let i = result.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+
+  return result;
+}
+
+function buildSchoolBingoCard(location) {
+  const isSpecialEd = location?.labor_type === "special_ed";
+
+  const eligibleGoals = BINGO_GOAL_POOL.filter((goal) => {
+    if (isSpecialEd && goal.requiresSupper) {
+      return false;
+    }
+
+    if (isSpecialEd && goal.requiresMplh) {
+      return false;
+    }
+
+    return true;
+  });
+
+  const lockedGoals = eligibleGoals.filter((goal) => goal.lockedCardOne);
+  const randomGoals = eligibleGoals.filter((goal) => !goal.lockedCardOne);
+
+  const schoolSeed =
+    `${CARD_ONE_KEY}-${location?.id ?? location?.location_code ?? "school"}`;
+
+  const selectedRandomGoals = seededShuffle(
+    randomGoals,
+    `${schoolSeed}-goal-pool`
+  ).slice(0, 24 - lockedGoals.length);
+
+  const selectedNonFree = seededShuffle(
+    [...lockedGoals, ...selectedRandomGoals],
+    `${schoolSeed}-positions`
+  );
+
+  const card = [...selectedNonFree];
+  card.splice(FREE_SPACE_INDEX, 0, FREE_SPACE);
+
+  return card;
+}
 
 const BINGO_LINES = [
   [0, 1, 2, 3, 4],
@@ -55,10 +167,10 @@ const BINGO_LINES = [
 const BINGO_LINE_REWARDS = [10, 20, 30, 40, 50];
 const BLACKOUT_BONUS = 100;
 
-function getCompletedBingoLines(completedGoalIds) {
+function getCompletedBingoLines(completedGoalIds, bingoCard) {
   return BINGO_LINES.reduce((result, line, lineIndex) => {
     const complete = line.every((squareIndex) =>
-      completedGoalIds.has(BINGO_CARD_ONE[squareIndex].id)
+      completedGoalIds.has(bingoCard[squareIndex].id)
     );
 
     if (complete) {
@@ -148,6 +260,11 @@ function hasPerfectFiveDayWeek(completedDates) {
 }
 
 function DailyBitesPage({ location, employee, onBack }) {
+  const schoolBingoCard = useMemo(
+    () => buildSchoolBingoCard(location),
+    [location?.id, location?.location_code, location?.labor_type]
+  );
+
   const [completedGoalIds, setCompletedGoalIds] = useState(new Set(["free"]));
   const [bingoLoading, setBingoLoading] = useState(true);
   const [bingoError, setBingoError] = useState("");
@@ -186,7 +303,7 @@ function DailyBitesPage({ location, employee, onBack }) {
     }
 
     loadBingoProgress();
-  }, [location?.id]);
+  }, [location?.id, location?.labor_type]);
 
   useEffect(() => {
     if (!celebrationMessage) {
@@ -201,14 +318,14 @@ function DailyBitesPage({ location, employee, onBack }) {
     return () => window.clearTimeout(timer);
   }, [celebrationMessage]);
 
-  async function awardBingoRewards(completed, existingPointRows) {
-    const completedLines = getCompletedBingoLines(completed);
+  async function awardBingoRewards(completed, existingPointRows, bingoCard) {
+    const completedLines = getCompletedBingoLines(completed, bingoCard);
     const milestoneCount = Math.min(completedLines.length, 5);
     const earned = new Set();
     const newlyAwarded = [];
 
     for (let milestone = 1; milestone <= 5; milestone += 1) {
-      const uniqueKey = `bingo-card1-line-${location.id}-${milestone}`;
+      const uniqueKey = `${CARD_ONE_KEY}-line-${location.id}-${milestone}`;
 
       const alreadyExists = existingPointRows.some(
         (row) =>
@@ -227,7 +344,7 @@ function DailyBitesPage({ location, employee, onBack }) {
       }
 
       const points = BINGO_LINE_REWARDS[milestone - 1];
-      const uniqueKey = `bingo-card1-line-${location.id}-${milestone}`;
+      const uniqueKey = `${CARD_ONE_KEY}-line-${location.id}-${milestone}`;
 
       await awardSparkPoints({
         locationId: location.id,
@@ -244,8 +361,8 @@ function DailyBitesPage({ location, employee, onBack }) {
       newlyAwarded.push(points);
     }
 
-    const blackoutComplete = completed.size === BINGO_CARD_ONE.length;
-    const blackoutKey = `bingo-card1-blackout-${location.id}`;
+    const blackoutComplete = bingoCard.every((square) => completed.has(square.id));
+    const blackoutKey = `${CARD_ONE_KEY}-blackout-${location.id}`;
 
     const blackoutAlreadyExists = existingPointRows.some(
       (row) =>
@@ -276,7 +393,7 @@ function DailyBitesPage({ location, employee, onBack }) {
 
     if (newBlackoutAward) {
       setCelebratingSquareIndexes(
-        new Set(BINGO_CARD_ONE.map((_, index) => index))
+        new Set(bingoCard.map((_, index) => index))
       );
       setCelebrationMessage(
         `🏆 BLACKOUT! All 25 squares complete — +${BLACKOUT_BONUS} SPARK Points`
@@ -395,8 +512,16 @@ function DailyBitesPage({ location, employee, onBack }) {
 
       const finishCount = completeFinishDates.size;
 
+      if (finishCount >= 3) {
+        completed.add("finish-line-3");
+      }
+
       if (finishCount >= 5) {
         completed.add("finish-line-5");
+      }
+
+      if (finishCount >= 7) {
+        completed.add("finish-line-7");
       }
 
       if (finishCount >= 10) {
@@ -407,7 +532,17 @@ function DailyBitesPage({ location, employee, onBack }) {
         completed.add("finish-line-15");
       }
 
-      if (calculateWeekdayStreak(completeFinishDates) >= 5) {
+      if (finishCount >= 20) {
+        completed.add("finish-line-20");
+      }
+
+      const finishStreak = calculateWeekdayStreak(completeFinishDates);
+
+      if (finishStreak >= 3) {
+        completed.add("finish-streak-3");
+      }
+
+      if (finishStreak >= 5) {
         completed.add("finish-streak-5");
       }
 
@@ -430,8 +565,30 @@ function DailyBitesPage({ location, employee, onBack }) {
         return countYesItem(itemKey) > 0;
       }
 
-      if (countYesItem("production_record") >= 5) {
+      const productionRecordCount = countYesItem("production_record");
+
+      if (productionRecordCount >= 3) {
+        completed.add("production-record-3");
+      }
+
+      if (productionRecordCount >= 5) {
         completed.add("production-record-5");
+      }
+
+      if (productionRecordCount >= 10) {
+        completed.add("production-record-10");
+      }
+
+      if (countYesItem("production_worksheet") >= 5) {
+        completed.add("production-worksheet-5");
+      }
+
+      if (countYesItem("reports_reviewed") >= 5) {
+        completed.add("reports-reviewed-5");
+      }
+
+      if (countYesItem("meal_count_entered") >= 5) {
+        completed.add("finish-meal-count-5");
       }
 
       const mondayMissingMealComplete = hasYesItem(
@@ -469,12 +626,24 @@ function DailyBitesPage({ location, employee, onBack }) {
         mealRows.map((row) => row.service_date)
       ).size;
 
+      if (mealCountDays >= 3) {
+        completed.add("meal-counts-3");
+      }
+
       if (mealCountDays >= 5) {
         completed.add("meal-counts-5");
       }
 
+      if (mealCountDays >= 7) {
+        completed.add("meal-counts-7");
+      }
+
       if (mealCountDays >= 10) {
         completed.add("meal-counts-10");
+      }
+
+      if (mealCountDays >= 15) {
+        completed.add("meal-counts-15");
       }
 
       // ---------------------------------------------------------
@@ -487,8 +656,16 @@ function DailyBitesPage({ location, employee, onBack }) {
           .map((row) => row.service_date)
       );
 
+      if (dailyBitesDates.size >= 3) {
+        completed.add("daily-bites-3");
+      }
+
       if (dailyBitesDates.size >= 5) {
         completed.add("daily-bites-5");
+      }
+
+      if (dailyBitesDates.size >= 7) {
+        completed.add("daily-bites-7");
       }
 
       if (dailyBitesDates.size >= 10) {
@@ -540,6 +717,10 @@ function DailyBitesPage({ location, employee, onBack }) {
         (row) => row.point_type === "monitoring_supper"
       ).length;
 
+      if (supperMonitoringCount >= 1) {
+        completed.add("supper-monitoring-1");
+      }
+
       if (supperMonitoringCount >= 3) {
         completed.add("supper-monitorings-3");
       }
@@ -570,6 +751,10 @@ function DailyBitesPage({ location, employee, onBack }) {
       // ---------------------------------------------------------
       if (laborRows.length >= 1) {
         completed.add("labor-adjustment");
+      }
+
+      if (laborRows.length >= 3) {
+        completed.add("labor-adjustment-3");
       }
 
       // ---------------------------------------------------------
@@ -616,6 +801,10 @@ function DailyBitesPage({ location, employee, onBack }) {
         });
       }
 
+      if (mplhTargetDays >= 2) {
+        completed.add("mplh-2");
+      }
+
       if (mplhTargetDays >= 3) {
         completed.add("mplh-3");
       }
@@ -625,7 +814,7 @@ function DailyBitesPage({ location, employee, onBack }) {
       }
 
       setCompletedGoalIds(completed);
-      await awardBingoRewards(completed, pointRows);
+      await awardBingoRewards(completed, pointRows, schoolBingoCard);
     } catch (error) {
       console.error("SPARK Bingo progress error:", error);
       setBingoError(error.message || "Could not load Bingo progress.");
@@ -640,11 +829,11 @@ function DailyBitesPage({ location, employee, onBack }) {
 
   const bingoSquares = useMemo(
     () =>
-      BINGO_CARD_ONE.map((square) => ({
+      schoolBingoCard.map((square) => ({
         ...square,
         completed: completedGoalIds.has(square.id),
       })),
-    [completedGoalIds]
+    [schoolBingoCard, completedGoalIds]
   );
 
   const completedSquares = bingoSquares.filter(
@@ -846,7 +1035,8 @@ function DailyBitesPage({ location, employee, onBack }) {
             </div>
 
             <p className="spark-bingo-note">
-              SPARK automatically verifies completed activities and awards
+              This Card 1 is unique to your school and stays the same through
+              December 31. SPARK automatically verifies activities and awards
               each Bingo milestone and the blackout bonus only once.
             </p>
           </section>
