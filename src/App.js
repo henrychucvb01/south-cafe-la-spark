@@ -11,6 +11,7 @@ import SupervisorPinPage from "./pages/SupervisorPinPage";
 import HomeBase from "./pages/HomeBase";
 import IncidentRecordHelper from "./pages/IncidentRecordHelper";
 import MealAnalyticsPage from "./pages/MealAnalyticsPage";
+import DailyBitesPage from "./pages/DailyBitesPage";
 
 function App() {
   const [screen, setScreen] = useState("login");
@@ -184,8 +185,26 @@ function App() {
         onIncidentHelper={() => {
           setScreen("incidentHelper");
         }}
+        onDailyBites={() => {
+          setScreen("dailyBites");
+        }}
         onExit={() => {
           resetToLogin();
+        }}
+      />
+    );
+  }
+
+  // ---------------------------------------------------
+  // DAILY BITES
+  // ---------------------------------------------------
+  if (screen === "dailyBites") {
+    return (
+      <DailyBitesPage
+        location={selectedLocation}
+        employee={selectedEmployee}
+        onBack={() => {
+          setScreen("homeBase");
         }}
       />
     );
