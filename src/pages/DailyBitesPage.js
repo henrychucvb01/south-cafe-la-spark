@@ -1132,23 +1132,13 @@ function DailyBitesPage({ location, employee, onBack }) {
                   border: "1px solid #e1e8dc",
                 }}
               >
-                <div
-                  style={{
-                    fontSize: "30px",
-                    lineHeight: 1,
-                    marginBottom: "10px",
-                  }}
-                  aria-hidden="true"
-                >
-                  🍎
-                </div>
-
                 <p
                   style={{
                     margin: 0,
                     color: "#35434a",
-                    fontSize: "17px",
-                    lineHeight: 1.6,
+                    fontSize: "20px",
+                    fontWeight: "700",
+                    lineHeight: 1.55,
                   }}
                 >
                   {todaysBite.fact}
