@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
 
 function isFinishLineCommentItem(item) {
@@ -27,16 +27,58 @@ function formatFinishLineAnswer(answer) {
   return String(answer || "—").toUpperCase();
 }
 
+function getLocalDateString(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function isWeekday(dateString) {
+  const date = new Date(`${dateString}T12:00:00`);
+  const day = date.getDay();
+
+  return day >= 1 && day <= 5;
+}
+
+function getMonday(dateString) {
+  const date = new Date(`${dateString}T12:00:00`);
+  const day = date.getDay();
+  const distanceFromMonday = day === 0 ? 6 : day - 1;
+
+  date.setDate(date.getDate() - distanceFromMonday);
+
+  return getLocalDateString(date);
+}
+
+function addDays(dateString, numberOfDays) {
+  const date = new Date(`${dateString}T12:00:00`);
+  date.setDate(date.getDate() + numberOfDays);
+
+  return getLocalDateString(date);
+}
+
 function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
   const [todayCheck, setTodayCheck] = useState(null);
   const [history, setHistory] = useState([]);
+  const [excludedDays, setExcludedDays] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // History filters
+  const [historyPeriod, setHistoryPeriod] = useState("month");
+  const [historyStatus, setHistoryStatus] = useState("all");
+  const [weekOf, setWeekOf] = useState(getLocalDateString());
+  const [monthValue, setMonthValue] = useState(
+    getLocalDateString().slice(0, 7)
+  );
+  const [rangeStart, setRangeStart] = useState("");
+  const [rangeEnd, setRangeEnd] = useState("");
+
   useEffect(() => {
     loadDashboard();
-    
-  }, [location]);
+  }, [location?.id]);
 
   async function loadDashboard() {
     if (!location?.id) {
@@ -49,9 +91,9 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
     setError("");
 
     try {
-      const today = new Date().toISOString().split("T")[0];
+      const today = getLocalDateString();
 
-      // Today's Finish Line
+      // Today's Finish Line with detail items
       const { data: todayData, error: todayError } = await supabase
         .from("finish_line_checks")
         .select(
@@ -70,7 +112,8 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
 
       setTodayCheck(todayData || null);
 
-      // Recent Finish Line history
+      // Load the location's full Finish Line history.
+      // We generate missing service-day rows from this history below.
       const { data: historyData, error: historyError } = await supabase
         .from("finish_line_checks")
         .select(
@@ -84,15 +127,27 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
         )
         .eq("location_id", location.id)
         .order("service_date", {
-          ascending: false,
-        })
-        .limit(10);
+          ascending: true,
+        });
 
       if (historyError) {
         throw historyError;
       }
 
+      const { data: excludedData, error: excludedError } = await supabase
+        .from("spark_excluded_days")
+        .select("id, service_date, reason, notes, created_by")
+        .eq("location_id", location.id)
+        .order("service_date", {
+          ascending: true,
+        });
+
+      if (excludedError) {
+        throw excludedError;
+      }
+
       setHistory(historyData || []);
+      setExcludedDays(excludedData || []);
     } catch (err) {
       console.error("School dashboard error:", err);
       setError(err.message || "Could not load school dashboard.");
@@ -112,6 +167,7 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
     }
 
     return new Date(`${dateString}T12:00:00`).toLocaleDateString([], {
+      weekday: "short",
       month: "short",
       day: "numeric",
       year: "numeric",
@@ -127,6 +183,210 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
       hour: "numeric",
       minute: "2-digit",
     });
+  }
+
+  /*
+  Build the real service-day history.
+
+  Rules:
+  - Existing Finish Line submissions always appear.
+  - Existing weekend submissions remain visible if they already exist.
+  - Past weekdays with no Finish Line appear as Not Completed.
+  - Excluded / Unassigned dates appear as Excluded.
+  - Weekends do not generate Not Completed rows.
+  - Today does not become Not Completed until the day has passed.
+  */
+  const serviceDayHistory = useMemo(() => {
+    const today = getLocalDateString();
+
+    const checksByDate = new Map(
+      history.map((check) => [check.service_date, check])
+    );
+
+    const excludedByDate = new Map(
+      excludedDays.map((row) => [row.service_date, row])
+    );
+
+    const knownDates = [
+      ...history.map((row) => row.service_date),
+      ...excludedDays.map((row) => row.service_date),
+    ].filter(Boolean);
+
+    if (knownDates.length === 0) {
+      return [];
+    }
+
+    knownDates.sort();
+
+    // Start the calendar at the first real Finish Line/excluded record for
+    // this location. This avoids inventing missing days before SPARK began.
+    const firstDate = knownDates[0];
+
+    const calendarDates = new Set(knownDates);
+
+    let cursor = firstDate;
+
+    while (cursor <= today) {
+      if (isWeekday(cursor)) {
+        calendarDates.add(cursor);
+      }
+
+      cursor = addDays(cursor, 1);
+    }
+
+    return Array.from(calendarDates)
+      .filter((dateString) => dateString <= today)
+      .sort((a, b) => b.localeCompare(a))
+      .map((dateString) => {
+        const check = checksByDate.get(dateString);
+        const excluded = excludedByDate.get(dateString);
+
+        if (check) {
+          return {
+            ...check,
+            historyStatus: check.status,
+            isMissing: false,
+            isExcluded: false,
+          };
+        }
+
+        if (excluded) {
+          return {
+            id: `excluded-${excluded.id}`,
+            service_date: dateString,
+            submitted_at: null,
+            employee_name: excluded.created_by || "Supervisor",
+            status: "excluded",
+            historyStatus: "excluded",
+            isMissing: false,
+            isExcluded: true,
+            excludedReason: excluded.reason || excluded.notes || "",
+          };
+        }
+
+        // Only a PAST weekday becomes Not Completed.
+        if (dateString < today && isWeekday(dateString)) {
+          return {
+            id: `missing-${dateString}`,
+            service_date: dateString,
+            submitted_at: null,
+            employee_name: "",
+            status: "missing",
+            historyStatus: "missing",
+            isMissing: true,
+            isExcluded: false,
+          };
+        }
+
+        return null;
+      })
+      .filter(Boolean);
+  }, [history, excludedDays]);
+
+  const filteredHistory = useMemo(() => {
+    let rows = [...serviceDayHistory];
+
+    if (historyPeriod === "week") {
+      const monday = getMonday(weekOf);
+      const friday = addDays(monday, 4);
+
+      rows = rows.filter(
+        (row) =>
+          row.service_date >= monday && row.service_date <= friday
+      );
+    }
+
+    if (historyPeriod === "month") {
+      rows = rows.filter((row) =>
+        row.service_date.startsWith(monthValue)
+      );
+    }
+
+    if (historyPeriod === "range") {
+      if (rangeStart) {
+        rows = rows.filter((row) => row.service_date >= rangeStart);
+      }
+
+      if (rangeEnd) {
+        rows = rows.filter((row) => row.service_date <= rangeEnd);
+      }
+    }
+
+    if (historyStatus !== "all") {
+      rows = rows.filter(
+        (row) => row.historyStatus === historyStatus
+      );
+    }
+
+    return rows;
+  }, [
+    serviceDayHistory,
+    historyPeriod,
+    historyStatus,
+    weekOf,
+    monthValue,
+    rangeStart,
+    rangeEnd,
+  ]);
+
+  function getHistoryVisual(row) {
+    if (row.historyStatus === "complete") {
+      return {
+        icon: "✓",
+        label: "Complete",
+        background: "#e6f7ec",
+        color: "#169c55",
+        iconBackground: "#16ad64",
+      };
+    }
+
+    if (row.historyStatus === "attention") {
+      return {
+        icon: "!",
+        label: "Needs Attention",
+        background: "#fff1e7",
+        color: "#a85b18",
+        iconBackground: "#e79032",
+      };
+    }
+
+    if (row.historyStatus === "excluded") {
+      return {
+        icon: "—",
+        label: "Excluded",
+        background: "#eef2f6",
+        color: "#667482",
+        iconBackground: "#8b98a5",
+      };
+    }
+
+    return {
+      icon: "×",
+      label: "Not Completed",
+      background: "#fff0f0",
+      color: "#a63d3d",
+      iconBackground: "#d95c5c",
+    };
+  }
+
+  function openHistoryRow(row) {
+    if (row.isExcluded) {
+      return;
+    }
+
+    if (row.isMissing) {
+      // FinishLinePage already uses existingCheck.service_date as its
+      // active service date. Passing a date-only object opens a blank
+      // checklist for that historical date.
+      onEditFinishLine({
+        service_date: row.service_date,
+        backfillMode: true,
+      });
+
+      return;
+    }
+
+    onEditFinishLine(row);
   }
 
   if (loading) {
@@ -326,49 +586,312 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
             <div className="school-dashboard-section-title">
               <div>
                 <h2>Finish Line Checklist History</h2>
-                <p>Most recent submissions</p>
+                <p>
+                  Review completed, missed, and excluded service days. Past
+                  missed days can be completed to correct the record.
+                </p>
               </div>
             </div>
 
-            {history.length === 0 ? (
+            {/* HISTORY FILTERS */}
+            <div
+              style={{
+                display: "flex",
+                gap: "10px",
+                flexWrap: "wrap",
+                alignItems: "end",
+                padding: "14px",
+                marginBottom: "14px",
+                border: "1px solid #e1e7ec",
+                borderRadius: "10px",
+                background: "#f8fafc",
+              }}
+            >
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "11px",
+                    fontWeight: "800",
+                    marginBottom: "5px",
+                  }}
+                >
+                  HISTORY
+                </label>
+
+                <select
+                  value={historyPeriod}
+                  onChange={(e) => setHistoryPeriod(e.target.value)}
+                  style={{
+                    padding: "9px 10px",
+                    border: "1px solid #d6dfe7",
+                    borderRadius: "7px",
+                  }}
+                >
+                  <option value="week">Week</option>
+                  <option value="month">Month</option>
+                  <option value="range">Date Range</option>
+                  <option value="all">All History</option>
+                </select>
+              </div>
+
+              {historyPeriod === "week" && (
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "11px",
+                      fontWeight: "800",
+                      marginBottom: "5px",
+                    }}
+                  >
+                    WEEK OF
+                  </label>
+
+                  <input
+                    type="date"
+                    value={weekOf}
+                    onChange={(e) => setWeekOf(e.target.value)}
+                    style={{
+                      padding: "8px 10px",
+                      border: "1px solid #d6dfe7",
+                      borderRadius: "7px",
+                    }}
+                  />
+                </div>
+              )}
+
+              {historyPeriod === "month" && (
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "11px",
+                      fontWeight: "800",
+                      marginBottom: "5px",
+                    }}
+                  >
+                    MONTH
+                  </label>
+
+                  <input
+                    type="month"
+                    value={monthValue}
+                    onChange={(e) => setMonthValue(e.target.value)}
+                    style={{
+                      padding: "8px 10px",
+                      border: "1px solid #d6dfe7",
+                      borderRadius: "7px",
+                    }}
+                  />
+                </div>
+              )}
+
+              {historyPeriod === "range" && (
+                <>
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: "11px",
+                        fontWeight: "800",
+                        marginBottom: "5px",
+                      }}
+                    >
+                      FROM
+                    </label>
+
+                    <input
+                      type="date"
+                      value={rangeStart}
+                      onChange={(e) => setRangeStart(e.target.value)}
+                      style={{
+                        padding: "8px 10px",
+                        border: "1px solid #d6dfe7",
+                        borderRadius: "7px",
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: "11px",
+                        fontWeight: "800",
+                        marginBottom: "5px",
+                      }}
+                    >
+                      TO
+                    </label>
+
+                    <input
+                      type="date"
+                      value={rangeEnd}
+                      onChange={(e) => setRangeEnd(e.target.value)}
+                      style={{
+                        padding: "8px 10px",
+                        border: "1px solid #d6dfe7",
+                        borderRadius: "7px",
+                      }}
+                    />
+                  </div>
+                </>
+              )}
+
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "11px",
+                    fontWeight: "800",
+                    marginBottom: "5px",
+                  }}
+                >
+                  STATUS
+                </label>
+
+                <select
+                  value={historyStatus}
+                  onChange={(e) => setHistoryStatus(e.target.value)}
+                  style={{
+                    padding: "9px 10px",
+                    border: "1px solid #d6dfe7",
+                    borderRadius: "7px",
+                  }}
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="complete">Complete</option>
+                  <option value="attention">Needs Attention</option>
+                  <option value="missing">Not Completed</option>
+                  <option value="excluded">Excluded</option>
+                </select>
+              </div>
+
+              <div
+                style={{
+                  marginLeft: "auto",
+                  color: "#667482",
+                  fontSize: "12px",
+                  paddingBottom: "8px",
+                }}
+              >
+                {filteredHistory.length} service day
+                {filteredHistory.length === 1 ? "" : "s"}
+              </div>
+            </div>
+
+            {filteredHistory.length === 0 ? (
               <div className="school-empty-history">
-                No Finish Line history yet.
+                No Finish Line history matches these filters.
               </div>
             ) : (
               <div className="school-history-list">
-                {history.map((check) => (
-                  <div
-                    className="school-history-row"
-                    key={check.id}
-                    onClick={() => onEditFinishLine(check)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        onEditFinishLine(check);
-                      }
-                    }}
-                  >
-                    <div className="school-history-date">
-                      <span className={`school-history-status ${check.status}`}>
-                        {check.status === "complete" ? "✓" : "!"}
-                      </span>
+                {filteredHistory.map((row) => {
+                  const visual = getHistoryVisual(row);
+                  const canOpen = !row.isExcluded;
 
-                      <div>
-                        <strong>{formatDate(check.service_date)}</strong>
-                        <small>{check.employee_name}</small>
+                  return (
+                    <div
+                      className="school-history-row"
+                      key={row.id}
+                      onClick={() => {
+                        if (canOpen) {
+                          openHistoryRow(row);
+                        }
+                      }}
+                      role={canOpen ? "button" : undefined}
+                      tabIndex={canOpen ? 0 : undefined}
+                      onKeyDown={(e) => {
+                        if (
+                          canOpen &&
+                          (e.key === "Enter" || e.key === " ")
+                        ) {
+                          openHistoryRow(row);
+                        }
+                      }}
+                      style={{
+                        cursor: canOpen ? "pointer" : "default",
+                        opacity: row.isExcluded ? 0.85 : 1,
+                      }}
+                    >
+                      <div className="school-history-date">
+                        <span
+                          style={{
+                            width: "28px",
+                            height: "28px",
+                            borderRadius: "50%",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            flexShrink: 0,
+                            background: visual.iconBackground,
+                            color: "#ffffff",
+                            fontWeight: "900",
+                          }}
+                        >
+                          {visual.icon}
+                        </span>
+
+                        <div>
+                          <strong>{formatDate(row.service_date)}</strong>
+
+                          {row.isMissing && (
+                            <small>
+                              Missed Finish Line — click to complete
+                            </small>
+                          )}
+
+                          {row.isExcluded && (
+                            <small>
+                              {row.excludedReason || "Excluded / Unassigned day"}
+                            </small>
+                          )}
+
+                          {!row.isMissing && !row.isExcluded && (
+                            <small>{row.employee_name}</small>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="school-history-right">
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            borderRadius: "6px",
+                            padding: "5px 8px",
+                            background: visual.background,
+                            color: visual.color,
+                            fontWeight: "800",
+                            fontSize: "11px",
+                          }}
+                        >
+                          {visual.label}
+                        </span>
+
+                        {row.isMissing && (
+                          <button
+                            type="button"
+                            className="dashboard-exit"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openHistoryRow(row);
+                            }}
+                          >
+                            Complete Now
+                          </button>
+                        )}
+
+                        {!row.isMissing &&
+                          !row.isExcluded &&
+                          row.submitted_at && (
+                            <small>{formatTime(row.submitted_at)}</small>
+                          )}
                       </div>
                     </div>
-
-                    <div className="school-history-right">
-                      <span className={`school-history-pill ${check.status}`}>
-                        {check.status === "complete" ? "Complete" : "Attention"}
-                      </span>
-
-                      <small>{formatTime(check.submitted_at)}</small>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </section>
