@@ -50,6 +50,20 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
   const [filter, setFilter] = useState("all");
   const [view, setView] = useState("dashboard");
 
+  // =========================================
+  // SPARK POINTS SUPERVISOR CONTROLS
+  // =========================================
+  const [pointsSchoolId, setPointsSchoolId] = useState("");
+  const [pointsTotal, setPointsTotal] = useState(0);
+  const [pointsHistory, setPointsHistory] = useState([]);
+  const [pointsAmount, setPointsAmount] = useState("");
+  const [pointsDirection, setPointsDirection] = useState("add");
+  const [pointsReason, setPointsReason] = useState("");
+  const [pointsLoading, setPointsLoading] = useState(false);
+  const [pointsSaving, setPointsSaving] = useState(false);
+  const [pointsMessage, setPointsMessage] = useState("");
+  const [pointsError, setPointsError] = useState("");
+
   // Manager PIN reset
   const [pinResetSchoolId, setPinResetSchoolId] = useState("");
   const [pinResetEmployees, setPinResetEmployees] = useState([]);
@@ -409,6 +423,124 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
     setView("recent-changes");
   }
 
+  function openSparkPoints() {
+    setView("spark-points");
+    setPointsMessage("");
+    setPointsError("");
+  }
+
+  async function loadSparkPointsSupervisor(locationId) {
+    setPointsSchoolId(locationId);
+    setPointsMessage("");
+    setPointsError("");
+    setPointsAmount("");
+    setPointsReason("");
+
+    if (!locationId) {
+      setPointsTotal(0);
+      setPointsHistory([]);
+      return;
+    }
+
+    setPointsLoading(true);
+
+    try {
+      const { data: totalData, error: totalError } = await supabase
+        .from("spark_school_point_totals")
+        .select("total_points")
+        .eq("location_id", locationId)
+        .maybeSingle();
+
+      if (totalError) {
+        throw totalError;
+      }
+
+      const { data: historyData, error: historyError } = await supabase
+        .from("spark_points")
+        .select("*")
+        .eq("location_id", locationId)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (historyError) {
+        throw historyError;
+      }
+
+      setPointsTotal(totalData?.total_points || 0);
+      setPointsHistory(historyData || []);
+    } catch (error) {
+      console.error("SPARK Points supervisor load error:", error);
+      setPointsError(error.message || "Could not load SPARK Points.");
+    } finally {
+      setPointsLoading(false);
+    }
+  }
+
+  async function saveSparkPointsAdjustment() {
+    const numericAmount = Number(pointsAmount);
+
+    if (!pointsSchoolId) {
+      setPointsError("Select a school first.");
+      return;
+    }
+
+    if (!Number.isInteger(numericAmount) || numericAmount <= 0) {
+      setPointsError("Enter a whole-number point amount greater than zero.");
+      return;
+    }
+
+    if (!pointsReason.trim()) {
+      setPointsError("Enter a reason for the point adjustment.");
+      return;
+    }
+
+    setPointsSaving(true);
+    setPointsMessage("");
+    setPointsError("");
+
+    try {
+      const signedPoints =
+        pointsDirection === "subtract" ? -numericAmount : numericAmount;
+
+      const now = new Date();
+      const uniqueKey =
+        `supervisor-adjustment-${pointsSchoolId}-${now.getTime()}-` +
+        Math.random().toString(36).slice(2, 8);
+
+      const { error } = await supabase.from("spark_points").insert({
+        location_id: Number(pointsSchoolId),
+        points: signedPoints,
+        point_type: "supervisor_adjustment",
+        description:
+          pointsDirection === "subtract"
+            ? "Supervisor point correction"
+            : "Supervisor point award",
+        service_date: getLocalDateString(now),
+        source: "supervisor",
+        awarded_by: "Supervisor",
+        adjustment_reason: pointsReason.trim(),
+        unique_key: uniqueKey,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      setPointsMessage(
+        `${signedPoints > 0 ? "+" : ""}${signedPoints} points saved successfully.`
+      );
+      setPointsAmount("");
+      setPointsReason("");
+
+      await loadSparkPointsSupervisor(pointsSchoolId);
+    } catch (error) {
+      console.error("SPARK Points adjustment error:", error);
+      setPointsError(error.message || "Could not save the point adjustment.");
+    } finally {
+      setPointsSaving(false);
+    }
+  }
+
   useEffect(() => {
     if (view === "recent-changes") {
       loadRecentChanges();
@@ -765,6 +897,16 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
 
           <button
             className={`command-nav-button ${
+              view === "spark-points" ? "active" : ""
+            }`}
+            onClick={openSparkPoints}
+          >
+            <span>⚡</span>
+            SPARK Points
+          </button>
+
+          <button
+            className={`command-nav-button ${
               view === "pin-reset" ? "active" : ""
             }`}
             onClick={() => {
@@ -804,6 +946,8 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
                 ? "South Café LA MPLH Report"
                 : view === "finish-line" || view === "recent-changes"
                 ? "South Café LA Finish Line"
+                : view === "spark-points"
+                ? "South Café LA SPARK Points"
                 : view === "pin-reset"
                 ? "South Café LA Manager PIN Reset"
                 : "South Café LA Command Center"}
@@ -820,6 +964,8 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
                 ? `Finish Line status and audit history for ${formatDate(
                     dashboardDate
                   )}.`
+                : view === "spark-points"
+                ? "Review school point totals and make documented supervisor adjustments."
                 : view === "pin-reset"
                 ? "Reset a verified manager's SPARK PIN."
                 : `Area operations overview for ${formatDate(
@@ -975,6 +1121,290 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
               dashboardDate={dashboardDate}
               formatDate={formatDate}
             />
+          ) : view === "spark-points" ? (
+            <section className="dashboard-card">
+              <div className="command-section-header">
+                <div>
+                  <h3>SPARK Points</h3>
+                  <p>
+                    Review a school's point total and make documented corrections
+                    or supervisor awards. Adjustments are added to the point ledger
+                    and do not overwrite previous transactions.
+                  </p>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(240px, 1fr) minmax(180px, 240px)",
+                  gap: "16px",
+                  alignItems: "end",
+                  marginTop: "18px",
+                }}
+              >
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "12px",
+                      fontWeight: "800",
+                      marginBottom: "6px",
+                    }}
+                  >
+                    School
+                  </label>
+
+                  <select
+                    value={pointsSchoolId}
+                    onChange={(e) => loadSparkPointsSupervisor(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "11px 12px",
+                      border: "1px solid #d6dfe7",
+                      borderRadius: "8px",
+                      fontSize: "14px",
+                    }}
+                  >
+                    <option value="">Select a school</option>
+                    {schools.map((school) => (
+                      <option key={school.id} value={school.id}>
+                        {school.school_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div
+                  style={{
+                    background: "#f5f8fb",
+                    border: "1px solid #dce5ed",
+                    borderRadius: "10px",
+                    padding: "14px 18px",
+                    textAlign: "center",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: "800",
+                      color: "#667482",
+                      letterSpacing: "0.5px",
+                    }}
+                  >
+                    ⚡ CURRENT POINTS
+                  </div>
+
+                  <strong
+                    style={{
+                      display: "block",
+                      fontSize: "32px",
+                      lineHeight: 1.1,
+                      marginTop: "4px",
+                    }}
+                  >
+                    {Number(pointsTotal || 0).toLocaleString()}
+                  </strong>
+                </div>
+              </div>
+
+              {pointsSchoolId && (
+                <>
+                  <div
+                    style={{
+                      marginTop: "22px",
+                      paddingTop: "20px",
+                      borderTop: "1px solid #e1e7ec",
+                    }}
+                  >
+                    <h4 style={{ margin: "0 0 14px" }}>
+                      Add or Subtract Points
+                    </h4>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "160px 160px minmax(260px, 1fr) auto",
+                        gap: "12px",
+                        alignItems: "end",
+                      }}
+                    >
+                      <div>
+                        <label
+                          style={{
+                            display: "block",
+                            fontSize: "11px",
+                            fontWeight: "800",
+                            marginBottom: "6px",
+                          }}
+                        >
+                          Adjustment
+                        </label>
+
+                        <select
+                          value={pointsDirection}
+                          onChange={(e) => setPointsDirection(e.target.value)}
+                          style={{
+                            width: "100%",
+                            padding: "10px",
+                            border: "1px solid #d6dfe7",
+                            borderRadius: "8px",
+                          }}
+                        >
+                          <option value="add">Add Points</option>
+                          <option value="subtract">Subtract Points</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label
+                          style={{
+                            display: "block",
+                            fontSize: "11px",
+                            fontWeight: "800",
+                            marginBottom: "6px",
+                          }}
+                        >
+                          Points
+                        </label>
+
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={pointsAmount}
+                          onChange={(e) => setPointsAmount(e.target.value)}
+                          placeholder="25"
+                          style={{
+                            width: "100%",
+                            boxSizing: "border-box",
+                            padding: "10px",
+                            border: "1px solid #d6dfe7",
+                            borderRadius: "8px",
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label
+                          style={{
+                            display: "block",
+                            fontSize: "11px",
+                            fontWeight: "800",
+                            marginBottom: "6px",
+                          }}
+                        >
+                          Reason — required
+                        </label>
+
+                        <input
+                          type="text"
+                          value={pointsReason}
+                          onChange={(e) => setPointsReason(e.target.value)}
+                          placeholder="Example: Corrected missed meal-count points"
+                          style={{
+                            width: "100%",
+                            boxSizing: "border-box",
+                            padding: "10px",
+                            border: "1px solid #d6dfe7",
+                            borderRadius: "8px",
+                          }}
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        className="finish-line-submit finish-line-ready"
+                        disabled={pointsSaving}
+                        onClick={saveSparkPointsAdjustment}
+                      >
+                        {pointsSaving ? "Saving..." : "Save Adjustment"}
+                      </button>
+                    </div>
+
+                    {pointsError && (
+                      <div className="login-error" style={{ marginTop: "12px" }}>
+                        {pointsError}
+                      </div>
+                    )}
+
+                    {pointsMessage && (
+                      <div
+                        style={{
+                          marginTop: "12px",
+                          color: "#237044",
+                          fontWeight: "700",
+                        }}
+                      >
+                        {pointsMessage}
+                      </div>
+                    )}
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: "24px",
+                      paddingTop: "20px",
+                      borderTop: "1px solid #e1e7ec",
+                    }}
+                  >
+                    <h4 style={{ margin: "0 0 12px" }}>Point History</h4>
+
+                    {pointsLoading ? (
+                      <div className="school-empty-history">
+                        Loading point history...
+                      </div>
+                    ) : pointsHistory.length === 0 ? (
+                      <div className="school-empty-history">
+                        No point transactions for this school yet.
+                      </div>
+                    ) : (
+                      <div style={{ overflowX: "auto" }}>
+                        <table className="command-table">
+                          <thead>
+                            <tr>
+                              <th>Date</th>
+                              <th>Points</th>
+                              <th>Activity</th>
+                              <th>Reason / Detail</th>
+                              <th>Source</th>
+                            </tr>
+                          </thead>
+
+                          <tbody>
+                            {pointsHistory.map((row) => (
+                              <tr key={row.id}>
+                                <td>{formatDate(row.service_date)}</td>
+                                <td>
+                                  <strong
+                                    style={{
+                                      color:
+                                        Number(row.points) < 0
+                                          ? "#a33a3a"
+                                          : "#237044",
+                                    }}
+                                  >
+                                    {Number(row.points) > 0 ? "+" : ""}
+                                    {row.points}
+                                  </strong>
+                                </td>
+                                <td>{row.description || row.point_type}</td>
+                                <td>
+                                  {row.adjustment_reason ||
+                                    row.employee_name ||
+                                    "—"}
+                                </td>
+                                <td>{row.source || "automatic"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </section>
           ) : view === "pin-reset" ? (
             <section className="dashboard-card manager-pin-reset-panel">
               <div className="command-section-header">
