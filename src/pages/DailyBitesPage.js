@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { awardSparkPoints } from "../sparkPoints";
+import DAILY_BITES from "../data/dailyBitesContent";
 
 const CARD_ONE_START = "2026-08-01";
 const CARD_ONE_END = "2026-12-31";
@@ -324,7 +325,65 @@ function hasPerfectFiveDayWeek(completedDates) {
   return false;
 }
 
+const DAILY_BITES_ROTATION_START = new Date("2026-08-03T12:00:00");
+
+function getDailyBiteRotationNumber(today = new Date()) {
+  const target = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate(),
+    12,
+    0,
+    0
+  );
+
+  // Monday = 1, Wednesday = 3, Friday = 5.
+  // On Tue/Thu/weekends, keep showing the most recent Bite.
+  while (![1, 3, 5].includes(target.getDay())) {
+    target.setDate(target.getDate() - 1);
+  }
+
+  if (target < DAILY_BITES_ROTATION_START) {
+    return 0;
+  }
+
+  let rotationNumber = 0;
+  const cursor = new Date(DAILY_BITES_ROTATION_START);
+
+  while (cursor < target) {
+    cursor.setDate(cursor.getDate() + 1);
+
+    if ([1, 3, 5].includes(cursor.getDay())) {
+      rotationNumber += 1;
+    }
+  }
+
+  return rotationNumber;
+}
+
+function getTodaysDailyBite() {
+  if (!DAILY_BITES.length) {
+    return null;
+  }
+
+  const rotationNumber = getDailyBiteRotationNumber(new Date());
+  return DAILY_BITES[rotationNumber % DAILY_BITES.length];
+}
+
+function formatBiteCategory(category) {
+  if (!category) {
+    return "";
+  }
+
+  return category
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 function DailyBitesPage({ location, employee, onBack }) {
+  const todaysBite = useMemo(() => getTodaysDailyBite(), []);
+
   const schoolBingoCard = useMemo(
     () => buildSchoolBingoCard(location),
     [location?.id, location?.location_code, location?.labor_type]
@@ -1040,14 +1099,76 @@ function DailyBitesPage({ location, employee, onBack }) {
           <section className="dashboard-card">
             <div className="school-dashboard-section-title">
               <div>
-                <h2>Today's Bite</h2>
-                <p>Quick ideas, reminders, and cafeteria inspiration.</p>
+                <div className="dashboard-small-label">TODAY'S BITE</div>
+                <h2>{todaysBite?.title || "Daily Bite"}</h2>
+                <p>A quick nutrition fact for your day.</p>
               </div>
+
+              {todaysBite?.category && (
+                <div
+                  style={{
+                    padding: "7px 11px",
+                    borderRadius: "999px",
+                    background: "#eef7ea",
+                    border: "1px solid #d4e8cc",
+                    color: "#3f6838",
+                    fontSize: "12px",
+                    fontWeight: "800",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {formatBiteCategory(todaysBite.category)}
+                </div>
+              )}
             </div>
 
-            <div className="school-empty-history">
-              Daily Bites content coming next.
-            </div>
+            {todaysBite ? (
+              <div
+                style={{
+                  marginTop: "14px",
+                  padding: "20px",
+                  borderRadius: "16px",
+                  background: "#fbfcf8",
+                  border: "1px solid #e1e8dc",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "30px",
+                    lineHeight: 1,
+                    marginBottom: "10px",
+                  }}
+                  aria-hidden="true"
+                >
+                  🍎
+                </div>
+
+                <p
+                  style={{
+                    margin: 0,
+                    color: "#35434a",
+                    fontSize: "17px",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {todaysBite.fact}
+                </p>
+              </div>
+            ) : (
+              <div className="school-empty-history">
+                No Daily Bite is available yet.
+              </div>
+            )}
+
+            <p
+              style={{
+                margin: "12px 2px 0",
+                color: "#74818a",
+                fontSize: "12px",
+              }}
+            >
+              New Daily Bites rotate Monday, Wednesday, and Friday.
+            </p>
           </section>
 
           <section className="dashboard-card spark-bingo-section">
