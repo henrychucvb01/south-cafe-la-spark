@@ -234,30 +234,13 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
                   <p>End-of-day verification details</p>
                 </div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "8px",
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                  }}
+                <span
+                  className={`school-dashboard-status ${todayCheck.status}`}
                 >
-                  <span
-                    className={`school-dashboard-status ${todayCheck.status}`}
-                  >
-                    {todayCheck.status === "complete"
-                      ? "Complete"
-                      : "Needs Attention"}
-                  </span>
-
-                  <button
-                    type="button"
-                    className="dashboard-exit"
-                    onClick={() => openCheck(todayCheck)}
-                  >
-                    Edit Finish Line Checklist
-                  </button>
-                </div>
+                  {todayCheck.status === "complete"
+                    ? "Complete"
+                    : "Needs Attention"}
+                </span>
               </div>
 
               <div className="school-check-list">
@@ -337,7 +320,9 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
             <div className="school-dashboard-section-title">
               <div>
                 <h2>Finish Line Checklist History</h2>
-                <p>Most recent submissions</p>
+                <p>
+                  Click any row below to open that day's checklist and make changes.
+                </p>
               </div>
             </div>
 
