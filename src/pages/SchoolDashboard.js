@@ -1,5 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
+import {
+  buildSchoolWeekdaysThrough,
+  getLocalDateString,
+  isStreakEligibleCheck,
+} from "../sparkPolicy";
 
 function isFinishLineCommentItem(item) {
   return String(item?.item_key || "").endsWith("_comment");
@@ -48,7 +53,7 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
     setError("");
 
     try {
-      const today = new Date().toISOString().split("T")[0];
+      const today = getLocalDateString(new Date());
 
       const { data: todayData, error: todayError } = await supabase
         .from("finish_line_checks")
@@ -66,24 +71,66 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
 
       setTodayCheck(todayData || null);
 
-      const { data: historyData, error: historyError } = await supabase
-        .from("finish_line_checks")
-        .select(`
-          id,
-          service_date,
-          submitted_at,
-          employee_name,
-          status
-        `)
-        .eq("location_id", location.id)
-        .order("service_date", { ascending: false })
-        .limit(30);
+      const [{ data: historyData, error: historyError }, { data: excludedData, error: excludedError }] =
+        await Promise.all([
+          supabase
+            .from("finish_line_checks")
+            .select(`
+              id,
+              service_date,
+              submitted_at,
+              employee_name,
+              status
+            `)
+            .eq("location_id", location.id)
+            .gte("service_date", "2026-08-12")
+            .lte("service_date", today)
+            .order("service_date", { ascending: false }),
+          supabase
+            .from("spark_excluded_days")
+            .select("service_date")
+            .eq("location_id", location.id)
+            .gte("service_date", "2026-08-12")
+            .lte("service_date", today),
+        ]);
 
-      if (historyError) {
-        throw historyError;
-      }
+      if (historyError) throw historyError;
+      if (excludedError) throw excludedError;
 
-      setHistory(historyData || []);
+      const checksByDate = new Map(
+        (historyData || []).map((check) => [check.service_date, check])
+      );
+      const excludedDates = new Set(
+        (excludedData || []).map((row) => row.service_date)
+      );
+
+      const completeHistory = buildSchoolWeekdaysThrough(today)
+        .filter((serviceDate) => !excludedDates.has(serviceDate))
+        .map((serviceDate) => {
+          const check = checksByDate.get(serviceDate);
+
+          if (check) {
+            return {
+              ...check,
+              missing: false,
+              streakEligible: isStreakEligibleCheck(check),
+            };
+          }
+
+          return {
+            id: `missing-${serviceDate}`,
+            service_date: serviceDate,
+            submitted_at: null,
+            employee_name: "Not submitted",
+            status: "missing",
+            missing: true,
+            isToday: serviceDate === today,
+            streakEligible: false,
+          };
+        })
+        .sort((a, b) => b.service_date.localeCompare(a.service_date));
+
+      setHistory(completeHistory);
     } catch (err) {
       console.error("School dashboard error:", err);
       setError(err.message || "Could not load Finish Line Checklist history.");
@@ -121,7 +168,12 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
 
   function openCheck(check) {
     if (!check) return;
-    onEditFinishLine(check);
+    onEditFinishLine({
+      ...check,
+      // A missing day is a new historical submission, not an edit of an
+      // existing database row. FinishLinePage will load that service date.
+      id: check.missing ? null : check.id,
+    });
   }
 
   if (loading) {
@@ -348,27 +400,47 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
                   >
                     <div className="school-history-date">
                       <span
-                        className={`school-history-status ${check.status}`}
+                        className={`school-history-status ${
+                          check.missing ? "attention" : check.status
+                        }`}
                       >
                         {check.status === "complete" ? "✓" : "!"}
                       </span>
 
                       <div>
                         <strong>{formatDate(check.service_date)}</strong>
-                        <small>{check.employee_name}</small>
+                        <small>
+                          {check.missing
+                            ? check.isToday
+                              ? "Not submitted yet — full credit still available"
+                              : "Not completed — open to finish late"
+                            : check.employee_name}
+                        </small>
                       </div>
                     </div>
 
                     <div className="school-history-right">
                       <span
-                        className={`school-history-pill ${check.status}`}
+                        className={`school-history-pill ${
+                          check.missing ? "attention" : check.status
+                        }`}
                       >
-                        {check.status === "complete"
-                          ? "Complete"
+                        {check.missing
+                          ? "Not Completed"
+                          : check.status === "complete"
+                          ? check.streakEligible
+                            ? "Complete • On Time"
+                            : "Complete • Late/Grace"
                           : "Attention"}
                       </span>
 
-                      <small>{formatTime(check.submitted_at)}</small>
+                      <small>
+                        {check.missing
+                          ? check.isToday
+                            ? "5 pts when completed today"
+                            : "2 pts when completed late"
+                          : formatTime(check.submitted_at)}
+                      </small>
                     </div>
                   </div>
                 ))}
