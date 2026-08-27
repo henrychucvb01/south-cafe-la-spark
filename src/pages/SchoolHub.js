@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { awardSparkPoints } from "../sparkPoints";
+import { REWARD_LAUNCH_DATE, isStreakEligibleCheck } from "../sparkPolicy";
 
 import {
   LineChart,
@@ -160,6 +161,13 @@ function SchoolHub({
 
       // Do not award a week until Friday has arrived.
       if (friday <= todayDate) {
+        const fridayString = getDateString(friday);
+        if (fridayString < REWARD_LAUNCH_DATE) {
+          monday = new Date(monday);
+          monday.setDate(monday.getDate() + 7);
+          continue;
+        }
+
         let weekQualifies = true;
         let completedDayCount = 0;
 
@@ -187,7 +195,6 @@ function SchoolHub({
         // excluded week cannot earn a Perfect Week bonus.
         if (weekQualifies && completedDayCount > 0) {
           const mondayString = getDateString(monday);
-          const fridayString = getDateString(friday);
 
           await awardSparkPoints({
             locationId: location.id,
@@ -230,9 +237,10 @@ function SchoolHub({
 
       const { data: completedRows, error: streakError } = await supabase
         .from("finish_line_checks")
-        .select("service_date")
+        .select("service_date, status, submitted_at")
         .eq("location_id", location.id)
         .eq("status", "complete")
+        .gte("service_date", REWARD_LAUNCH_DATE)
         .lte("service_date", today)
         .order("service_date", { ascending: false })
         .limit(100);
@@ -254,7 +262,9 @@ function SchoolHub({
       }
 
       const completedDates = new Set(
-        (completedRows || []).map((row) => row.service_date)
+        (completedRows || [])
+          .filter(isStreakEligibleCheck)
+          .map((row) => row.service_date)
       );
 
       const excludedDates = new Set(
