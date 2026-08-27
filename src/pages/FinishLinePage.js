@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { awardSparkPoints } from "../sparkPoints";
+import {
+  REWARD_LAUNCH_DATE,
+  getFinishLinePointAward,
+  isStreakEligibleCheck,
+} from "../sparkPolicy";
 /* =========================================================
 DEVELOPMENT TEST MODE
 Normally leave these as:
@@ -708,9 +713,10 @@ AUDIT HELPERS
   async function calculateFinishLineStreak(serviceDate) {
     const { data, error } = await supabase
       .from("finish_line_checks")
-      .select("service_date, status")
+      .select("service_date, status, submitted_at")
       .eq("location_id", location.id)
       .eq("status", "complete")
+      .gte("service_date", REWARD_LAUNCH_DATE)
       .lte("service_date", serviceDate)
       .order("service_date", { ascending: false })
       .limit(100);
@@ -727,7 +733,7 @@ AUDIT HELPERS
     let streak = 0;
     let expectedDate = new Date(`${serviceDate}T12:00:00`);
 
-    for (const row of data) {
+    for (const row of data.filter(isStreakEligibleCheck)) {
       while (
         expectedDate.getDay() === 0 ||
         expectedDate.getDay() === 6
@@ -942,11 +948,17 @@ audit editing is confirmed working.
         });
       }
 
+      const finishLineReward = getFinishLinePointAward(serviceDate, new Date());
+
       await awardSparkPoints({
         locationId: location.id,
-        points: 5,
-        pointType: "finish_line",
-        description: "Finish Line Checklist completed",
+        points: finishLineReward.points,
+        pointType: finishLineReward.late ? "finish_line_late" : "finish_line",
+        description: finishLineReward.gracePeriod
+          ? "Finish Line Checklist completed — rollout grace period"
+          : finishLineReward.late
+          ? "Finish Line Checklist completed late — partial credit"
+          : "Finish Line Checklist completed on time",
         serviceDate,
         employeeId,
         employeeName,
@@ -955,11 +967,7 @@ audit editing is confirmed working.
 
       // Edits should return normally. Only a brand-new Finish Line
       // submission earns the completion celebration.
-      if (isEditing) {
-        onComplete();
-        return;
-      }
-      if (isEditing) {
+      if (isEditing || !finishLineReward.streakEligible) {
         onComplete();
         return;
       }
@@ -1077,7 +1085,7 @@ PAGE HEADER
             </div>
           )}
           {/* EDIT NOTICE */}
-          {!isPreviewMode && isEditing && (
+          {!isPreviewMode && existingCheck?.service_date && (
             <div
               style={{
                 background: "#eef6ff",
@@ -1089,7 +1097,9 @@ PAGE HEADER
                 fontSize: "11px",
               }}
             >
-              You are editing the Finish Line Checklist for {getTodayLabel()}.
+              {isEditing
+                ? `You are editing the Finish Line Checklist for ${getTodayLabel()}.`
+                : `This Finish Line was missed on ${getTodayLabel()}. You can complete it now for partial credit, but it will not count toward a streak.`}
             </div>
           )}
           {message && <div className="login-error">{message}</div>}
