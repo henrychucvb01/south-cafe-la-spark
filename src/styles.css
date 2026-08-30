@@ -6790,6 +6790,7 @@ button.homebase-card:hover {
 }
 
 .word-tile {
+  position: relative;
   aspect-ratio: 1;
   display: grid;
   place-items: center;
@@ -6799,7 +6800,61 @@ button.homebase-card:hover {
   color: #26322b;
   font-size: clamp(20px, 4vw, 28px);
   font-weight: 900;
+  transform-style: preserve-3d;
 }
+
+.word-tile > span {
+  line-height: 1;
+}
+
+.word-tile > small {
+  position: absolute;
+  right: 4px;
+  bottom: 2px;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.word-tile-reveal {
+  animation: wordTileReveal 360ms ease both;
+  animation-delay: var(--tile-delay, 0ms);
+}
+
+.word-row-shake {
+  animation: wordRowShake 320ms ease-in-out;
+}
+
+.word-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 7px 12px;
+  margin: -4px 0 14px;
+  color: #68736b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.word-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.word-legend i {
+  width: 18px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 4px;
+  color: #ffffff;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.legend-correct { background: #4f9a58; }
+.legend-present { background: #b98d1d; }
+.legend-absent { background: #707973; }
 
 .word-tile-correct,
 .word-key-correct {
@@ -6916,9 +6971,41 @@ button.homebase-card:hover {
   margin-bottom: 8px;
   padding: 11px;
   border-radius: 9px;
-  background: #e4f2da;
-  color: #34512f;
+  color: #29332d;
   text-align: center;
+}
+
+.spark-sort-solved-list {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.spark-sort-solved small {
+  display: block;
+  margin-bottom: 3px;
+  color: rgba(35, 43, 38, 0.7);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.spark-sort-group-0 { background: #f4df83; border: 1px solid #dec45c; }
+.spark-sort-group-1 { background: #a9d88e; border: 1px solid #83be67; }
+.spark-sort-group-2 { background: #96c9e8; border: 1px solid #6eafd6; }
+.spark-sort-group-3 { background: #c8afe1; border: 1px solid #aa8bca; }
+
+.spark-sort-group-reveal {
+  animation: sparkSortGroupReveal 480ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.spark-sort-incorrect {
+  animation: sparkSortIncorrect 330ms ease-in-out;
+}
+
+.spark-sort-one-away {
+  animation: sparkSortOneAway 390ms ease-in-out;
 }
 
 .spark-sort-solved strong,
@@ -6958,6 +7045,182 @@ button.homebase-card:hover {
   width: auto;
   margin: 0;
   color: #ffffff;
+}
+
+.game-result-reopen {
+  display: block;
+  margin: 10px auto 0;
+  padding: 7px 12px;
+  border: 1px solid #b9c9bb;
+  border-radius: 999px;
+  background: #f5faf4;
+  color: #35613c;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.game-result-backdrop {
+  position: fixed;
+  z-index: 10000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(24, 36, 29, 0.58);
+  backdrop-filter: blur(3px);
+  animation: gameResultFade 180ms ease-out;
+}
+
+.game-result-dialog {
+  position: relative;
+  width: min(420px, 100%);
+  box-sizing: border-box;
+  padding: 30px 26px 24px;
+  overflow: hidden;
+  border: 1px solid #9dcea2;
+  border-radius: 22px;
+  background: linear-gradient(155deg, #ffffff 0%, #eff9ed 100%);
+  box-shadow: 0 24px 65px rgba(15, 30, 19, 0.28);
+  color: #2c3b30;
+  text-align: center;
+  animation: gameResultPop 300ms cubic-bezier(0.2, 0.85, 0.25, 1.15);
+}
+
+.game-result-reset {
+  border-color: #e5c783;
+  background: linear-gradient(155deg, #ffffff 0%, #fff8e8 100%);
+}
+
+.game-result-burst {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 12px;
+  border-radius: 50%;
+  background: #e3f4de;
+  color: #3f8a48;
+  font-size: 30px;
+  animation: gameResultBurst 550ms ease-out;
+}
+
+.game-result-reset .game-result-burst {
+  background: #fff0c9;
+  color: #aa7718;
+}
+
+.game-result-dialog h3 {
+  margin: 5px 0 8px;
+  color: #294331;
+  font-size: 25px;
+}
+
+.game-result-dialog > p {
+  margin: 0;
+  color: #647067;
+  line-height: 1.5;
+}
+
+.game-result-score {
+  width: 126px;
+  margin: 18px auto 12px;
+  padding: 12px 10px;
+  border: 1px solid #d9b75f;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fff8dc 0%, #ffedb7 100%);
+  color: #74520c;
+  box-shadow: 0 5px 14px rgba(154, 112, 19, 0.12);
+}
+
+.game-result-score strong,
+.game-result-score span {
+  display: block;
+}
+
+.game-result-score strong {
+  font-size: 34px;
+  line-height: 1;
+}
+
+.game-result-score span {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.game-result-dialog .game-result-streak {
+  margin: 10px 0 18px;
+  color: #46624d;
+  font-weight: 900;
+}
+
+.game-result-dialog > button {
+  min-height: 44px;
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 10px;
+  background: #39784a;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.game-result-dialog > button:focus-visible,
+.game-result-reopen:focus-visible {
+  outline: 3px solid rgba(47, 115, 67, 0.35);
+  outline-offset: 3px;
+}
+
+@keyframes wordTileReveal {
+  0% { transform: rotateX(0); }
+  45% { transform: rotateX(90deg); }
+  55% { transform: rotateX(90deg); }
+  100% { transform: rotateX(0); }
+}
+
+@keyframes wordRowShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-5px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+}
+
+@keyframes sparkSortGroupReveal {
+  0% { opacity: 0; transform: translateY(8px) scale(0.97); }
+  65% { opacity: 1; transform: translateY(-2px) scale(1.01); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+@keyframes sparkSortIncorrect {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  50% { transform: translateX(4px); }
+  75% { transform: translateX(-2px); }
+}
+
+@keyframes sparkSortOneAway {
+  0%, 100% { transform: scale(1); }
+  45% { transform: scale(1.015); filter: brightness(1.04); }
+}
+
+@keyframes gameResultFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes gameResultPop {
+  from { opacity: 0; transform: translateY(10px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes gameResultBurst {
+  0% { transform: scale(0.5) rotate(-20deg); opacity: 0; }
+  65% { transform: scale(1.12) rotate(5deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0); }
 }
 
 .ar-training-card {
@@ -7034,6 +7297,19 @@ button.homebase-card:hover {
     height: 52px;
     border-radius: 14px;
     font-size: 17px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .word-tile-reveal,
+  .word-row-shake,
+  .spark-sort-group-reveal,
+  .spark-sort-incorrect,
+  .spark-sort-one-away,
+  .game-result-backdrop,
+  .game-result-dialog,
+  .game-result-burst {
+    animation: none;
   }
 }
 /* =========================================================

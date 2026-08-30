@@ -7,6 +7,7 @@ import {
   selectDailyPuzzle,
 } from "./gameUtils";
 import { SPARK_SORT_PUZZLES, WORD_GAME_PUZZLES } from "../../data/dailyBitesGames";
+import { isValidWordGuess, VALID_WORD_GUESSES } from "../../data/validWordGuesses";
 
 describe("Daily Bites game utilities", () => {
   test("word scoring follows the approved six-guess schedule", () => {
@@ -62,6 +63,15 @@ describe("Daily Bites game utilities", () => {
     const answers = WORD_GAME_PUZZLES.map((puzzle) => puzzle.answer);
     expect(answers.every((answer) => /^[A-Z]{5}$/.test(answer))).toBe(true);
     expect(new Set(answers).size).toBe(answers.length);
+    expect(answers.every(isValidWordGuess)).toBe(true);
+  });
+
+  test("word validation accepts common words and rejects arbitrary strings", () => {
+    expect(VALID_WORD_GUESSES.size).toBeGreaterThan(300);
+    expect(isValidWordGuess("crane")).toBe(true);
+    expect(isValidWordGuess("salad")).toBe(true);
+    expect(isValidWordGuess("qzxjk")).toBe(false);
+    expect(isValidWordGuess("abcd")).toBe(false);
   });
 
   test("every SPARK Sort puzzle contains four distinct groups of four", () => {
