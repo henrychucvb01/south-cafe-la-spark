@@ -71,7 +71,7 @@ async function retrieveChunks({ question, embedding, categories, supabaseUrl, se
       filter_categories: categories.length ? categories : null,
     }),
   });
-  if (!result.ok) throw new Error(`Knowledge search returned ${result.status}: ${await result.text()}`);
+  if (!result.ok) throw new Error(`Knowledge search returned ${result.status}.`);
   const rows = await result.json();
   return Array.isArray(rows) ? rows : [];
 }
@@ -117,7 +117,7 @@ async function generateAnswer({ question, chunks, apiKey }) {
       },
     }),
   });
-  if (!result.ok) throw new Error(`Answer service returned ${result.status}: ${await result.text()}`);
+  if (!result.ok) throw new Error(`Answer service returned ${result.status}.`);
   const payload = await result.json();
   const outputText = payload?.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("");
   if (!outputText) throw new Error("Answer service returned no text.");
@@ -169,20 +169,42 @@ export default async function handler(request, response) {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const geminiKey = process.env.GEMINI_API_KEY;
   if (!supabaseUrl || !serviceKey || !geminiKey) {
-    return send(response, 503, { error: "Ask SPARK is not configured yet." });
+    const missing = [
+      !supabaseUrl ? "SUPABASE_URL" : null,
+      !serviceKey ? "SUPABASE_SERVICE_ROLE_KEY" : null,
+      !geminiKey ? "GEMINI_API_KEY" : null,
+    ].filter(Boolean);
+    return send(response, 503, { error: `Ask SPARK configuration is missing: ${missing.join(", ")}.` });
   }
 
+  let embedding;
   try {
-    const embedding = await createEmbedding(question, geminiKey);
-    const chunks = await retrieveChunks({ question, embedding, categories, supabaseUrl, serviceKey });
-    const credible = chunks.filter(
-      (chunk) => Number(chunk.text_rank) > 0 || Number(chunk.semantic_similarity) >= 0.42
-    );
-    if (!credible.length) return send(response, 200, { supported: false, answer: NO_ANSWER, citations: [] });
-    const generated = await generateAnswer({ question, chunks: credible.slice(0, 10), apiKey: geminiKey });
-    return send(response, 200, validatedResult(generated, credible));
+    embedding = await createEmbedding(question, geminiKey);
   } catch (error) {
-    console.error("Ask SPARK error:", error);
-    return send(response, 500, { error: "Ask SPARK could not complete the search. Please try again." });
+    console.error("Ask SPARK embedding error:", error);
+    return send(response, 500, { error: `Ask SPARK embedding step failed: ${error.message}` });
   }
+
+  let chunks;
+  try {
+    chunks = await retrieveChunks({ question, embedding, categories, supabaseUrl, serviceKey });
+  } catch (error) {
+    console.error("Ask SPARK retrieval error:", error);
+    return send(response, 500, { error: `Ask SPARK training-library search failed: ${error.message}` });
+  }
+
+  const credible = chunks.filter(
+    (chunk) => Number(chunk.text_rank) > 0 || Number(chunk.semantic_similarity) >= 0.42
+  );
+  if (!credible.length) return send(response, 200, { supported: false, answer: NO_ANSWER, citations: [] });
+
+  let generated;
+  try {
+    generated = await generateAnswer({ question, chunks: credible.slice(0, 10), apiKey: geminiKey });
+  } catch (error) {
+    console.error("Ask SPARK answer error:", error);
+    return send(response, 500, { error: `Ask SPARK answer step failed: ${error.message}` });
+  }
+
+  return send(response, 200, validatedResult(generated, credible));
 }
