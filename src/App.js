@@ -14,6 +14,7 @@ import MealAnalyticsPage from "./pages/MealAnalyticsPage";
 import DailyBitesPage from "./pages/DailyBitesPage";
 import ManagerResourcesPage from "./pages/ManagerResourcesPage";
 import AskSparkPage from "./pages/AskSparkPage";
+import LocationInformationPage from "./pages/LocationInformationPage";
 
 function App() {
   const [screen, setScreen] = useState("login");
@@ -204,6 +205,7 @@ function App() {
     return (
       <ManagerResourcesPage
         onAskSpark={() => setScreen("askSpark")}
+        onLocationInformation={() => setScreen("locationInformation")}
         onBack={() => setScreen("homeBase")}
       />
     );
@@ -212,6 +214,15 @@ function App() {
   if (screen === "askSpark") {
     return (
       <AskSparkPage
+        location={selectedLocation}
+        onBack={() => setScreen("managerResources")}
+      />
+    );
+  }
+
+  if (screen === "locationInformation") {
+    return (
+      <LocationInformationPage
         location={selectedLocation}
         onBack={() => setScreen("managerResources")}
       />

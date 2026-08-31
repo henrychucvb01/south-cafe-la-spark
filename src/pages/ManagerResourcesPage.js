@@ -18,7 +18,7 @@ function ResourceLink({ icon, title, description, url, unavailableText }) {
   );
 }
 
-function ManagerResourcesPage({ onAskSpark, onBack }) {
+function ManagerResourcesPage({ onAskSpark, onLocationInformation, onBack }) {
   const foodExchangeUrl = process.env.REACT_APP_FOOD_EXCHANGE_URL;
   const equipmentExchangeUrl = process.env.REACT_APP_EQUIPMENT_EXCHANGE_URL;
   return (
@@ -40,6 +40,11 @@ function ManagerResourcesPage({ onAskSpark, onBack }) {
           <button type="button" className="manager-resource-card manager-resource-ask" onClick={onAskSpark}>
             <span className="manager-resource-card-top"><span className="manager-resource-icon" aria-hidden="true">✦</span><span className="manager-resource-status featured">APPROVED GUIDANCE</span></span>
             <span className="manager-resource-copy"><strong>Ask SPARK</strong><small>Ask a cafeteria operations question and get a clear answer with its approved training sources.</small></span>
+            <span className="manager-resource-arrow" aria-hidden="true">›</span>
+          </button>
+          <button type="button" className="manager-resource-card manager-resource-location" onClick={onLocationInformation}>
+            <span className="manager-resource-card-top"><span className="manager-resource-icon" aria-hidden="true">⌖</span><span className="manager-resource-status live">AREA DIRECTORY</span></span>
+            <span className="manager-resource-copy"><strong>Location Information</strong><small>View your school details and search manager, phone, and operating information for area locations.</small></span>
             <span className="manager-resource-arrow" aria-hidden="true">›</span>
           </button>
           <ResourceLink icon="🥕" title="Food Exchange" description="Open the Food Exchange." url={foodExchangeUrl} unavailableText="Existing exchange link is not configured in this deployment." />
