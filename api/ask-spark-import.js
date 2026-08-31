@@ -19,9 +19,18 @@ function sameOrigin(request) {
   }
 }
 
+function normalizeSupabaseUrl(value) {
+  const parsed = new URL(String(value || "").trim());
+  if (parsed.protocol !== "https:") {
+    throw new Error("SUPABASE_URL must use https.");
+  }
+  return parsed.origin;
+}
+
 function requireEnvironment() {
+  const rawSupabaseUrl = process.env.SUPABASE_URL?.trim();
   const values = {
-    supabaseUrl: process.env.SUPABASE_URL?.trim().replace(/\/$/, ""),
+    supabaseUrl: rawSupabaseUrl ? normalizeSupabaseUrl(rawSupabaseUrl) : "",
     serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY?.trim(),
     geminiKey: process.env.GEMINI_API_KEY?.trim(),
     importToken: process.env.ASK_SPARK_IMPORT_TOKEN?.trim(),
@@ -87,9 +96,20 @@ async function geminiEmbeddings(texts, apiKey) {
   return body.embeddings.map((item) => item.values);
 }
 
+function restUrl(supabaseUrl, table, params = {}) {
+  const url = new URL(`/rest/v1/${encodeURIComponent(table)}`, supabaseUrl);
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== "") {
+      url.searchParams.set(key, String(value));
+    }
+  }
+  return url;
+}
+
 async function upsert(table, rows, supabaseUrl, serviceKey) {
   const conflict = table === "ask_spark_documents" ? "document_id" : "chunk_id";
-  const result = await fetch(`${supabaseUrl}/rest/v1/${table}?on_conflict=${conflict}`, {
+  const url = restUrl(supabaseUrl, table, { on_conflict: conflict });
+  const result = await fetch(url, {
     method: "POST",
     headers: {
       apikey: serviceKey,
@@ -107,8 +127,16 @@ async function upsert(table, rows, supabaseUrl, serviceKey) {
 }
 
 async function countRows(table, filter, supabaseUrl, serviceKey) {
-  const suffix = filter ? `&${filter}` : "";
-  const result = await fetch(`${supabaseUrl}/rest/v1/${table}?select=*&limit=1${suffix}`, {
+  const url = restUrl(supabaseUrl, table, { select: "*", limit: 1 });
+  if (filter) {
+    for (const pair of filter.split("&")) {
+      const separator = pair.indexOf("=");
+      if (separator > 0) {
+        url.searchParams.set(pair.slice(0, separator), pair.slice(separator + 1));
+      }
+    }
+  }
+  const result = await fetch(url, {
     method: "GET",
     headers: {
       apikey: serviceKey,
@@ -117,7 +145,10 @@ async function countRows(table, filter, supabaseUrl, serviceKey) {
       Range: "0-0",
     },
   });
-  if (!result.ok) throw new Error(`Could not verify ${table} (${result.status}).`);
+  if (!result.ok) {
+    const detail = await result.text();
+    throw new Error(`Could not verify ${table} (${result.status}): ${detail.slice(0, 300)}`);
+  }
   const range = result.headers.get("content-range") || "";
   const total = Number(range.split("/")[1]);
   return Number.isFinite(total) ? total : 0;
