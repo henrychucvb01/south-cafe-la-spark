@@ -4,7 +4,7 @@ import path from "node:path";
 const EXPECTED_DOCUMENTS = 96;
 const EXPECTED_CHUNKS = 1415;
 const CORPUS_VERSION = "phase1-2026-08-31";
-const EMBEDDING_MODEL = process.env.ASK_SPARK_EMBEDDING_MODEL || "text-embedding-3-small";
+const EMBEDDING_MODEL = process.env.ASK_SPARK_EMBEDDING_MODEL || "gemini-embedding-001";
 const BATCH_SIZE = 50;
 
 function requireValue(name) {
@@ -52,15 +52,25 @@ function readCorpus(filePath) {
   return { documents: [...documents.values()], chunks: rows };
 }
 
-async function openAiEmbeddings(texts, apiKey) {
-  const response = await fetch("https://api.openai.com/v1/embeddings", {
+async function geminiEmbeddings(texts, apiKey) {
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:batchEmbedContents`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: EMBEDDING_MODEL, input: texts, dimensions: 1536 }),
+    headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      requests: texts.map((text) => ({
+        model: `models/${EMBEDDING_MODEL}`,
+        content: { parts: [{ text }] },
+        taskType: "RETRIEVAL_DOCUMENT",
+        outputDimensionality: 1536,
+      })),
+    }),
   });
   if (!response.ok) throw new Error(`Embedding request failed (${response.status}): ${await response.text()}`);
   const result = await response.json();
-  return result.data.sort((a, b) => a.index - b.index).map((item) => item.embedding);
+  if (!Array.isArray(result.embeddings) || result.embeddings.length !== texts.length) {
+    throw new Error("Gemini embedding response did not match the requested batch.");
+  }
+  return result.embeddings.map((item) => item.values);
 }
 
 async function upsert(table, rows, supabaseUrl, serviceKey) {
@@ -94,12 +104,12 @@ async function main() {
 
   const supabaseUrl = requireValue("SUPABASE_URL").replace(/\/$/, "");
   const serviceKey = requireValue("SUPABASE_SERVICE_ROLE_KEY");
-  const openAiKey = requireValue("OPENAI_API_KEY");
+  const geminiKey = requireValue("GEMINI_API_KEY");
   await upsert("ask_spark_documents", documents, supabaseUrl, serviceKey);
 
   for (let offset = 0; offset < chunks.length; offset += BATCH_SIZE) {
     const batch = chunks.slice(offset, offset + BATCH_SIZE);
-    const embeddings = await openAiEmbeddings(batch.map((row) => row.text), openAiKey);
+    const embeddings = await geminiEmbeddings(batch.map((row) => row.text), geminiKey);
     const records = batch.map((row, index) => ({
       chunk_id: row.chunk_id,
       document_id: row.document_id,

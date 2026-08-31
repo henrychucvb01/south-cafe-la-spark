@@ -14,10 +14,10 @@ Set these server-side environment variables in the hosting provider. Never prefi
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
-- `OPENAI_API_KEY`
+- `GEMINI_API_KEY`
 - Optional: `ASK_SPARK_ALLOWED_ORIGINS` as a comma-separated list of deployed SPARK origins
-- Optional: `ASK_SPARK_ANSWER_MODEL` (defaults to `gpt-4.1-mini`)
-- Optional: `ASK_SPARK_EMBEDDING_MODEL` (defaults to `text-embedding-3-small`; it must produce 1,536 dimensions)
+- Optional: `ASK_SPARK_ANSWER_MODEL` (defaults to `gemini-3.6-flash`)
+- Optional: `ASK_SPARK_EMBEDDING_MODEL` (defaults to `gemini-embedding-001`; it must support 1,536 output dimensions)
 
 Add the required variables to every Vercel environment that will run Ask SPARK: Production, Preview, and Development. After adding or changing them, redeploy because existing deployments do not receive newly added variables.
 
@@ -43,7 +43,7 @@ After the dry run succeeds and the three secrets above exist in the terminal ses
 npm run ask-spark:load -- "C:\Users\Lausd_User\Documents\Codex\training-analysis\ask-spark-phase1\chunks.jsonl" --apply
 ```
 
-The loader uploads only approved document metadata, citation-sized text chunks, locators, hashes, and embeddings. It intentionally omits original files, workstation source paths, and local extracted-text paths.
+The loader uploads only approved document metadata, citation-sized text chunks, locators, hashes, and embeddings. It intentionally omits original files, workstation source paths, and local extracted-text paths. Run the loader with `--apply` once after moving Ask SPARK from OpenAI embeddings to Gemini so every stored document vector is regenerated in the same Gemini embedding space used for manager questions.
 
 ## 4. Optional exchange links
 

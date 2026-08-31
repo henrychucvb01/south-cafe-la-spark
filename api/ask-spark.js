@@ -19,15 +19,6 @@ function send(response, status, body) {
   return response.status(status).json(body);
 }
 
-function getOutputText(result) {
-  for (const item of result?.output || []) {
-    for (const content of item?.content || []) {
-      if (content?.type === "output_text" && content.text) return content.text;
-    }
-  }
-  return "";
-}
-
 function parseAllowedOrigins() {
   return String(process.env.ASK_SPARK_ALLOWED_ORIGINS || "")
     .split(",")
@@ -48,19 +39,21 @@ function originIsAllowed(request) {
 }
 
 async function createEmbedding(question, apiKey) {
-  const result = await fetch("https://api.openai.com/v1/embeddings", {
+  const model = process.env.ASK_SPARK_EMBEDDING_MODEL || "gemini-embedding-001";
+  const result = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:embedContent`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: process.env.ASK_SPARK_EMBEDDING_MODEL || "text-embedding-3-small",
-      input: question,
-      dimensions: 1536,
+      model: `models/${model}`,
+      content: { parts: [{ text: question }] },
+      taskType: "RETRIEVAL_QUERY",
+      outputDimensionality: 1536,
     }),
   });
   if (!result.ok) throw new Error(`Embedding service returned ${result.status}.`);
   const body = await result.json();
-  if (!Array.isArray(body?.data?.[0]?.embedding)) throw new Error("Embedding service returned no vector.");
-  return body.data[0].embedding;
+  if (!Array.isArray(body?.embedding?.values)) throw new Error("Embedding service returned no vector.");
+  return body.embedding.values;
 }
 
 async function retrieveChunks({ question, embedding, categories, supabaseUrl, serviceKey }) {
@@ -93,54 +86,40 @@ function buildContext(chunks) {
 }
 
 async function generateAnswer({ question, chunks, apiKey }) {
-  const result = await fetch("https://api.openai.com/v1/responses", {
+  const model = process.env.ASK_SPARK_ANSWER_MODEL || "gemini-3.6-flash";
+  const result = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: process.env.ASK_SPARK_ANSWER_MODEL || "gpt-4.1-mini",
-      temperature: 0.1,
-      input: [
-        {
-          role: "system",
-          content: [
-            {
-              type: "input_text",
-              text: `You are Ask SPARK, a retrieval-only assistant for school cafeteria managers. Answer ONLY from the supplied approved excerpts. Never use outside knowledge or invent LAUSD policy. Give a concise, direct, manager-friendly answer. If the excerpts do not confirm the answer, set supported to false. Every factual instruction in a supported answer must be backed by one or more cited chunk IDs. Return JSON only: {"supported":boolean,"answer":string,"citation_ids":string[]}. Do not include citation labels in the answer text.`,
-            },
-          ],
-        },
+      systemInstruction: {
+        parts: [{
+          text: `You are Ask SPARK, a retrieval-only assistant for school cafeteria managers. Answer ONLY from the supplied approved excerpts. Never use outside knowledge or invent LAUSD policy. Give a concise, direct, manager-friendly answer. If the excerpts do not confirm the answer, set supported to false. Every factual instruction in a supported answer must be backed by one or more cited chunk IDs. Return JSON only: {"supported":boolean,"answer":string,"citation_ids":string[]}. Do not include citation labels in the answer text.`,
+        }],
+      },
+      contents: [
         {
           role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: `Manager question:\n${question}\n\nApproved retrieved excerpts:\n${buildContext(chunks)}`,
-            },
-          ],
+          parts: [{ text: `Manager question:\n${question}\n\nApproved retrieved excerpts:\n${buildContext(chunks)}` }],
         },
       ],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "ask_spark_answer",
-          strict: true,
-          schema: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              supported: { type: "boolean" },
-              answer: { type: "string" },
-              citation_ids: { type: "array", items: { type: "string" } },
-            },
-            required: ["supported", "answer", "citation_ids"],
+      generationConfig: {
+        temperature: 0.1,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "object",
+          properties: {
+            supported: { type: "boolean" },
+            answer: { type: "string" },
+            citation_ids: { type: "array", items: { type: "string" } },
           },
+          required: ["supported", "answer", "citation_ids"],
         },
       },
     }),
   });
   if (!result.ok) throw new Error(`Answer service returned ${result.status}: ${await result.text()}`);
   const payload = await result.json();
-  const outputText = getOutputText(payload);
+  const outputText = payload?.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("");
   if (!outputText) throw new Error("Answer service returned no text.");
   return JSON.parse(outputText);
 }
@@ -188,19 +167,19 @@ export default async function handler(request, response) {
 
   const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, "");
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const openAiKey = process.env.OPENAI_API_KEY;
-  if (!supabaseUrl || !serviceKey || !openAiKey) {
+  const geminiKey = process.env.GEMINI_API_KEY;
+  if (!supabaseUrl || !serviceKey || !geminiKey) {
     return send(response, 503, { error: "Ask SPARK is not configured yet." });
   }
 
   try {
-    const embedding = await createEmbedding(question, openAiKey);
+    const embedding = await createEmbedding(question, geminiKey);
     const chunks = await retrieveChunks({ question, embedding, categories, supabaseUrl, serviceKey });
     const credible = chunks.filter(
       (chunk) => Number(chunk.text_rank) > 0 || Number(chunk.semantic_similarity) >= 0.42
     );
     if (!credible.length) return send(response, 200, { supported: false, answer: NO_ANSWER, citations: [] });
-    const generated = await generateAnswer({ question, chunks: credible.slice(0, 10), apiKey: openAiKey });
+    const generated = await generateAnswer({ question, chunks: credible.slice(0, 10), apiKey: geminiKey });
     return send(response, 200, validatedResult(generated, credible));
   } catch (error) {
     console.error("Ask SPARK error:", error);
