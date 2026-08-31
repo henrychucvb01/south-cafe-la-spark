@@ -6,6 +6,8 @@ Ask SPARK keeps its corpus in private Supabase tables and calls them only from t
 
 Run `supabase/migrations/202608310001_ask_spark.sql` in the Supabase SQL Editor. It enables pgvector, creates the private document and chunk tables, and installs the service-role-only hybrid search function.
 
+For AR Training, also run `supabase/migrations/202608310002_ar_training.sql`. It creates the private answer key, school-level daily progress and attempt records, seeds the approved V1 answer key, and installs the duplicate-safe 10-point-per-weekday scoring function.
+
 ## 2. Configure backend secrets
 
 Set these server-side environment variables in the hosting provider. Never prefix them with `REACT_APP_` and never commit their values.

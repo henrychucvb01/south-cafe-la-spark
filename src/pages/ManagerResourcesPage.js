@@ -4,16 +4,16 @@ function ResourceLink({ icon, title, description, url, unavailableText }) {
   if (url) {
     return (
       <a className="manager-resource-card" href={url} target="_blank" rel="noreferrer">
-        <span className="manager-resource-icon" aria-hidden="true">{icon}</span>
-        <span><strong>{title}</strong><small>{description}</small></span>
+        <span className="manager-resource-card-top"><span className="manager-resource-icon" aria-hidden="true">{icon}</span><span className="manager-resource-status live">OPEN TOOL</span></span>
+        <span className="manager-resource-copy"><strong>{title}</strong><small>{description}</small></span>
         <span className="manager-resource-arrow" aria-hidden="true">↗</span>
       </a>
     );
   }
   return (
     <div className="manager-resource-card manager-resource-unavailable" aria-label={`${title}: ${unavailableText}`}>
-      <span className="manager-resource-icon" aria-hidden="true">{icon}</span>
-      <span><strong>{title}</strong><small>{unavailableText}</small></span>
+      <span className="manager-resource-card-top"><span className="manager-resource-icon" aria-hidden="true">{icon}</span><span className="manager-resource-status">LINK NEEDED</span></span>
+      <span className="manager-resource-copy"><strong>{title}</strong><small>{unavailableText}</small></span>
     </div>
   );
 }
@@ -32,19 +32,20 @@ function ManagerResourcesPage({ onAskSpark, onBack }) {
       </header>
       <main className="manager-resources-main">
         <section className="manager-resources-hero">
-          <span>MANAGER RESOURCES</span>
-          <h1>Guidance and manager tools</h1>
-          <p>Find training guidance or open the exchange tools used by your operation.</p>
+          <div><span>MANAGER RESOURCES</span><h1>Your operations toolkit</h1><p>Get trusted guidance, share available food, and coordinate equipment—all from one place.</p></div>
+          <div className="manager-resources-hero-mark" aria-hidden="true">✦</div>
         </section>
+        <div className="manager-resources-heading"><div><span>TOOLS &amp; GUIDANCE</span><h2>What would you like to do?</h2></div><p>Designed for quick answers during a busy cafeteria day.</p></div>
         <section className="manager-resources-grid" aria-label="Manager resource tools">
           <button type="button" className="manager-resource-card manager-resource-ask" onClick={onAskSpark}>
-            <span className="manager-resource-icon" aria-hidden="true">✦</span>
-            <span><strong>Ask SPARK</strong><small>Ask a cafeteria operations question and see the approved training sources behind the answer.</small></span>
+            <span className="manager-resource-card-top"><span className="manager-resource-icon" aria-hidden="true">✦</span><span className="manager-resource-status featured">APPROVED GUIDANCE</span></span>
+            <span className="manager-resource-copy"><strong>Ask SPARK</strong><small>Ask a cafeteria operations question and get a clear answer with its approved training sources.</small></span>
             <span className="manager-resource-arrow" aria-hidden="true">›</span>
           </button>
           <ResourceLink icon="🥕" title="Food Exchange" description="Open the Food Exchange." url={foodExchangeUrl} unavailableText="Existing exchange link is not configured in this deployment." />
           <ResourceLink icon="⚙️" title="Equipment Exchange" description="Open the Equipment Exchange." url={equipmentExchangeUrl} unavailableText="Existing exchange link is not configured in this deployment." />
         </section>
+        <div className="manager-resources-trust"><span aria-hidden="true">✓</span><p><strong>Built for managers.</strong> Ask SPARK searches only the approved training library—not the open internet.</p></div>
       </main>
     </div>
   );

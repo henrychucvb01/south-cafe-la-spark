@@ -1,5 +1,6 @@
-import React, { useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { ASK_SPARK_CATEGORIES, askSpark } from "../askSpark/askSparkService";
+import { getAskSparkSuggestions } from "../askSpark/suggestions";
 
 const EXAMPLES = [
   "How do I complete a production record?",
@@ -14,7 +15,34 @@ function AskSparkPage({ location, onBack }) {
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [activeSuggestion, setActiveSuggestion] = useState(-1);
   const answerRef = useRef(null);
+  const suggestions = useMemo(() => getAskSparkSuggestions(question, category), [question, category]);
+
+  function chooseSuggestion(suggestion) {
+    setQuestion(suggestion.question);
+    setCategory(suggestion.category);
+    setSuggestionsOpen(false);
+    setActiveSuggestion(-1);
+  }
+
+  function handleSearchKeyDown(event) {
+    if (!suggestionsOpen || !suggestions.length) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActiveSuggestion((current) => (current + 1) % suggestions.length);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveSuggestion((current) => (current <= 0 ? suggestions.length - 1 : current - 1));
+    } else if (event.key === "Enter" && activeSuggestion >= 0) {
+      event.preventDefault();
+      chooseSuggestion(suggestions[activeSuggestion]);
+    } else if (event.key === "Escape") {
+      setSuggestionsOpen(false);
+      setActiveSuggestion(-1);
+    }
+  }
 
   async function submit(event, example) {
     event?.preventDefault();
@@ -24,6 +52,7 @@ function AskSparkPage({ location, onBack }) {
     setLoading(true);
     setError("");
     setResult(null);
+    setSuggestionsOpen(false);
     try {
       const response = await askSpark(nextQuestion, category);
       setResult(response);
@@ -51,9 +80,22 @@ function AskSparkPage({ location, onBack }) {
           <div><span>APPROVED TRAINING GUIDANCE</span><h1>Ask SPARK</h1><p>Ask a cafeteria operations question. SPARK will answer only from the approved training library and show where the answer came from.</p></div>
         </section>
 
-        <form className="ask-spark-form" onSubmit={submit}>
-          <label htmlFor="ask-spark-question">What do you need help with?</label>
-          <textarea id="ask-spark-question" rows="4" maxLength="500" value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="Example: How do I complete a production record?" disabled={loading} />
+        <div className="ask-spark-trust-row"><span><strong>96</strong> approved documents</span><span><strong>1,415</strong> cited training sections</span><span><strong>Private</strong> SPARK knowledge base</span></div>
+
+        <form className="ask-spark-form ask-spark-search-shell" onSubmit={submit}>
+          <label htmlFor="ask-spark-question">What can SPARK help you find?</label>
+          <div className="ask-spark-search-wrap">
+            <span className="ask-spark-search-icon" aria-hidden="true">⌕</span>
+            <input id="ask-spark-question" type="search" role="combobox" aria-autocomplete="list" aria-expanded={suggestionsOpen && suggestions.length > 0} aria-controls="ask-spark-suggestion-list" aria-activedescendant={activeSuggestion >= 0 ? `ask-suggestion-${activeSuggestion}` : undefined} maxLength="500" value={question} onChange={(event) => { setQuestion(event.target.value); setSuggestionsOpen(true); setActiveSuggestion(-1); }} onFocus={() => setSuggestionsOpen(true)} onBlur={() => window.setTimeout(() => setSuggestionsOpen(false), 120)} onKeyDown={handleSearchKeyDown} placeholder="Ask about production records, meal counts, special diets…" disabled={loading} autoComplete="off" />
+            <button type="submit" className="ask-spark-search-button" disabled={loading || !question.trim()} aria-label="Search approved training">
+              {loading ? <span className="spark-thinking-spinner" aria-hidden="true" /> : <span aria-hidden="true">→</span>}
+            </button>
+            {suggestionsOpen && suggestions.length > 0 && (
+              <ul id="ask-spark-suggestion-list" className="ask-spark-suggestions" role="listbox">
+                {suggestions.map((suggestion, index) => <li id={`ask-suggestion-${index}`} key={suggestion.question} role="option" aria-selected={index === activeSuggestion}><button type="button" className={index === activeSuggestion ? "active" : ""} onMouseDown={(event) => event.preventDefault()} onClick={() => chooseSuggestion(suggestion)}><span aria-hidden="true">⌕</span><span><strong>{suggestion.question}</strong><small>{suggestion.category}</small></span></button></li>)}
+              </ul>
+            )}
+          </div>
           <div className="ask-spark-form-footer">
             <label className="ask-spark-category">Topic (optional)
               <select value={category} onChange={(event) => setCategory(event.target.value)} disabled={loading}>
@@ -61,9 +103,7 @@ function AskSparkPage({ location, onBack }) {
                 {ASK_SPARK_CATEGORIES.map((item) => <option value={item} key={item}>{item}</option>)}
               </select>
             </label>
-            <button type="submit" className="ask-spark-submit" disabled={loading || !question.trim()}>
-              {loading ? <><span className="spark-thinking-spinner" aria-hidden="true" /> Searching approved guidance…</> : <>✦ Ask SPARK</>}
-            </button>
+            <span className="ask-spark-search-note">{loading ? "Searching approved guidance…" : "Suggestions come only from approved training topics."}</span>
           </div>
           <small className="ask-spark-character-count">{question.length}/500</small>
         </form>

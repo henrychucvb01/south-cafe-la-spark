@@ -5,6 +5,8 @@ import DAILY_BITES from "../data/dailyBitesContent";
 import { SPARK_SORT_PUZZLES, WORD_GAME_PUZZLES } from "../data/dailyBitesGames";
 import CafeteriaWordGame from "../dailyBites/games/CafeteriaWordGame";
 import CafeteriaConnectionsGame from "../dailyBites/games/CafeteriaConnectionsGame";
+import ArTrainingQuiz from "../dailyBites/training/ArTrainingQuiz";
+import { getLosAngelesDate, isWeekdayDate } from "../dailyBites/training/arTrainingUtils";
 import {
   calculateGameStreak,
   getDailyGameDate,
@@ -419,11 +421,62 @@ function DailyBitesPage({ location, employee, onBack }) {
   const [gameProgress, setGameProgress] = useState([]);
   const [gamesLoading, setGamesLoading] = useState(true);
   const [gamesError, setGamesError] = useState("");
+  const [arDailyPoints, setArDailyPoints] = useState(0);
+  const [arLoading, setArLoading] = useState(true);
+  const [arError, setArError] = useState("");
+  const arServiceDate = useMemo(() => getLosAngelesDate(new Date()), []);
 
   useEffect(() => {
     if (!location?.id) return;
     loadGameProgress();
   }, [location?.id]);
+
+  useEffect(() => {
+    if (!location?.id) return;
+    loadArProgress();
+  }, [location?.id, arServiceDate]);
+
+  async function loadArProgress() {
+    setArLoading(true);
+    setArError("");
+    const { data, error } = await supabase
+      .from("ar_training_daily_progress")
+      .select("points_awarded")
+      .eq("location_id", location.id)
+      .eq("service_date", arServiceDate)
+      .maybeSingle();
+    if (error) {
+      console.error("AR Training progress error:", error);
+      setArError("AR Training storage is not ready. Run the supplied Supabase migration.");
+    } else {
+      setArDailyPoints(Number(data?.points_awarded || 0));
+    }
+    setArLoading(false);
+  }
+
+  async function submitArAnswer(question, selectedIndex) {
+    setArError("");
+    const { data, error } = await supabase.rpc("submit_ar_training_answer", {
+      p_location_id: location.id,
+      p_employee_id: employee?.id || null,
+      p_employee_name: employee?.employee_name || "Covering Employee",
+      p_service_date: arServiceDate,
+      p_question_id: question.id,
+      p_selected_index: selectedIndex,
+    });
+    if (error) {
+      console.error("AR Training answer error:", error);
+      setArError(error.message || "Could not save the AR Training answer.");
+      return null;
+    }
+    const result = {
+      correct: data?.correct === true,
+      pointsEarned: Number(data?.points_earned || 0),
+      dailyPoints: Number(data?.daily_points || 0),
+    };
+    setArDailyPoints(result.dailyPoints);
+    return result;
+  }
 
   async function loadGameProgress() {
     setGamesLoading(true);
@@ -1375,19 +1428,15 @@ function DailyBitesPage({ location, employee, onBack }) {
             </div>
           </section>
 
-          <section className="dashboard-card ar-training-card" aria-labelledby="ar-training-title">
-            <div className="ar-training-icon" aria-hidden="true">AR</div>
-            <div>
-              <div className="dashboard-small-label">COMING SOON</div>
-              <h2 id="ar-training-title">AR Training</h2>
-              <p>
-                Interactive quizzes, written scenarios, and visual “What’s wrong
-                with this picture?” activities will appear here after official
-                training materials are provided.
-              </p>
-              <span>No questions or point awards are active yet.</span>
-            </div>
-          </section>
+          {arError && <div className="login-error daily-games-error" role="alert">{arError}</div>}
+          <ArTrainingQuiz
+            serviceDate={arServiceDate}
+            dailyPoints={arDailyPoints}
+            weekday={isWeekdayDate(arServiceDate)}
+            loading={arLoading}
+            disabled={arLoading || Boolean(arError)}
+            onAnswer={submitArAnswer}
+          />
 
           <section className="dashboard-card spark-bingo-section">
             <div className="spark-bingo-heading">
