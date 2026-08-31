@@ -12,6 +12,8 @@ import HomeBase from "./pages/HomeBase";
 import IncidentRecordHelper from "./pages/IncidentRecordHelper";
 import MealAnalyticsPage from "./pages/MealAnalyticsPage";
 import DailyBitesPage from "./pages/DailyBitesPage";
+import ManagerResourcesPage from "./pages/ManagerResourcesPage";
+import AskSparkPage from "./pages/AskSparkPage";
 
 function App() {
   const [screen, setScreen] = useState("login");
@@ -188,9 +190,30 @@ function App() {
         onDailyBites={() => {
           setScreen("dailyBites");
         }}
+        onManagerResources={() => {
+          setScreen("managerResources");
+        }}
         onExit={() => {
           resetToLogin();
         }}
+      />
+    );
+  }
+
+  if (screen === "managerResources") {
+    return (
+      <ManagerResourcesPage
+        onAskSpark={() => setScreen("askSpark")}
+        onBack={() => setScreen("homeBase")}
+      />
+    );
+  }
+
+  if (screen === "askSpark") {
+    return (
+      <AskSparkPage
+        location={selectedLocation}
+        onBack={() => setScreen("managerResources")}
       />
     );
   }
