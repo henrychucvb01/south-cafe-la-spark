@@ -19,6 +19,16 @@ Set these server-side environment variables in the hosting provider. Never prefi
 - Optional: `ASK_SPARK_ANSWER_MODEL` (defaults to `gpt-4.1-mini`)
 - Optional: `ASK_SPARK_EMBEDDING_MODEL` (defaults to `text-embedding-3-small`; it must produce 1,536 dimensions)
 
+Add the required variables to every Vercel environment that will run Ask SPARK: Production, Preview, and Development. After adding or changing them, redeploy because existing deployments do not receive newly added variables.
+
+Local API testing must use Vercel's local runtime from the repository root:
+
+```powershell
+npx vercel dev
+```
+
+Open the URL printed by Vercel and use `/api/ask-spark`. A plain `react-scripts start` process serves only the React frontend and cannot execute files in `api/`.
+
 ## 3. Validate and load the finalized corpus
 
 Run the loader from a trusted local terminal. The first command is a dry run and must report exactly 96 documents and 1,415 chunks.
