@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from "react";
-import { ASK_SPARK_CATEGORIES, askSpark } from "../askSpark/askSparkService";
+import { ASK_SPARK_CATEGORIES, askSpark, getAskSparkCategoryLabel } from "../askSpark/askSparkService";
 import { getAskSparkSuggestions } from "../askSpark/suggestions";
 
 const EXAMPLES = [
@@ -92,7 +92,7 @@ function AskSparkPage({ location, onBack }) {
             </button>
             {suggestionsOpen && suggestions.length > 0 && (
               <ul id="ask-spark-suggestion-list" className="ask-spark-suggestions" role="listbox">
-                {suggestions.map((suggestion, index) => <li id={`ask-suggestion-${index}`} key={suggestion.question} role="option" aria-selected={index === activeSuggestion}><button type="button" className={index === activeSuggestion ? "active" : ""} onMouseDown={(event) => event.preventDefault()} onClick={() => chooseSuggestion(suggestion)}><span aria-hidden="true">⌕</span><span><strong>{suggestion.question}</strong><small>{suggestion.category}</small></span></button></li>)}
+                {suggestions.map((suggestion, index) => <li id={`ask-suggestion-${index}`} key={suggestion.question} role="option" aria-selected={index === activeSuggestion}><button type="button" className={index === activeSuggestion ? "active" : ""} onMouseDown={(event) => event.preventDefault()} onClick={() => chooseSuggestion(suggestion)}><span aria-hidden="true">⌕</span><span><strong>{suggestion.question}</strong><small>{getAskSparkCategoryLabel(suggestion.category)}</small></span></button></li>)}
               </ul>
             )}
           </div>
@@ -100,7 +100,7 @@ function AskSparkPage({ location, onBack }) {
             <label className="ask-spark-category">Topic (optional)
               <select value={category} onChange={(event) => setCategory(event.target.value)} disabled={loading}>
                 <option value="">All approved topics</option>
-                {ASK_SPARK_CATEGORIES.map((item) => <option value={item} key={item}>{item}</option>)}
+                {ASK_SPARK_CATEGORIES.map((item) => <option value={item} key={item}>{getAskSparkCategoryLabel(item)}</option>)}
               </select>
             </label>
             <span className="ask-spark-search-note">{loading ? "Searching approved guidance…" : "Suggestions come only from approved training topics."}</span>

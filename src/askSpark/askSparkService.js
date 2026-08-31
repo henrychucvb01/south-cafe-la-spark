@@ -12,6 +12,10 @@ export const ASK_SPARK_CATEGORIES = [
   "Supper / CACFP / EEC",
 ];
 
+export function getAskSparkCategoryLabel(category) {
+  return category === "Supper / CACFP / EEC" ? "Supper / CACFP" : category;
+}
+
 export async function askSpark(question, category = "") {
   const response = await fetch("/api/ask-spark", {
     method: "POST",
