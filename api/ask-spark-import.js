@@ -3,6 +3,8 @@ const EXPECTED_CHUNKS = 1415;
 const CORPUS_VERSION = "phase1-2026-08-31";
 const MAX_BATCH_SIZE = 25;
 const EMBEDDING_MODEL = process.env.ASK_SPARK_EMBEDDING_MODEL || "gemini-embedding-001";
+const GEMINI_MAX_RETRIES = 6;
+const GEMINI_BASE_DELAY_MS = 4000;
 
 function send(response, status, body) {
   response.setHeader("Cache-Control", "no-store");
@@ -68,32 +70,59 @@ function validateRows(rows) {
   });
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function retryDelayMs(response, attempt) {
+  const retryAfter = Number(response.headers.get("retry-after"));
+  if (Number.isFinite(retryAfter) && retryAfter > 0) {
+    return Math.max(retryAfter * 1000, GEMINI_BASE_DELAY_MS);
+  }
+  return GEMINI_BASE_DELAY_MS * 2 ** attempt;
+}
+
 async function geminiEmbeddings(texts, apiKey) {
-  const result = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:batchEmbedContents`,
-    {
-      method: "POST",
-      headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        requests: texts.map((text) => ({
-          model: `models/${EMBEDDING_MODEL}`,
-          content: { parts: [{ text }] },
-          taskType: "RETRIEVAL_DOCUMENT",
-          outputDimensionality: 1536,
-        })),
-      }),
+  let lastStatus = null;
+
+  for (let attempt = 0; attempt <= GEMINI_MAX_RETRIES; attempt += 1) {
+    const result = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:batchEmbedContents`,
+      {
+        method: "POST",
+        headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requests: texts.map((text) => ({
+            model: `models/${EMBEDDING_MODEL}`,
+            content: { parts: [{ text }] },
+            taskType: "RETRIEVAL_DOCUMENT",
+            outputDimensionality: 1536,
+          })),
+        }),
+      }
+    );
+
+    if (result.ok) {
+      const body = await result.json();
+      if (!Array.isArray(body.embeddings) || body.embeddings.length !== texts.length) {
+        throw new Error("Gemini embedding response did not match the import batch.");
+      }
+      return body.embeddings.map((item) => item.values);
     }
-  );
 
-  if (!result.ok) {
-    throw new Error(`Gemini embedding request failed (${result.status}).`);
+    lastStatus = result.status;
+    if (result.status !== 429 || attempt === GEMINI_MAX_RETRIES) {
+      throw new Error(`Gemini embedding request failed (${result.status}).`);
+    }
+
+    const delayMs = retryDelayMs(result, attempt);
+    console.warn(
+      `Gemini embedding rate limited (429). Retrying in ${Math.round(delayMs / 1000)}s (attempt ${attempt + 1}/${GEMINI_MAX_RETRIES}).`
+    );
+    await sleep(delayMs);
   }
 
-  const body = await result.json();
-  if (!Array.isArray(body.embeddings) || body.embeddings.length !== texts.length) {
-    throw new Error("Gemini embedding response did not match the import batch.");
-  }
-  return body.embeddings.map((item) => item.values);
+  throw new Error(`Gemini embedding request failed (${lastStatus || "unknown"}).`);
 }
 
 function restUrl(supabaseUrl, table, params = {}) {
