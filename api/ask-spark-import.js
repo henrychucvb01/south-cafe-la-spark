@@ -3,8 +3,8 @@ const EXPECTED_CHUNKS = 1415;
 const CORPUS_VERSION = "phase1-2026-08-31";
 const MAX_BATCH_SIZE = 25;
 const EMBEDDING_MODEL = process.env.ASK_SPARK_EMBEDDING_MODEL || "gemini-embedding-001";
-const GEMINI_MAX_RETRIES = 6;
-const GEMINI_BASE_DELAY_MS = 4000;
+const GEMINI_MAX_RETRIES = 8;
+const GEMINI_BASE_DELAY_MS = 5000;
 
 function send(response, status, body) {
   response.setHeader("Cache-Control", "no-store");
@@ -79,12 +79,10 @@ function retryDelayMs(response, attempt) {
   if (Number.isFinite(retryAfter) && retryAfter > 0) {
     return Math.max(retryAfter * 1000, GEMINI_BASE_DELAY_MS);
   }
-  return GEMINI_BASE_DELAY_MS * 2 ** attempt;
+  return Math.min(GEMINI_BASE_DELAY_MS * 2 ** attempt, 60000);
 }
 
 async function geminiEmbeddings(texts, apiKey) {
-  let lastStatus = null;
-
   for (let attempt = 0; attempt <= GEMINI_MAX_RETRIES; attempt += 1) {
     const result = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:batchEmbedContents`,
@@ -110,19 +108,16 @@ async function geminiEmbeddings(texts, apiKey) {
       return body.embeddings.map((item) => item.values);
     }
 
-    lastStatus = result.status;
     if (result.status !== 429 || attempt === GEMINI_MAX_RETRIES) {
       throw new Error(`Gemini embedding request failed (${result.status}).`);
     }
 
     const delayMs = retryDelayMs(result, attempt);
-    console.warn(
-      `Gemini embedding rate limited (429). Retrying in ${Math.round(delayMs / 1000)}s (attempt ${attempt + 1}/${GEMINI_MAX_RETRIES}).`
-    );
+    console.warn(`Gemini rate limited. Retrying in ${Math.round(delayMs / 1000)}s.`);
     await sleep(delayMs);
   }
 
-  throw new Error(`Gemini embedding request failed (${lastStatus || "unknown"}).`);
+  throw new Error("Gemini embedding request failed.");
 }
 
 function restUrl(supabaseUrl, table, params = {}) {
@@ -136,6 +131,7 @@ function restUrl(supabaseUrl, table, params = {}) {
 }
 
 async function upsert(table, rows, supabaseUrl, serviceKey) {
+  if (!rows.length) return;
   const conflict = table === "ask_spark_documents" ? "document_id" : "chunk_id";
   const url = restUrl(supabaseUrl, table, { on_conflict: conflict });
   const result = await fetch(url, {
@@ -153,6 +149,27 @@ async function upsert(table, rows, supabaseUrl, serviceKey) {
     const detail = await result.text();
     throw new Error(`Supabase ${table} upsert failed (${result.status}): ${detail.slice(0, 300)}`);
   }
+}
+
+async function missingEmbeddingIds(chunkIds, supabaseUrl, serviceKey) {
+  const quoted = chunkIds.map((id) => `"${String(id).replaceAll('"', '\\"')}"`).join(",");
+  const url = restUrl(supabaseUrl, "ask_spark_chunks", {
+    select: "chunk_id",
+    chunk_id: `in.(${quoted})`,
+    embedding: "is.null",
+  });
+  const result = await fetch(url, {
+    headers: {
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+    },
+  });
+  if (!result.ok) {
+    const detail = await result.text();
+    throw new Error(`Could not check missing embeddings (${result.status}): ${detail.slice(0, 300)}`);
+  }
+  const rows = await result.json();
+  return new Set(rows.map((row) => row.chunk_id));
 }
 
 async function countRows(table, filter, supabaseUrl, serviceKey) {
@@ -183,6 +200,41 @@ async function countRows(table, filter, supabaseUrl, serviceKey) {
   return Number.isFinite(total) ? total : 0;
 }
 
+function documentRecords(rows) {
+  const documents = new Map();
+  for (const row of rows) {
+    documents.set(row.document_id, {
+      document_id: row.document_id,
+      source_filename: row.source_filename,
+      title: row.title,
+      topic_category: row.topic_category,
+      document_year: row.document_year || null,
+      source_type: row.source_type,
+      source_sha256: row.source_sha256,
+      approved: true,
+      corpus_version: CORPUS_VERSION,
+    });
+  }
+  return [...documents.values()];
+}
+
+function chunkRecord(row, embedding) {
+  const record = {
+    chunk_id: row.chunk_id,
+    document_id: row.document_id,
+    topic_category: row.topic_category,
+    locator_type: row.locator_type,
+    locator_number: Number.isFinite(Number(row.locator_number)) ? Number(row.locator_number) : null,
+    chunk_sequence_in_locator: Number(row.chunk_sequence_in_locator) || 1,
+    citation_label: row.citation_label,
+    content: row.text,
+    character_count: Number(row.character_count) || row.text.length,
+    corpus_version: CORPUS_VERSION,
+  };
+  if (embedding) record.embedding = embedding;
+  return record;
+}
+
 export default async function handler(request, response) {
   if (process.env.VERCEL_ENV !== "preview") {
     return send(response, 404, { error: "Importer is available only on Preview deployments." });
@@ -204,73 +256,43 @@ export default async function handler(request, response) {
     const action = request.body?.action;
 
     if (action === "verify") {
-      const documents = await countRows(
-        "ask_spark_documents",
-        "approved=eq.true&corpus_version=eq.phase1-2026-08-31",
-        supabaseUrl,
-        serviceKey
-      );
-      const chunks = await countRows(
-        "ask_spark_chunks",
-        "corpus_version=eq.phase1-2026-08-31",
-        supabaseUrl,
-        serviceKey
-      );
-      const embeddedChunks = await countRows(
-        "ask_spark_chunks",
-        "corpus_version=eq.phase1-2026-08-31&embedding=not.is.null",
-        supabaseUrl,
-        serviceKey
-      );
+      const documents = await countRows("ask_spark_documents", "approved=eq.true&corpus_version=eq.phase1-2026-08-31", supabaseUrl, serviceKey);
+      const chunks = await countRows("ask_spark_chunks", "corpus_version=eq.phase1-2026-08-31", supabaseUrl, serviceKey);
+      const embeddedChunks = await countRows("ask_spark_chunks", "corpus_version=eq.phase1-2026-08-31&embedding=not.is.null", supabaseUrl, serviceKey);
       return send(response, 200, {
         documents,
         chunks,
         embeddedChunks,
-        complete:
-          documents === EXPECTED_DOCUMENTS &&
-          chunks === EXPECTED_CHUNKS &&
-          embeddedChunks === EXPECTED_CHUNKS,
+        complete: documents === EXPECTED_DOCUMENTS && chunks === EXPECTED_CHUNKS && embeddedChunks === EXPECTED_CHUNKS,
       });
     }
 
-    if (action !== "import") {
+    if (action !== "upload" && action !== "embed") {
       return send(response, 400, { error: "Unknown import action." });
     }
 
     const rows = validateRows(request.body?.rows);
-    const documents = new Map();
-    for (const row of rows) {
-      documents.set(row.document_id, {
-        document_id: row.document_id,
-        source_filename: row.source_filename,
-        title: row.title,
-        topic_category: row.topic_category,
-        document_year: row.document_year || null,
-        source_type: row.source_type,
-        source_sha256: row.source_sha256,
-        approved: true,
-        corpus_version: CORPUS_VERSION,
-      });
+
+    if (action === "upload") {
+      await upsert("ask_spark_documents", documentRecords(rows), supabaseUrl, serviceKey);
+      await upsert("ask_spark_chunks", rows.map((row) => chunkRecord(row)), supabaseUrl, serviceKey);
+      return send(response, 200, { uploaded: rows.length });
     }
 
-    await upsert("ask_spark_documents", [...documents.values()], supabaseUrl, serviceKey);
-    const embeddings = await geminiEmbeddings(rows.map((row) => row.text), geminiKey);
-    const chunks = rows.map((row, index) => ({
-      chunk_id: row.chunk_id,
-      document_id: row.document_id,
-      topic_category: row.topic_category,
-      locator_type: row.locator_type,
-      locator_number: Number.isFinite(Number(row.locator_number)) ? Number(row.locator_number) : null,
-      chunk_sequence_in_locator: Number(row.chunk_sequence_in_locator) || 1,
-      citation_label: row.citation_label,
-      content: row.text,
-      character_count: Number(row.character_count) || row.text.length,
-      embedding: embeddings[index],
-      corpus_version: CORPUS_VERSION,
-    }));
-    await upsert("ask_spark_chunks", chunks, supabaseUrl, serviceKey);
+    const missingIds = await missingEmbeddingIds(rows.map((row) => row.chunk_id), supabaseUrl, serviceKey);
+    const missingRows = rows.filter((row) => missingIds.has(row.chunk_id));
+    if (!missingRows.length) {
+      return send(response, 200, { embedded: 0, skipped: rows.length });
+    }
 
-    return send(response, 200, { imported: rows.length });
+    const embeddings = await geminiEmbeddings(missingRows.map((row) => row.text), geminiKey);
+    const chunkUpdates = missingRows.map((row, index) => chunkRecord(row, embeddings[index]));
+    await upsert("ask_spark_chunks", chunkUpdates, supabaseUrl, serviceKey);
+
+    return send(response, 200, {
+      embedded: missingRows.length,
+      skipped: rows.length - missingRows.length,
+    });
   } catch (error) {
     console.error("Ask SPARK import error:", error);
     return send(response, 500, { error: error?.message || "Ask SPARK import failed." });
