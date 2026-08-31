@@ -12,6 +12,7 @@
     p { line-height: 1.5; }
     label { display: block; font-weight: 700; margin: 18px 0 8px; }
     input[type="password"], input[type="file"] { width: 100%; box-sizing: border-box; padding: 12px; }
+    .buttons { display: flex; gap: 10px; flex-wrap: wrap; }
     button { margin-top: 18px; padding: 12px 18px; border: 0; border-radius: 10px; font-weight: 700; cursor: pointer; }
     button:disabled { cursor: not-allowed; opacity: .5; }
     progress { width: 100%; height: 24px; margin-top: 18px; }
@@ -25,7 +26,7 @@
   <div class="wrap">
     <div class="card">
       <h1>Ask SPARK Training Library Import</h1>
-      <p class="warning">Temporary Preview-only tool. It uploads the approved Phase 1 corpus into Supabase and creates Gemini embeddings. The file is read in your browser and sent in small batches; it is not added to GitHub.</p>
+      <p class="warning">Temporary Preview-only tool. Step 1 uploads all approved training text into Supabase. Step 2 adds Gemini embeddings only to chunks that still need them. If Gemini rate-limits the process, you can run Step 2 again and it resumes from the missing chunks.</p>
 
       <label for="token">Import token</label>
       <input id="token" type="password" autocomplete="off" placeholder="Enter the ASK_SPARK_IMPORT_TOKEN value" />
@@ -33,7 +34,11 @@
       <label for="file">chunks.jsonl</label>
       <input id="file" type="file" accept=".jsonl,application/json,text/plain" />
 
-      <button id="start">Validate and Import</button>
+      <div class="buttons">
+        <button id="upload">1. Upload Training Text</button>
+        <button id="embed">2. Embed Missing Chunks</button>
+        <button id="verify">Check Progress</button>
+      </div>
       <progress id="progress" value="0" max="1415" hidden></progress>
       <div id="status" class="status">Waiting for file.</div>
     </div>
@@ -42,17 +47,33 @@
   <script>
     const EXPECTED_DOCUMENTS = 96;
     const EXPECTED_CHUNKS = 1415;
-    const BATCH_SIZE = 25;
+    const UPLOAD_BATCH_SIZE = 25;
+    const EMBED_BATCH_SIZE = 10;
+    const EMBED_PAUSE_MS = 1800;
 
     const tokenInput = document.getElementById('token');
     const fileInput = document.getElementById('file');
-    const startButton = document.getElementById('start');
+    const uploadButton = document.getElementById('upload');
+    const embedButton = document.getElementById('embed');
+    const verifyButton = document.getElementById('verify');
     const progress = document.getElementById('progress');
     const statusBox = document.getElementById('status');
+
+    function sleep(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
 
     function setStatus(message, kind) {
       statusBox.textContent = message;
       statusBox.className = 'status' + (kind ? ' ' + kind : '');
+    }
+
+    function setBusy(busy) {
+      uploadButton.disabled = busy;
+      embedButton.disabled = busy;
+      verifyButton.disabled = busy;
+      fileInput.disabled = busy;
+      tokenInput.disabled = busy;
     }
 
     async function callApi(body, token) {
@@ -96,43 +117,92 @@
       return rows;
     }
 
-    startButton.addEventListener('click', async () => {
-      const token = tokenInput.value.trim();
+    async function getRows() {
       const file = fileInput.files[0];
-      if (!token) return setStatus('Enter the import token first.', 'bad');
-      if (!file) return setStatus('Choose chunks.jsonl first.', 'bad');
+      if (!file) throw new Error('Choose chunks.jsonl first.');
+      setStatus('Reading and validating the corpus...');
+      return parseCorpus(await file.text());
+    }
 
-      startButton.disabled = true;
-      fileInput.disabled = true;
-      tokenInput.disabled = true;
-      progress.hidden = false;
-      progress.value = 0;
+    function getToken() {
+      const token = tokenInput.value.trim();
+      if (!token) throw new Error('Enter the import token first.');
+      return token;
+    }
 
+    async function showVerification(token) {
+      const result = await callApi({ action: 'verify' }, token);
+      const complete = result.complete;
+      setStatus(
+        `Documents: ${result.documents} / ${EXPECTED_DOCUMENTS}\nChunks: ${result.chunks} / ${EXPECTED_CHUNKS}\nEmbeddings: ${result.embeddedChunks} / ${EXPECTED_CHUNKS}` +
+        (complete ? '\n\nAsk SPARK Phase 1 training library is complete.' : ''),
+        complete ? 'good' : undefined
+      );
+      return result;
+    }
+
+    uploadButton.addEventListener('click', async () => {
       try {
-        setStatus('Reading and validating the corpus...');
-        const rows = parseCorpus(await file.text());
-        setStatus(`Validated ${EXPECTED_DOCUMENTS} documents and ${EXPECTED_CHUNKS} chunks. Starting upload...`);
+        const token = getToken();
+        setBusy(true);
+        const rows = await getRows();
+        progress.hidden = false;
+        progress.value = 0;
+        setStatus(`Validated ${EXPECTED_DOCUMENTS} documents and ${EXPECTED_CHUNKS} chunks. Uploading text to Supabase...`);
 
-        for (let offset = 0; offset < rows.length; offset += BATCH_SIZE) {
-          const batch = rows.slice(offset, offset + BATCH_SIZE);
-          await callApi({ action: 'import', rows: batch }, token);
+        for (let offset = 0; offset < rows.length; offset += UPLOAD_BATCH_SIZE) {
+          const batch = rows.slice(offset, offset + UPLOAD_BATCH_SIZE);
+          await callApi({ action: 'upload', rows: batch }, token);
           progress.value = Math.min(offset + batch.length, rows.length);
-          setStatus(`Uploaded and embedded ${progress.value} / ${rows.length} chunks...`);
+          setStatus(`Uploaded training text ${progress.value} / ${rows.length} chunks...`);
         }
 
-        setStatus('Upload finished. Verifying Supabase counts...');
-        const result = await callApi({ action: 'verify' }, token);
-        if (!result.complete) {
-          throw new Error(`Verification did not match. Documents: ${result.documents}, chunks: ${result.chunks}, embedded: ${result.embeddedChunks}.`);
-        }
-
-        setStatus(`Complete.\nDocuments: ${result.documents}\nChunks: ${result.chunks}\nEmbeddings: ${result.embeddedChunks}\n\nAsk SPARK Phase 1 training library is loaded.`, 'good');
+        await showVerification(token);
       } catch (error) {
-        setStatus(error.message || 'Import failed.', 'bad');
+        setStatus(error.message || 'Upload failed.', 'bad');
       } finally {
-        startButton.disabled = false;
-        fileInput.disabled = false;
-        tokenInput.disabled = false;
+        setBusy(false);
+      }
+    });
+
+    embedButton.addEventListener('click', async () => {
+      try {
+        const token = getToken();
+        setBusy(true);
+        const rows = await getRows();
+        progress.hidden = false;
+        progress.value = 0;
+        let newlyEmbedded = 0;
+        let skipped = 0;
+        setStatus('Embedding only chunks that are still missing embeddings...');
+
+        for (let offset = 0; offset < rows.length; offset += EMBED_BATCH_SIZE) {
+          const batch = rows.slice(offset, offset + EMBED_BATCH_SIZE);
+          const result = await callApi({ action: 'embed', rows: batch }, token);
+          newlyEmbedded += result.embedded || 0;
+          skipped += result.skipped || 0;
+          progress.value = Math.min(offset + batch.length, rows.length);
+          setStatus(`Checked ${progress.value} / ${rows.length} chunks...\nNewly embedded this run: ${newlyEmbedded}\nAlready embedded and skipped: ${skipped}`);
+          if (offset + EMBED_BATCH_SIZE < rows.length) await sleep(EMBED_PAUSE_MS);
+        }
+
+        await showVerification(token);
+      } catch (error) {
+        setStatus(`${error.message || 'Embedding failed.'}\n\nYour completed embeddings are saved. Run Step 2 again later to resume.`, 'bad');
+      } finally {
+        setBusy(false);
+      }
+    });
+
+    verifyButton.addEventListener('click', async () => {
+      try {
+        const token = getToken();
+        setBusy(true);
+        await showVerification(token);
+      } catch (error) {
+        setStatus(error.message || 'Verification failed.', 'bad');
+      } finally {
+        setBusy(false);
       }
     });
   </script>
