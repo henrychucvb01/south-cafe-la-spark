@@ -4,6 +4,7 @@ export const LOCATION_INFORMATION_FIELDS = [
   "id",
   "location_code",
   "school_name",
+  "address",
   "manager_name",
   "site_type",
   "counting_claiming",

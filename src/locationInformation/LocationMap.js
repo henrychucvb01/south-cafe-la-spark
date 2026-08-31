@@ -48,6 +48,9 @@ function LocationMap({ records, selectedId, onSelect }) {
 
   useEffect(() => {
     let map;
+    let resizeObserver;
+    let resizeTimer;
+    let animationFrame;
     let cancelled = false;
     const mapped = records.filter((item) => item.latitude != null && item.longitude != null && Number.isFinite(Number(item.latitude)) && Number.isFinite(Number(item.longitude)));
     loadLeaflet().then((L) => {
@@ -75,9 +78,28 @@ function LocationMap({ records, selectedId, onSelect }) {
         marker.on("click", () => onSelectRef.current(record.id));
         if (record.id === selectedId) marker.openPopup();
       });
-      if (bounds.length) map.fitBounds(bounds, { padding: [24, 24] });
+      const fitMap = () => {
+        if (!map || cancelled) return;
+        map.invalidateSize({ pan: false });
+        if (bounds.length) map.fitBounds(bounds, { padding: [24, 24] });
+      };
+      fitMap();
+      animationFrame = window.requestAnimationFrame(() => {
+        fitMap();
+        resizeTimer = window.setTimeout(fitMap, 180);
+      });
+      if (window.ResizeObserver && containerRef.current) {
+        resizeObserver = new ResizeObserver(() => map && map.invalidateSize({ pan: false }));
+        resizeObserver.observe(containerRef.current);
+      }
     }).catch((err) => !cancelled && setError(err.message || "The map could not be loaded."));
-    return () => { cancelled = true; if (map) map.remove(); };
+    return () => {
+      cancelled = true;
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      if (resizeTimer) window.clearTimeout(resizeTimer);
+      if (resizeObserver) resizeObserver.disconnect();
+      if (map) map.remove();
+    };
   }, [records, selectedId]);
 
   if (error) return <div className="location-info-state error" role="alert">{error} Use Directory view to browse locations.</div>;

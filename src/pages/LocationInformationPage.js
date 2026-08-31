@@ -25,11 +25,12 @@ function LocationDetails({ record, ownLocation = false }) {
         <div className="location-info-tags">{record.counting_claiming && <span>{record.counting_claiming}</span>}</div>
       </div>
       <dl className="location-info-grid">
+        <div><dt>FSM / Manager</dt><dd>{record.manager_name?.toLocaleUpperCase() || "Not listed"}</dd></div>
         <div><dt>Location code</dt><dd>{record.location_code || "Not assigned"}</dd></div>
         <div className="location-site-type"><dt>Site type</dt><dd>{record.site_type?.toLocaleUpperCase() || "Not listed"}</dd></div>
-        <div><dt>FSM / Manager</dt><dd>{record.manager_name?.toLocaleUpperCase() || "Not listed"}</dd></div>
         <div><dt>Cafeteria phone</dt><dd><ContactLink value={record.cafeteria_phone} /></dd></div>
         <div><dt>School phone</dt><dd><ContactLink value={record.school_phone} /></dd></div>
+        <div className="location-address"><dt>School address</dt><dd>{record.address || "Not listed"}</dd></div>
       </dl>
     </article>
   );
