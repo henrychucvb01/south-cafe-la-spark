@@ -1,28 +1,29 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   filterLocationDirectory,
-  formatLocationUpdatedAt,
+  loadAreaSupervisor,
   loadLocationDirectory,
   saveLocationInformation,
 } from "./locationInformationService";
+import AreaSupervisorCard from "./AreaSupervisorCard";
 
 const EDITABLE_FIELDS = [
   ["location_code", "Location code"],
   ["school_name", "School name"],
   ["manager_name", "FSM / Manager"],
-  ["site_type", "Type"],
+  ["site_type", "Site type"],
   ["counting_claiming", "Counting & Claiming"],
   ["cafeteria_phone", "Cafeteria phone"],
   ["school_phone", "School phone"],
-  ["supervisor_name", "Supervisor name"],
-  ["supervisor_email", "Supervisor email"],
-  ["supervisor_cell", "Supervisor cell"],
+  ["latitude", "Map latitude"],
+  ["longitude", "Map longitude"],
 ];
 
 function SupervisorLocationDirectory({ supervisorPin }) {
   const [records, setRecords] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [draft, setDraft] = useState(null);
+  const [supervisor, setSupervisor] = useState(null);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -45,7 +46,10 @@ function SupervisorLocationDirectory({ supervisorPin }) {
     }
   }
 
-  useEffect(() => { reload(); }, []);
+  useEffect(() => {
+    reload();
+    loadAreaSupervisor().then(setSupervisor).catch(() => setSupervisor(null));
+  }, []);
 
   const filtered = useMemo(() => filterLocationDirectory(records, query), [records, query]);
 
@@ -81,6 +85,7 @@ function SupervisorLocationDirectory({ supervisorPin }) {
       <section className="dashboard-card supervisor-location-intro">
         <div className="command-section-header"><div><h3>Area Location Directory</h3><p>Edit the contact and operating details managers see in Location Information.</p></div><button type="button" className="command-refresh" onClick={() => reload()} disabled={loading}>↻ Refresh</button></div>
       </section>
+      <AreaSupervisorCard supervisor={supervisor} compact />
       {error && <div className="command-error" role="alert">{error}</div>}
       {message && <div className="location-save-message" role="status">{message}</div>}
       <div className="supervisor-location-workspace">
@@ -94,9 +99,9 @@ function SupervisorLocationDirectory({ supervisorPin }) {
         <section className="dashboard-card supervisor-location-editor">
           {loading && <div className="command-loading">Loading directory…</div>}
           {!loading && draft && <form onSubmit={handleSave}>
-            <div className="command-section-header"><div><h3>{draft.school_name}</h3><p>Last updated {formatLocationUpdatedAt(draft.updated_at)}</p></div></div>
+            <div className="command-section-header"><div><h3>{draft.school_name}</h3><p>Location {draft.location_code || "not assigned"}</p></div>{draft.counting_claiming && <span className="location-editor-status">{draft.counting_claiming}</span>}</div>
             <div className="supervisor-location-form-grid">
-              {EDITABLE_FIELDS.map(([name, label]) => <label key={name}><span>{label}</span><input type={name === "supervisor_email" ? "email" : "text"} value={draft[name] || ""} onChange={(event) => setDraft((current) => ({ ...current, [name]: event.target.value }))} required={name === "school_name"} /></label>)}
+              {EDITABLE_FIELDS.map(([name, label]) => <label key={name}><span>{label}</span>{name === "site_type" ? <select value={draft[name] || ""} onChange={(event) => setDraft((current) => ({ ...current, [name]: event.target.value }))}><option value="">Select site type</option><option value="PREP">PREP</option><option value="NNC">NNC</option></select> : <input type={name === "latitude" || name === "longitude" ? "number" : "text"} step={name === "latitude" || name === "longitude" ? "any" : undefined} value={draft[name] ?? ""} onChange={(event) => setDraft((current) => ({ ...current, [name]: event.target.value }))} required={name === "school_name"} />}</label>)}
             </div>
             <div className="supervisor-location-actions"><button type="button" className="command-small-button" onClick={() => selectRecord(records.find((item) => item.id === selectedId))} disabled={saving}>Discard changes</button><button type="submit" className="login-primary-button" disabled={saving}>{saving ? "Saving…" : "Save location"}</button></div>
           </form>}

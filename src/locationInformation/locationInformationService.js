@@ -9,9 +9,9 @@ export const LOCATION_INFORMATION_FIELDS = [
   "counting_claiming",
   "cafeteria_phone",
   "school_phone",
-  "supervisor_name",
-  "supervisor_email",
-  "supervisor_cell",
+  "latitude",
+  "longitude",
+  "supervisor_id",
   "updated_at",
 ].join(",");
 
@@ -26,6 +26,19 @@ export async function loadLocationDirectory() {
   return data || [];
 }
 
+export async function loadAreaSupervisor() {
+  const { data, error } = await supabase
+    .from("area_supervisors")
+    .select("id,full_name,email,cell_phone,auth_user_id")
+    .eq("active", true)
+    .order("id")
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
 export async function saveLocationInformation(record, supervisorPin) {
   const { data, error } = await supabase.rpc("update_location_information", {
     p_supervisor_pin: supervisorPin,
@@ -37,9 +50,8 @@ export async function saveLocationInformation(record, supervisorPin) {
     p_counting_claiming: record.counting_claiming || null,
     p_cafeteria_phone: record.cafeteria_phone || null,
     p_school_phone: record.school_phone || null,
-    p_supervisor_name: record.supervisor_name || null,
-    p_supervisor_email: record.supervisor_email || null,
-    p_supervisor_cell: record.supervisor_cell || null,
+    p_latitude: record.latitude === "" || record.latitude == null ? null : Number(record.latitude),
+    p_longitude: record.longitude === "" || record.longitude == null ? null : Number(record.longitude),
   });
 
   if (error) throw error;
