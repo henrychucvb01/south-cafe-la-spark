@@ -34,6 +34,38 @@ function LocationDetails({ record, ownLocation = false }) {
   );
 }
 
+function MapLocationCard({ record }) {
+  if (!record) {
+    return (
+      <aside className="location-map-listing location-map-listing-empty">
+        <p>Select a school marker to view its location information.</p>
+      </aside>
+    );
+  }
+
+  return (
+    <aside className="location-map-listing" aria-live="polite" aria-label={`Selected school: ${record.school_name}`}>
+      <div className="location-map-photo" aria-label="School photo placeholder">
+        <span aria-hidden="true">▧</span>
+        <p>School photo coming soon</p>
+      </div>
+      <div className="location-map-listing-copy">
+        <div className="location-map-listing-heading">
+          <div>
+            <h2>{record.school_name}</h2>
+            <p>Location {record.location_code || "not assigned"}</p>
+          </div>
+          {record.counting_claiming?.toLocaleUpperCase() === "CEP" && <span className="location-map-cep">CEP</span>}
+        </div>
+        <div className={`location-map-address ${record.address ? "" : "is-empty"}`}>
+          <span aria-hidden="true">⌖</span>
+          <p>{record.address || "Address not currently listed"}</p>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
 function LocationInformationPage({ location, onBack }) {
   const [records, setRecords] = useState([]);
   const [query, setQuery] = useState("");
@@ -83,7 +115,7 @@ function LocationInformationPage({ location, onBack }) {
                 {!filtered.length && <p className="location-directory-empty">No locations match “{query}”.</p>}
               </div>
               <LocationDetails record={selected} />
-            </div> : <div className="location-map-layout"><LocationMap records={records} selectedId={selectedId} onSelect={setSelectedId} /><LocationDetails record={selected} /></div>}
+            </div> : <div className="location-map-layout"><LocationMap records={records} selectedId={selectedId} onSelect={setSelectedId} /><MapLocationCard record={selected} /></div>}
           </section>
         </>}
       </main>
