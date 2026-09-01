@@ -1,57 +1,101 @@
-import React, { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
+import React, { useEffect, useRef, useState } from "react";
 import CommandCenterLegacy from "./CommandCenterLegacy";
 import SupervisorLeaderboard from "../leaderboard/SupervisorLeaderboard";
+import "../leaderboard/leaderboardCommandCenter.css";
 
 export default function CommandCenter(props) {
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
-  const [navSlot, setNavSlot] = useState(null);
+  const leaderboardButtonRef = useRef(null);
 
   useEffect(() => {
-    const nav = document.querySelector(".command-nav");
-    if (!nav) return undefined;
+    let nav = null;
+    let button = null;
+    let observer = null;
 
-    const slot = document.createElement("div");
-    slot.className = "spark-leaderboard-nav-slot";
-    const exitButton = nav.querySelector(".command-nav-exit");
-    if (exitButton) {
-      nav.insertBefore(slot, exitButton);
-    } else {
-      nav.appendChild(slot);
-    }
-    setNavSlot(slot);
+    const handleLeaderboardClick = () => {
+      setLeaderboardOpen(true);
+    };
 
-    const closeOnOtherNav = (event) => {
-      const button = event.target.closest("button");
-      if (button && !button.classList.contains("spark-leaderboard-nav-button")) {
+    const handleNavClick = (event) => {
+      const clickedButton = event.target.closest("button");
+      if (
+        clickedButton &&
+        !clickedButton.classList.contains("spark-leaderboard-native-button")
+      ) {
         setLeaderboardOpen(false);
       }
     };
-    nav.addEventListener("click", closeOnOtherNav);
+
+    const installLeaderboardButton = () => {
+      nav = document.querySelector(".command-nav");
+      if (!nav) return false;
+
+      const existing = nav.querySelector(".spark-leaderboard-native-button");
+      if (existing) {
+        button = existing;
+        leaderboardButtonRef.current = existing;
+        existing.addEventListener("click", handleLeaderboardClick);
+        nav.addEventListener("click", handleNavClick);
+        return true;
+      }
+
+      button = document.createElement("button");
+      button.type = "button";
+      button.className = "command-nav-button spark-leaderboard-native-button";
+      button.innerHTML = "<span>🏆</span> Leaderboard";
+      button.addEventListener("click", handleLeaderboardClick);
+
+      const navButtons = Array.from(nav.querySelectorAll("button.command-nav-button"));
+      const sparkPointsButton = navButtons.find((item) =>
+        item.textContent.includes("SPARK Points")
+      );
+      const locationButton = navButtons.find((item) =>
+        item.textContent.includes("Location Directory")
+      );
+      const exitButton = nav.querySelector(".command-nav-exit");
+
+      if (sparkPointsButton && locationButton) {
+        nav.insertBefore(button, locationButton);
+      } else if (exitButton) {
+        nav.insertBefore(button, exitButton);
+      } else {
+        nav.appendChild(button);
+      }
+
+      leaderboardButtonRef.current = button;
+      nav.addEventListener("click", handleNavClick);
+      return true;
+    };
+
+    if (!installLeaderboardButton()) {
+      observer = new MutationObserver(() => {
+        if (installLeaderboardButton()) {
+          observer.disconnect();
+        }
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    }
 
     return () => {
-      nav.removeEventListener("click", closeOnOtherNav);
-      if (slot.parentNode) slot.parentNode.removeChild(slot);
+      if (observer) observer.disconnect();
+      if (nav) nav.removeEventListener("click", handleNavClick);
+      if (button) {
+        button.removeEventListener("click", handleLeaderboardClick);
+        if (button.parentNode) button.parentNode.removeChild(button);
+      }
+      leaderboardButtonRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const button = leaderboardButtonRef.current;
+    if (!button) return;
+    button.classList.toggle("active", leaderboardOpen);
+  }, [leaderboardOpen]);
 
   return (
     <>
       <CommandCenterLegacy {...props} />
-
-      {navSlot &&
-        createPortal(
-          <button
-            type="button"
-            className={`command-nav-button spark-leaderboard-nav-button ${leaderboardOpen ? "active" : ""}`}
-            onClick={() => setLeaderboardOpen(true)}
-          >
-            <span>🏆</span>
-            Leaderboard
-          </button>,
-          navSlot
-        )}
-
       {leaderboardOpen && (
         <SupervisorLeaderboard onClose={() => setLeaderboardOpen(false)} />
       )}
