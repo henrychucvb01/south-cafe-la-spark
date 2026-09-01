@@ -2,9 +2,9 @@ const EXPECTED_DOCUMENTS = 96;
 const EXPECTED_CHUNKS = 1415;
 const CORPUS_VERSION = "phase1-2026-08-31";
 const MAX_BATCH_SIZE = 25;
+const MAX_EMBED_BATCH_SIZE = 3;
 const EMBEDDING_MODEL = process.env.ASK_SPARK_EMBEDDING_MODEL || "gemini-embedding-001";
-const GEMINI_MAX_RETRIES = 8;
-const GEMINI_BASE_DELAY_MS = 5000;
+const DEFAULT_RETRY_AFTER_MS = 30000;
 
 function send(response, status, body) {
   response.setHeader("Cache-Control", "no-store");
@@ -70,54 +70,47 @@ function validateRows(rows) {
   });
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function retryDelayMs(response, attempt) {
+function retryAfterMs(response) {
   const retryAfter = Number(response.headers.get("retry-after"));
   if (Number.isFinite(retryAfter) && retryAfter > 0) {
-    return Math.max(retryAfter * 1000, GEMINI_BASE_DELAY_MS);
+    return Math.max(retryAfter * 1000, 5000);
   }
-  return Math.min(GEMINI_BASE_DELAY_MS * 2 ** attempt, 60000);
+  return DEFAULT_RETRY_AFTER_MS;
 }
 
 async function geminiEmbeddings(texts, apiKey) {
-  for (let attempt = 0; attempt <= GEMINI_MAX_RETRIES; attempt += 1) {
-    const result = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:batchEmbedContents`,
-      {
-        method: "POST",
-        headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          requests: texts.map((text) => ({
-            model: `models/${EMBEDDING_MODEL}`,
-            content: { parts: [{ text }] },
-            taskType: "RETRIEVAL_DOCUMENT",
-            outputDimensionality: 1536,
-          })),
-        }),
-      }
-    );
-
-    if (result.ok) {
-      const body = await result.json();
-      if (!Array.isArray(body.embeddings) || body.embeddings.length !== texts.length) {
-        throw new Error("Gemini embedding response did not match the import batch.");
-      }
-      return body.embeddings.map((item) => item.values);
+  const result = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:batchEmbedContents`,
+    {
+      method: "POST",
+      headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        requests: texts.map((text) => ({
+          model: `models/${EMBEDDING_MODEL}`,
+          content: { parts: [{ text }] },
+          taskType: "RETRIEVAL_DOCUMENT",
+          outputDimensionality: 1536,
+        })),
+      }),
     }
+  );
 
-    if (result.status !== 429 || attempt === GEMINI_MAX_RETRIES) {
-      throw new Error(`Gemini embedding request failed (${result.status}).`);
+  if (result.ok) {
+    const body = await result.json();
+    if (!Array.isArray(body.embeddings) || body.embeddings.length !== texts.length) {
+      throw new Error("Gemini embedding response did not match the import batch.");
     }
-
-    const delayMs = retryDelayMs(result, attempt);
-    console.warn(`Gemini rate limited. Retrying in ${Math.round(delayMs / 1000)}s.`);
-    await sleep(delayMs);
+    return body.embeddings.map((item) => item.values);
   }
 
-  throw new Error("Gemini embedding request failed.");
+  if (result.status === 429) {
+    const error = new Error("Gemini is rate limiting embedding requests.");
+    error.statusCode = 429;
+    error.retryAfterMs = retryAfterMs(result);
+    throw error;
+  }
+
+  throw new Error(`Gemini embedding request failed (${result.status}).`);
 }
 
 function restUrl(supabaseUrl, table, params = {}) {
@@ -279,6 +272,10 @@ export default async function handler(request, response) {
       return send(response, 200, { uploaded: rows.length });
     }
 
+    if (rows.length > MAX_EMBED_BATCH_SIZE) {
+      return send(response, 400, { error: `Embedding batches are limited to ${MAX_EMBED_BATCH_SIZE} chunks.` });
+    }
+
     const missingIds = await missingEmbeddingIds(rows.map((row) => row.chunk_id), supabaseUrl, serviceKey);
     const missingRows = rows.filter((row) => missingIds.has(row.chunk_id));
     if (!missingRows.length) {
@@ -295,6 +292,12 @@ export default async function handler(request, response) {
     });
   } catch (error) {
     console.error("Ask SPARK import error:", error);
+    if (error?.statusCode === 429) {
+      return send(response, 429, {
+        error: error.message,
+        retryAfterMs: error.retryAfterMs || DEFAULT_RETRY_AFTER_MS,
+      });
+    }
     return send(response, 500, { error: error?.message || "Ask SPARK import failed." });
   }
 }
