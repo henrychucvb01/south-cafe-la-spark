@@ -71,7 +71,12 @@ async function retrieveChunks({ question, embedding, categories, supabaseUrl, se
       filter_categories: categories.length ? categories : null,
     }),
   });
-  if (!result.ok) throw new Error(`Knowledge search returned ${result.status}.`);
+  if (!result.ok) {
+    const details = (await result.text()).trim().slice(0, 1000);
+    throw new Error(
+      `Knowledge search returned ${result.status}${details ? `: ${details}` : "."}`
+    );
+  }
   const rows = await result.json();
   return Array.isArray(rows) ? rows : [];
 }
