@@ -108,6 +108,18 @@ function AskSparkPage({ location, onBack }) {
           <small className="ask-spark-character-count">{question.length}/500</small>
         </form>
 
+        {loading && (
+          <section className="ask-spark-thinking" role="status" aria-live="polite">
+            <div className="ask-spark-thinking-orbit" aria-hidden="true"><span>✦</span></div>
+            <div>
+              <small>ASK SPARK IS THINKING</small>
+              <h2>Searching approved training guidance…</h2>
+              <p>Finding the most relevant approved sources and checking them before answering.</p>
+              <div className="ask-spark-thinking-dots" aria-hidden="true"><span /><span /><span /></div>
+            </div>
+          </section>
+        )}
+
         {!result && !error && !loading && (
           <section className="ask-spark-examples" aria-labelledby="ask-spark-examples-title">
             <h2 id="ask-spark-examples-title">Try asking</h2>
