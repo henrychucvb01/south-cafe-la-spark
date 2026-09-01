@@ -10,6 +10,7 @@ import {
 } from "recharts";
 import { supabase } from "../supabaseClient";
 import SupervisorLocationDirectory from "../locationInformation/SupervisorLocationDirectory";
+import SupervisorFeedbackPanel from "../feedback/SupervisorFeedbackPanel";
 
 function isFinishLineCommentItem(item) {
   return String(item?.item_key || "").endsWith("_comment");
@@ -1136,6 +1137,11 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
             Location Directory
           </button>
 
+          <button className={`command-nav-button ${view === "feedback" ? "active" : ""}`} onClick={() => setView("feedback")}>
+            <span>💬</span>
+            Feedback
+          </button>
+
           <button
             className={`command-nav-button ${
               view === "pin-reset" ? "active" : ""
@@ -1183,6 +1189,8 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
                 ? "South Café LA Manager PIN Reset"
                 : view === "location-directory"
                 ? "South Café LA Location Directory"
+                : view === "feedback"
+                ? "South Café LA Feedback"
                 : "South Café LA Command Center"}
             </h2>
 
@@ -1203,6 +1211,8 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
                 ? "Reset a verified manager's SPARK PIN."
                 : view === "location-directory"
                 ? "Maintain the location records managers use across SPARK."
+                : view === "feedback"
+                ? "Review manager questions, suggestions, and reported problems."
                 : `Area operations overview for ${formatDate(
                     dashboardDate
                   )}.`}
@@ -1240,7 +1250,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
               </>
             )}
 
-            {view !== "pin-reset" && view !== "location-directory" && (
+            {view !== "pin-reset" && view !== "location-directory" && view !== "feedback" && (
               <button
                 className="command-refresh"
                 onClick={
@@ -1331,7 +1341,9 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
         </header>
 
         <div className="command-content">
-          {view === "location-directory" ? (
+          {view === "feedback" ? (
+            <SupervisorFeedbackPanel supervisorPin={supervisorPin} />
+          ) : view === "location-directory" ? (
             <SupervisorLocationDirectory supervisorPin={supervisorPin} />
           ) : view === "meal-trends" ? (
             <MealTrendsView

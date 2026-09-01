@@ -15,6 +15,7 @@ import DailyBitesPage from "./pages/DailyBitesPage";
 import ManagerResourcesPage from "./pages/ManagerResourcesPage";
 import AskSparkPage from "./pages/AskSparkPage";
 import LocationInformationPage from "./pages/LocationInformationPage";
+import ManagerFeedback from "./feedback/ManagerFeedback";
 
 function App() {
   const [screen, setScreen] = useState("login");
@@ -94,6 +95,10 @@ function App() {
     setSupervisorSessionPin("");
     setEditingCheck(null);
     setScreen("login");
+  }
+
+  function managerPage(content) {
+    return <>{content}<ManagerFeedback location={selectedLocation} employee={selectedEmployee} pageRoute={screen} /></>;
   }
 
   // ---------------------------------------------------
@@ -178,7 +183,7 @@ function App() {
   // SPARK HOME BASE
   // ---------------------------------------------------
   if (screen === "homeBase") {
-    return (
+    return managerPage(
       <HomeBase
         location={selectedLocation}
         employee={selectedEmployee}
@@ -202,7 +207,7 @@ function App() {
   }
 
   if (screen === "managerResources") {
-    return (
+    return managerPage(
       <ManagerResourcesPage
         onAskSpark={() => setScreen("askSpark")}
         onLocationInformation={() => setScreen("locationInformation")}
@@ -212,7 +217,7 @@ function App() {
   }
 
   if (screen === "askSpark") {
-    return (
+    return managerPage(
       <AskSparkPage
         location={selectedLocation}
         onBack={() => setScreen("managerResources")}
@@ -221,7 +226,7 @@ function App() {
   }
 
   if (screen === "locationInformation") {
-    return (
+    return managerPage(
       <LocationInformationPage
         location={selectedLocation}
         onBack={() => setScreen("managerResources")}
@@ -233,7 +238,7 @@ function App() {
   // DAILY BITES
   // ---------------------------------------------------
   if (screen === "dailyBites") {
-    return (
+    return managerPage(
       <DailyBitesPage
         location={selectedLocation}
         employee={selectedEmployee}
@@ -248,7 +253,7 @@ function App() {
   // INCIDENT RECORD HELPER
   // ---------------------------------------------------
   if (screen === "incidentHelper") {
-    return (
+    return managerPage(
       <IncidentRecordHelper
         location={selectedLocation}
         employee={selectedEmployee}
@@ -263,7 +268,7 @@ function App() {
   // SCHOOL HUB
   // ---------------------------------------------------
   if (screen === "schoolHub") {
-    return (
+    return managerPage(
       <SchoolHub
         location={selectedLocation}
         employee={selectedEmployee}
@@ -288,7 +293,7 @@ function App() {
   // MEAL ANALYTICS
   // ---------------------------------------------------
   if (screen === "mealAnalytics") {
-    return (
+    return managerPage(
       <MealAnalyticsPage
         location={selectedLocation}
         employee={selectedEmployee}
@@ -303,7 +308,15 @@ function App() {
   // FINISH LINE
   // ---------------------------------------------------
   if (screen === "finishLine") {
-    return (
+    return editingCheck?.previewMode ? (
+      <FinishLinePage
+        location={selectedLocation}
+        employee={selectedEmployee}
+        existingCheck={editingCheck}
+        onBack={() => { setEditingCheck(null); setScreen("commandCenter"); }}
+        onComplete={() => { setEditingCheck(null); setScreen("schoolDashboard"); }}
+      />
+    ) : managerPage(
       <FinishLinePage
         location={selectedLocation}
         employee={selectedEmployee}
@@ -330,7 +343,7 @@ function App() {
   // SCHOOL DASHBOARD
   // ---------------------------------------------------
   if (screen === "schoolDashboard") {
-    return (
+    return managerPage(
       <SchoolDashboard
         location={selectedLocation}
         employee={selectedEmployee}

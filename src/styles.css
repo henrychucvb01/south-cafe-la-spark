@@ -8889,3 +8889,37 @@ a.manager-resource-card:hover { transform: translateY(-2px); box-shadow: 0 9px 2
   .ar-progress-track span,
   .ar-choice-grid button { transition: none; }
 }
+.spark-feedback-trigger { position: fixed; z-index: 950; top: 17px; right: 148px; padding: 8px 13px; border: 1px solid #c9dce6; border-radius: 999px; color: #245d7d; background: rgba(255,255,255,.96); box-shadow: 0 3px 12px rgba(24,65,88,.12); font: inherit; font-size: 11px; font-weight: 900; cursor: pointer; }
+.spark-feedback-trigger:hover { border-color: #83b6cd; background: #f4fafc; }
+.spark-feedback-backdrop { position: fixed; z-index: 2000; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(18,38,52,.52); }
+.spark-feedback-modal { position: relative; width: min(100%, 470px); box-sizing: border-box; padding: 28px; border-radius: 20px; background: white; box-shadow: 0 24px 70px rgba(12,35,50,.3); }
+.spark-feedback-close { position: absolute; top: 12px; right: 14px; width: 34px; height: 34px; border: 0; border-radius: 50%; color: #607482; background: #edf3f6; font-size: 22px; cursor: pointer; }
+.spark-feedback-heading > span { color: #2480aa; font-size: 10px; font-weight: 900; letter-spacing: .8px; }
+.spark-feedback-heading h2 { margin: 7px 0; color: #203e52; font-size: 26px; }
+.spark-feedback-heading p { margin: 0 0 20px; color: #657987; line-height: 1.5; }
+.spark-feedback-modal label { display: block; margin-top: 15px; color: #425969; font-size: 12px; font-weight: 900; }
+.spark-feedback-modal select, .spark-feedback-modal textarea { width: 100%; box-sizing: border-box; margin-top: 7px; padding: 11px 12px; border: 1px solid #cad9e1; border-radius: 10px; color: #263f50; background: white; font: inherit; }
+.spark-feedback-modal textarea { resize: vertical; line-height: 1.5; }
+.spark-feedback-meta { margin-top: 12px; color: #7a8b97; font-size: 10px; font-weight: 800; }
+.spark-feedback-error { margin-top: 12px; color: #a33c3c; font-size: 12px; font-weight: 800; }
+.spark-feedback-submit, .spark-feedback-success button { width: 100%; margin-top: 18px; padding: 12px 16px; border: 0; border-radius: 10px; color: white; background: #176f9f; font: inherit; font-weight: 900; cursor: pointer; }
+.spark-feedback-success { padding: 20px 0 4px; text-align: center; }
+.spark-feedback-success > span { width: 52px; height: 52px; display: grid; place-items: center; margin: auto; border-radius: 50%; color: white; background: #36a269; font-size: 25px; }
+.spark-feedback-success h2 { margin: 14px 0 7px; color: #203e52; }
+.spark-feedback-success p { color: #657987; }
+.supervisor-feedback-filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0; }
+.supervisor-feedback-filters button { padding: 8px 13px; border: 1px solid #d2dfe6; border-radius: 999px; color: #536c7c; background: white; font-weight: 800; cursor: pointer; }
+.supervisor-feedback-filters button.active { color: white; border-color: #176f9f; background: #176f9f; }
+.supervisor-feedback-list { display: grid; gap: 13px; }
+.supervisor-feedback-card { padding: 18px; border: 1px solid #dae5ea; border-radius: 14px; background: #fbfdfe; }
+.supervisor-feedback-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.supervisor-feedback-card h4 { margin: 8px 0 3px; color: #29485c; font-size: 17px; }
+.supervisor-feedback-card p, .supervisor-feedback-card footer { color: #71838f; font-size: 11px; }
+.supervisor-feedback-card select { padding: 8px 10px; border: 1px solid #cbd9e1; border-radius: 8px; background: white; font-weight: 800; }
+.supervisor-feedback-card blockquote { margin: 15px 0; color: #304b5d; font-size: 14px; line-height: 1.55; white-space: pre-wrap; }
+.supervisor-feedback-card footer { display: flex; justify-content: space-between; gap: 12px; padding-top: 12px; border-top: 1px solid #e4ecef; }
+.feedback-category { padding: 4px 8px; border-radius: 999px; color: #315a70; background: #e6f1f6; font-size: 9px; font-weight: 900; text-transform: uppercase; }
+.feedback-category.bug { color: #923c3c; background: #f9e7e7; }
+.feedback-category.suggestion { color: #6d5820; background: #fff3cf; }
+.supervisor-feedback-empty { padding: 30px; color: #738591; text-align: center; }
+@media (max-width: 700px) { .spark-feedback-trigger { top: 68px; right: 12px; padding: 7px 11px; } .spark-feedback-modal { padding: 24px 20px; } .supervisor-feedback-card-top, .supervisor-feedback-card footer { flex-direction: column; } .supervisor-feedback-card select { width: 100%; } }
