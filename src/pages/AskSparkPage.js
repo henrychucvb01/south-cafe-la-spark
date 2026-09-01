@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from "react";
 import { ASK_SPARK_CATEGORIES, askSpark, getAskSparkCategoryLabel } from "../askSpark/askSparkService";
 import { getAskSparkSuggestions } from "../askSpark/suggestions";
+import "../rolloutPolish.css";
 
 const EXAMPLES = [
   "How do I complete a production record?",
