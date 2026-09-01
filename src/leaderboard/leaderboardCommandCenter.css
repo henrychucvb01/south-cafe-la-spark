@@ -1,0 +1,16 @@
+.spark-leaderboard-native-button {
+  width: 100%;
+}
+
+.spark-leaderboard-page {
+  left: 233px !important;
+  right: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+}
+
+@media (max-width: 760px) {
+  .spark-leaderboard-page {
+    left: 0 !important;
+  }
+}
