@@ -38,6 +38,13 @@ function originIsAllowed(request) {
   }
 }
 
+function expandDomainTerms(question) {
+  return String(question || "")
+    .replace(/\bAR\b/gi, "Administrative Review (AR)")
+    .replace(/\bBIC\b/gi, "Breakfast in the Classroom (BIC)")
+    .replace(/\bMPLH\b/gi, "Meals Per Labor Hour (MPLH)");
+}
+
 async function createEmbedding(question, apiKey) {
   const model = process.env.ASK_SPARK_EMBEDDING_MODEL || "gemini-embedding-001";
   const result = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:embedContent`, {
@@ -96,7 +103,7 @@ function buildContext(chunks) {
     .join("\n\n---\n\n");
 }
 
-async function generateAnswer({ question, chunks, apiKey }) {
+async function generateAnswer({ question, retrievalQuestion, chunks, apiKey }) {
   const model = process.env.ASK_SPARK_ANSWER_MODEL || "gemini-3.6-flash";
   const result = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: "POST",
@@ -104,13 +111,13 @@ async function generateAnswer({ question, chunks, apiKey }) {
     body: JSON.stringify({
       systemInstruction: {
         parts: [{
-          text: `You are Ask SPARK, a retrieval-only assistant for school cafeteria managers. Answer ONLY from the supplied approved excerpts. Never use outside knowledge or invent LAUSD policy. Give a concise, direct, manager-friendly answer. If the excerpts do not confirm the answer, set supported to false. Every factual instruction in a supported answer must be backed by one or more cited chunk IDs. Return JSON only: {"supported":boolean,"answer":string,"citation_ids":string[]}. Do not include citation labels in the answer text.`,
+          text: `You are Ask SPARK, a retrieval-only assistant for school cafeteria managers. Answer ONLY from the supplied approved excerpts. Never use outside knowledge or invent LAUSD policy. Interpret cafeteria-domain abbreviations using the provided expanded retrieval question; for example, AR means Administrative Review, not Arkansas. Give a concise, direct, manager-friendly answer. If the excerpts do not confirm the answer, set supported to false. Every factual instruction in a supported answer must be backed by one or more cited chunk IDs. Return JSON only: {"supported":boolean,"answer":string,"citation_ids":string[]}. Do not include citation labels in the answer text.`,
         }],
       },
       contents: [
         {
           role: "user",
-          parts: [{ text: `Manager question:\n${question}\n\nApproved retrieved excerpts:\n${buildContext(chunks)}` }],
+          parts: [{ text: `Manager question:\n${question}\n\nExpanded retrieval meaning:\n${retrievalQuestion}\n\nApproved retrieved excerpts:\n${buildContext(chunks)}` }],
         },
       ],
       generationConfig: {
@@ -145,10 +152,19 @@ function validatedResult(generated, chunks) {
   if (!cited.length || cited.length !== ids.length) {
     return { supported: false, answer: NO_ANSWER, citations: [] };
   }
+
+  const seenSources = new Set();
+  const uniqueCited = cited.filter((chunk) => {
+    const key = [chunk.source_filename, chunk.locator_type, chunk.locator_number].join("|");
+    if (seenSources.has(key)) return false;
+    seenSources.add(key);
+    return true;
+  });
+
   return {
     supported: true,
     answer: String(generated.answer).trim(),
-    citations: cited.map((chunk) => ({
+    citations: uniqueCited.map((chunk) => ({
       chunkId: chunk.chunk_id,
       title: chunk.title,
       sourceFilename: chunk.source_filename,
@@ -176,6 +192,7 @@ export default async function handler(request, response) {
     return send(response, 400, { error: `Please keep the question under ${MAX_QUESTION_LENGTH} characters.` });
   }
 
+  const retrievalQuestion = expandDomainTerms(question);
   const supabaseUrl = String(process.env.SUPABASE_URL || "").trim().replace(/\/+$/, "");
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const geminiKey = process.env.GEMINI_API_KEY;
@@ -197,7 +214,7 @@ export default async function handler(request, response) {
 
   let embedding;
   try {
-    embedding = await createEmbedding(question, geminiKey);
+    embedding = await createEmbedding(retrievalQuestion, geminiKey);
   } catch (error) {
     console.error("Ask SPARK embedding error:", error);
     return send(response, 500, { error: `Ask SPARK embedding step failed: ${error.message}` });
@@ -205,7 +222,7 @@ export default async function handler(request, response) {
 
   let chunks;
   try {
-    chunks = await retrieveChunks({ question, embedding, categories, supabaseUrl, serviceKey });
+    chunks = await retrieveChunks({ question: retrievalQuestion, embedding, categories, supabaseUrl, serviceKey });
   } catch (error) {
     console.error("Ask SPARK retrieval error:", error);
     return send(response, 500, { error: `Ask SPARK training-library search failed: ${error.message}` });
@@ -218,7 +235,7 @@ export default async function handler(request, response) {
 
   let generated;
   try {
-    generated = await generateAnswer({ question, chunks: credible.slice(0, 10), apiKey: geminiKey });
+    generated = await generateAnswer({ question, retrievalQuestion, chunks: credible.slice(0, 10), apiKey: geminiKey });
   } catch (error) {
     console.error("Ask SPARK answer error:", error);
     return send(response, 500, { error: `Ask SPARK answer step failed: ${error.message}` });
