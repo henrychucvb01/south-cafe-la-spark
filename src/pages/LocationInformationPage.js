@@ -55,12 +55,19 @@ function MapLocationCard({ record }) {
             <h2>{record.school_name}</h2>
             <p>Location {record.location_code || "not assigned"}</p>
           </div>
-          {record.counting_claiming?.toLocaleUpperCase() === "CEP" && <span className="location-map-cep">CEP</span>}
+          <div className="location-map-badges">
+            {record.site_type && <span className="location-map-site-type">{record.site_type.toLocaleUpperCase()}</span>}
+            {record.counting_claiming?.toLocaleUpperCase() === "CEP" && <span className="location-map-cep">CEP</span>}
+          </div>
         </div>
         <div className={`location-map-address ${record.address ? "" : "is-empty"}`}>
           <span aria-hidden="true">⌖</span>
-          <p>{record.address || "Address not currently listed"}</p>
+          <div><strong>Address</strong><p>{record.address || "Address not currently listed"}</p></div>
         </div>
+        <dl className="location-map-contact-list">
+          <div><dt>Cafeteria Phone</dt><dd><ContactLink value={record.cafeteria_phone} /></dd></div>
+          <div><dt>School Phone</dt><dd><ContactLink value={record.school_phone} /></dd></div>
+        </dl>
       </div>
     </aside>
   );
