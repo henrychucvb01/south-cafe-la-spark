@@ -13,14 +13,17 @@ const mockMapInstance = {
 jest.mock("leaflet", () => ({
   map: () => mockMapInstance,
   tileLayer: () => ({ addTo: jest.fn() }),
-  circleMarker: () => {
+  divIcon: (options) => options,
+  marker: (_point, options) => {
     const marker = {
       addTo: jest.fn(),
-      bringToFront: jest.fn(),
+      element: global.document.createElement("div"),
+      getElement: jest.fn(() => marker.element),
       on: jest.fn((event, callback) => {
         marker.events[event] = callback;
       }),
-      setStyle: jest.fn(),
+      options,
+      setZIndexOffset: jest.fn(),
       events: {},
     };
     mockMarkers.push(marker);
@@ -49,7 +52,7 @@ describe("LocationMap", () => {
   it("selects a school from its marker without creating a popup", () => {
     const onSelect = jest.fn();
     const records = [
-      { id: "first", school_name: "First School", latitude: 33.7, longitude: -118.2 },
+      { id: "first", school_name: "First School", latitude: 33.7, longitude: -118.2, school_logo_url: "https://example.com/logo.webp" },
       { id: "second", school_name: "Second School", latitude: 33.8, longitude: -118.3 },
     ];
 
@@ -59,5 +62,15 @@ describe("LocationMap", () => {
     expect(onSelect).toHaveBeenCalledWith("second");
     expect(mockMarkers).toHaveLength(2);
     expect(mockMarkers.every((marker) => marker.bindPopup === undefined)).toBe(true);
+    expect(mockMarkers[0].options.icon.html.querySelector("img").src).toBe("https://example.com/logo.webp");
+    expect(mockMarkers[1].options.icon.html.classList.contains("has-logo")).toBe(false);
+  });
+
+  it("falls back to the default marker when a school logo fails", () => {
+    act(() => root.render(<LocationMap records={[{ id: "broken", school_name: "Broken Logo", latitude: 33.7, longitude: -118.2, school_logo_url: "https://example.com/broken.webp" }]} selectedId="broken" onSelect={jest.fn()} />));
+    const markerContent = mockMarkers[0].options.icon.html;
+    markerContent.querySelector("img").dispatchEvent(new Event("error"));
+    expect(markerContent.classList.contains("has-logo")).toBe(false);
+    expect(markerContent.querySelector("img")).toBeNull();
   });
 });

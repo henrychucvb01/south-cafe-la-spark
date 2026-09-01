@@ -25,7 +25,23 @@ function LocationMap({ records, selectedId, onSelect }) {
       mapped.forEach((record) => {
         const point = [Number(record.latitude), Number(record.longitude)];
         bounds.push(point);
-        const marker = L.circleMarker(point, { radius: 8, weight: 2, color: "#0d638f", fillColor: "#2a91be", fillOpacity: 0.9, keyboard: true });
+        const iconContent = document.createElement("div");
+        iconContent.className = `location-school-marker${record.school_logo_url ? " has-logo" : ""}`;
+        if (record.school_logo_url) {
+          const logo = document.createElement("img");
+          logo.src = record.school_logo_url;
+          logo.alt = "";
+          logo.addEventListener("error", () => {
+            logo.remove();
+            iconContent.classList.remove("has-logo");
+          }, { once: true });
+          iconContent.appendChild(logo);
+        }
+        const marker = L.marker(point, {
+          icon: L.divIcon({ className: "location-school-marker-shell", html: iconContent, iconSize: [46, 46], iconAnchor: [23, 23] }),
+          keyboard: true,
+          title: record.school_name,
+        });
         marker.on("click", () => onSelectRef.current(record.id));
         marker.addTo(map);
         markersRef.current.set(record.id, marker);
@@ -46,14 +62,8 @@ function LocationMap({ records, selectedId, onSelect }) {
   useEffect(() => {
     markersRef.current.forEach((marker, id) => {
       const isSelected = id === selectedId;
-      marker.setStyle({
-        radius: isSelected ? 11 : 8,
-        weight: isSelected ? 4 : 2,
-        color: isSelected ? "#ffffff" : "#0d638f",
-        fillColor: isSelected ? "#176f9f" : "#2a91be",
-        fillOpacity: 0.95,
-      });
-      if (isSelected) marker.bringToFront();
+      marker.getElement()?.classList.toggle("selected", isSelected);
+      marker.setZIndexOffset(isSelected ? 1000 : 0);
     });
   }, [selectedId, records]);
 

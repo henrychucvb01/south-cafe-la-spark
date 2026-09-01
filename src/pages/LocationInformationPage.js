@@ -34,6 +34,28 @@ function LocationDetails({ record, ownLocation = false }) {
   );
 }
 
+export function SchoolPhoto({ record }) {
+  const [failedUrl, setFailedUrl] = useState(null);
+  const hasPhoto = record.school_photo_url && failedUrl !== record.school_photo_url;
+
+  return (
+    <div className={`location-map-photo ${hasPhoto ? "has-photo" : ""}`} aria-label={hasPhoto ? `${record.school_name} school photo` : "School photo placeholder"}>
+      {hasPhoto ? <img src={record.school_photo_url} alt={`${record.school_name} campus`} onError={() => setFailedUrl(record.school_photo_url)} /> : <><span aria-hidden="true">▧</span><p>School photo coming soon</p></>}
+    </div>
+  );
+}
+
+export function ListingThumbnail({ record }) {
+  const preferred = record.manager_photo_url || record.school_logo_url;
+  const [failedUrls, setFailedUrls] = useState([]);
+  const candidates = [preferred, record.school_logo_url].filter((url, index, urls) => url && urls.indexOf(url) === index);
+  const source = candidates.find((url) => !failedUrls.includes(url));
+
+  if (!source) return <div className="location-map-thumbnail fallback" aria-hidden="true">S</div>;
+  const isLogo = source === record.school_logo_url;
+  return <div className={`location-map-thumbnail ${isLogo ? "logo" : ""}`}><img src={source} alt={isLogo ? `${record.school_name} logo` : `${record.school_name} manager`} onError={() => setFailedUrls((current) => [...current, source])} /></div>;
+}
+
 function MapLocationCard({ record }) {
   if (!record) {
     return (
@@ -45,13 +67,11 @@ function MapLocationCard({ record }) {
 
   return (
     <aside className="location-map-listing" aria-live="polite" aria-label={`Selected school: ${record.school_name}`}>
-      <div className="location-map-photo" aria-label="School photo placeholder">
-        <span aria-hidden="true">▧</span>
-        <p>School photo coming soon</p>
-      </div>
+      <SchoolPhoto key={record.id} record={record} />
       <div className="location-map-listing-copy">
         <div className="location-map-listing-heading">
-          <div>
+          <ListingThumbnail key={record.id} record={record} />
+          <div className="location-map-listing-title">
             <h2>{record.school_name}</h2>
             <p>Location {record.location_code || "not assigned"}</p>
           </div>
