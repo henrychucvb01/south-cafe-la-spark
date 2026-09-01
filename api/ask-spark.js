@@ -57,20 +57,26 @@ async function createEmbedding(question, apiKey) {
 }
 
 async function retrieveChunks({ question, embedding, categories, supabaseUrl, serviceKey }) {
-  const result = await fetch(`${supabaseUrl}/rest/v1/rpc/ask_spark_hybrid_search_rest`, {
-    method: "POST",
-    headers: {
-      apikey: serviceKey,
-      Authorization: `Bearer ${serviceKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      query_text: question,
-      query_embedding: embedding,
-      match_count: 12,
-      filter_categories: categories.length ? categories : null,
-    }),
-  });
+  let result;
+  try {
+    result = await fetch(`${supabaseUrl}/rest/v1/rpc/ask_spark_hybrid_search_rest`, {
+      method: "POST",
+      headers: {
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query_text: question,
+        query_embedding: embedding,
+        match_count: 12,
+        filter_categories: categories.length ? categories : null,
+      }),
+    });
+  } catch (error) {
+    const cause = error?.cause?.code || error?.cause?.message || "unknown network error";
+    throw new Error(`Knowledge search network failure (${cause}).`);
+  }
   if (!result.ok) {
     const details = (await result.text()).trim().slice(0, 1000);
     throw new Error(
@@ -170,7 +176,7 @@ export default async function handler(request, response) {
     return send(response, 400, { error: `Please keep the question under ${MAX_QUESTION_LENGTH} characters.` });
   }
 
-  const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, "");
+  const supabaseUrl = String(process.env.SUPABASE_URL || "").trim().replace(/\/+$/, "");
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const geminiKey = process.env.GEMINI_API_KEY;
   if (!supabaseUrl || !serviceKey || !geminiKey) {
@@ -180,6 +186,13 @@ export default async function handler(request, response) {
       !geminiKey ? "GEMINI_API_KEY" : null,
     ].filter(Boolean);
     return send(response, 503, { error: `Ask SPARK configuration is missing: ${missing.join(", ")}.` });
+  }
+
+  try {
+    const parsedSupabaseUrl = new URL(supabaseUrl);
+    if (parsedSupabaseUrl.protocol !== "https:") throw new Error("SUPABASE_URL must use https.");
+  } catch (error) {
+    return send(response, 503, { error: `Ask SPARK configuration has an invalid SUPABASE_URL: ${error.message}` });
   }
 
   let embedding;
