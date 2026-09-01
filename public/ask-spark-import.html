@@ -26,7 +26,7 @@
   <div class="wrap">
     <div class="card">
       <h1>Ask SPARK Training Library Import</h1>
-      <p class="warning">Temporary Preview-only tool. Step 1 uploads all approved training text into Supabase. Step 2 adds Gemini embeddings only to chunks that still need them. If Gemini rate-limits the process, you can run Step 2 again and it resumes from the missing chunks.</p>
+      <p class="warning">Temporary Preview-only tool. Step 1 uploads approved training text into Supabase. Step 2 embeds only missing chunks. Embedding now uses small requests and waits in the browser when Gemini rate-limits, so completed work is saved without holding a Vercel request open.</p>
 
       <label for="token">Import token</label>
       <input id="token" type="password" autocomplete="off" placeholder="Enter the ASK_SPARK_IMPORT_TOKEN value" />
@@ -48,8 +48,11 @@
     const EXPECTED_DOCUMENTS = 96;
     const EXPECTED_CHUNKS = 1415;
     const UPLOAD_BATCH_SIZE = 25;
-    const EMBED_BATCH_SIZE = 10;
-    const EMBED_PAUSE_MS = 1800;
+    const EMBED_BATCH_SIZE = 3;
+    const EMBED_PAUSE_MS = 4000;
+    const MAX_RATE_LIMIT_RETRIES = 10;
+    const MIN_RATE_LIMIT_WAIT_MS = 15000;
+    const MAX_RATE_LIMIT_WAIT_MS = 60000;
 
     const tokenInput = document.getElementById('token');
     const fileInput = document.getElementById('file');
@@ -86,7 +89,12 @@
         body: JSON.stringify(body),
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || `Import request failed (${response.status}).`);
+      if (!response.ok) {
+        const error = new Error(data.error || `Import request failed (${response.status}).`);
+        error.status = response.status;
+        error.retryAfterMs = Number(data.retryAfterMs) || 0;
+        throw error;
+      }
       return data;
     }
 
@@ -141,6 +149,28 @@
       return result;
     }
 
+    async function embedBatchWithBackoff(batch, token, counters) {
+      for (let attempt = 0; attempt <= MAX_RATE_LIMIT_RETRIES; attempt += 1) {
+        try {
+          return await callApi({ action: 'embed', rows: batch }, token);
+        } catch (error) {
+          if (error.status !== 429 || attempt === MAX_RATE_LIMIT_RETRIES) throw error;
+          const requestedWait = error.retryAfterMs || MIN_RATE_LIMIT_WAIT_MS * Math.pow(1.5, attempt);
+          const waitMs = Math.max(MIN_RATE_LIMIT_WAIT_MS, Math.min(requestedWait, MAX_RATE_LIMIT_WAIT_MS));
+          const seconds = Math.ceil(waitMs / 1000);
+          setStatus(
+            `Gemini is rate limiting right now. Waiting ${seconds} seconds, then retrying the same ${batch.length} chunks...\n\n` +
+            `Checked: ${counters.checked} / ${EXPECTED_CHUNKS}\n` +
+            `Newly embedded this run: ${counters.newlyEmbedded}\n` +
+            `Already embedded and skipped: ${counters.skipped}\n` +
+            `Rate-limit retry: ${attempt + 1} / ${MAX_RATE_LIMIT_RETRIES}`
+          );
+          await sleep(waitMs);
+        }
+      }
+      throw new Error('Embedding retry limit reached.');
+    }
+
     uploadButton.addEventListener('click', async () => {
       try {
         const token = getToken();
@@ -172,23 +202,30 @@
         const rows = await getRows();
         progress.hidden = false;
         progress.value = 0;
-        let newlyEmbedded = 0;
-        let skipped = 0;
+        const counters = { newlyEmbedded: 0, skipped: 0, checked: 0 };
         setStatus('Embedding only chunks that are still missing embeddings...');
 
         for (let offset = 0; offset < rows.length; offset += EMBED_BATCH_SIZE) {
           const batch = rows.slice(offset, offset + EMBED_BATCH_SIZE);
-          const result = await callApi({ action: 'embed', rows: batch }, token);
-          newlyEmbedded += result.embedded || 0;
-          skipped += result.skipped || 0;
-          progress.value = Math.min(offset + batch.length, rows.length);
-          setStatus(`Checked ${progress.value} / ${rows.length} chunks...\nNewly embedded this run: ${newlyEmbedded}\nAlready embedded and skipped: ${skipped}`);
+          const result = await embedBatchWithBackoff(batch, token, counters);
+          counters.newlyEmbedded += result.embedded || 0;
+          counters.skipped += result.skipped || 0;
+          counters.checked = Math.min(offset + batch.length, rows.length);
+          progress.value = counters.checked;
+          setStatus(
+            `Checked ${counters.checked} / ${rows.length} chunks...\n` +
+            `Newly embedded this run: ${counters.newlyEmbedded}\n` +
+            `Already embedded and skipped: ${counters.skipped}`
+          );
           if (offset + EMBED_BATCH_SIZE < rows.length) await sleep(EMBED_PAUSE_MS);
         }
 
         await showVerification(token);
       } catch (error) {
-        setStatus(`${error.message || 'Embedding failed.'}\n\nYour completed embeddings are saved. Run Step 2 again later to resume.`, 'bad');
+        setStatus(
+          `${error.message || 'Embedding failed.'}\n\nCompleted embeddings are saved. Check Progress before trying again.`,
+          'bad'
+        );
       } finally {
         setBusy(false);
       }
