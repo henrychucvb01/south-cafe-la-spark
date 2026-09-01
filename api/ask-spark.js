@@ -57,7 +57,7 @@ async function createEmbedding(question, apiKey) {
 }
 
 async function retrieveChunks({ question, embedding, categories, supabaseUrl, serviceKey }) {
-  const result = await fetch(`${supabaseUrl}/rest/v1/rpc/ask_spark_hybrid_search`, {
+  const result = await fetch(`${supabaseUrl}/rest/v1/rpc/ask_spark_hybrid_search_rest`, {
     method: "POST",
     headers: {
       apikey: serviceKey,
