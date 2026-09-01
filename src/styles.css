@@ -6741,18 +6741,14 @@ button.homebase-card:hover {
 .location-map-photo span { width: 56px; height: 56px; display: grid; place-items: center; border: 1px solid rgba(32,88,119,.14); border-radius: 50%; color: #2d7399; background: rgba(255,255,255,.65); font-size: 25px; }
 .location-map-photo p { margin: 0; font-size: 12px; font-weight: 800; letter-spacing: .2px; }
 .location-map-listing-copy { padding: 28px 27px 30px; }
-.location-map-listing-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.location-map-listing-heading { display: flex; align-items: center; gap: 14px; }
 .location-map-listing-heading > div { min-width: 0; }
 .location-map-listing-title { flex: 1 1 auto; }
-.location-map-thumbnail { width: 54px; height: 54px; flex: 0 0 54px; display: grid; place-items: center; overflow: hidden; border: 1px solid #d9e4ea; border-radius: 14px; color: white; background: #486c84; font-size: 18px; font-weight: 900; }
-.location-map-thumbnail img { width: 100%; height: 100%; display: block; object-fit: cover; }
-.location-map-thumbnail.logo img { padding: 5px; box-sizing: border-box; background: white; object-fit: contain; }
+.location-map-thumbnail { width: 54px; height: 54px; flex: 0 0 54px; display: grid; place-items: center; overflow: hidden; box-sizing: border-box; border: 2px solid #d5e5ed; border-radius: 50%; color: white; background: #486c84; box-shadow: 0 2px 8px rgba(29,65,88,.13); font-size: 18px; font-weight: 900; }
+.location-map-thumbnail img { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center; }
+.location-map-thumbnail.logo img { padding: 5px; box-sizing: border-box; background: white; object-fit: contain; object-position: center; }
 .location-map-listing h2 { margin: 0; color: #213c51; font-size: clamp(22px, 2.4vw, 29px); line-height: 1.15; }
 .location-map-listing-heading p { margin: 9px 0 0; color: #718392; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .7px; }
-.location-map-badges { flex: 0 0 auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
-.location-map-badges span { padding: 6px 10px; border-radius: 999px; font-size: 10px; font-weight: 900; letter-spacing: .4px; }
-.location-map-site-type { color: #245f82; background: #e8f3f9; }
-.location-map-cep { color: #276b48; background: #e9f6ef; }
 .location-map-address { display: flex; align-items: flex-start; gap: 11px; margin-top: 27px; padding-top: 22px; border-top: 1px solid #e5ebef; color: #41596b; }
 .location-map-address span { flex: 0 0 auto; color: #2777a4; font-size: 20px; line-height: 1; }
 .location-map-address strong, .location-map-contact-list dt { display: block; color: #7a8a96; font-size: 9px; font-weight: 900; letter-spacing: .55px; text-transform: uppercase; }
@@ -6763,13 +6759,11 @@ button.homebase-card:hover {
 .location-map-contact-list dd { margin: 7px 0 0; color: #334c5e; font-size: 14px; font-weight: 800; overflow-wrap: anywhere; }
 .location-map-contact-list a { color: #126da9; }
 .location-map-listing-empty { min-height: 300px; display: grid; place-items: center; padding: 30px; color: #718392; text-align: center; }
-.location-school-marker-shell { border: 0; background: transparent; }
-.location-school-marker { width: 42px; height: 42px; display: grid; place-items: center; box-sizing: border-box; overflow: hidden; border: 3px solid white; border-radius: 50%; background: #2a91be; box-shadow: 0 3px 11px rgba(17,55,78,.38); transition: transform .14s ease, box-shadow .14s ease; }
-.location-school-marker::after { content: ""; width: 13px; height: 13px; border-radius: 50%; background: white; opacity: .92; }
-.location-school-marker.has-logo { background: white; }
-.location-school-marker.has-logo::after { display: none; }
-.location-school-marker img { width: 100%; height: 100%; padding: 4px; box-sizing: border-box; object-fit: contain; }
-.location-school-marker-shell.selected .location-school-marker { transform: scale(1.18); border-color: #f4b63d; box-shadow: 0 4px 14px rgba(17,55,78,.48), 0 0 0 3px rgba(255,255,255,.9); }
+.location-school-marker-shell { box-sizing: border-box; border: 2px solid white; border-radius: 50%; background: white; box-shadow: 0 2px 7px rgba(17,55,78,.34); transition: width .14s ease, height .14s ease, margin .14s ease, border-color .14s ease, box-shadow .14s ease; }
+.location-school-logo-marker { padding: 2px; object-fit: contain; object-position: center; }
+.location-school-marker-default { display: grid; place-items: center; background: #2a91be; }
+.location-school-marker-default span { width: 7px; height: 7px; border-radius: 50%; background: white; opacity: .94; }
+.location-school-marker-shell.selected { width: 24px !important; height: 24px !important; margin: -1px 0 0 -1px; border-color: #f4b63d; box-shadow: 0 3px 9px rgba(17,55,78,.42), 0 0 0 2px rgba(255,255,255,.9); }
 
 .supervisor-location-workspace { display: grid; grid-template-columns: minmax(245px, .65fr) minmax(0, 1.5fr); gap: 18px; margin-top: 18px; align-items: start; }
 .supervisor-location-intro { padding: 22px; }

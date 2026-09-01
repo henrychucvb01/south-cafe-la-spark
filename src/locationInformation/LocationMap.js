@@ -25,23 +25,30 @@ function LocationMap({ records, selectedId, onSelect }) {
       mapped.forEach((record) => {
         const point = [Number(record.latitude), Number(record.longitude)];
         bounds.push(point);
-        const iconContent = document.createElement("div");
-        iconContent.className = `location-school-marker${record.school_logo_url ? " has-logo" : ""}`;
-        if (record.school_logo_url) {
-          const logo = document.createElement("img");
-          logo.src = record.school_logo_url;
-          logo.alt = "";
-          logo.addEventListener("error", () => {
-            logo.remove();
-            iconContent.classList.remove("has-logo");
-          }, { once: true });
-          iconContent.appendChild(logo);
-        }
+        const fallbackIcon = L.divIcon({
+          className: "location-school-marker-shell location-school-marker-default",
+          html: '<span aria-hidden="true"></span>',
+          iconSize: [22, 22],
+          iconAnchor: [11, 11],
+        });
+        const schoolIcon = record.school_logo_url
+          ? L.icon({
+            iconUrl: record.school_logo_url,
+            className: "location-school-marker-shell location-school-logo-marker",
+            iconSize: [22, 22],
+            iconAnchor: [11, 11],
+          })
+          : fallbackIcon;
         const marker = L.marker(point, {
-          icon: L.divIcon({ className: "location-school-marker-shell", html: iconContent, iconSize: [46, 46], iconAnchor: [23, 23] }),
+          icon: schoolIcon,
           keyboard: true,
           title: record.school_name,
         });
+        if (record.school_logo_url) {
+          marker.on("add", () => {
+            marker.getElement()?.addEventListener("error", () => marker.setIcon(fallbackIcon), { once: true });
+          });
+        }
         marker.on("click", () => onSelectRef.current(record.id));
         marker.addTo(map);
         markersRef.current.set(record.id, marker);

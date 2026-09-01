@@ -14,15 +14,17 @@ jest.mock("leaflet", () => ({
   map: () => mockMapInstance,
   tileLayer: () => ({ addTo: jest.fn() }),
   divIcon: (options) => options,
+  icon: (options) => options,
   marker: (_point, options) => {
     const marker = {
       addTo: jest.fn(),
-      element: global.document.createElement("div"),
+      element: global.document.createElement(options.icon.iconUrl ? "img" : "div"),
       getElement: jest.fn(() => marker.element),
       on: jest.fn((event, callback) => {
         marker.events[event] = callback;
       }),
       options,
+      setIcon: jest.fn(),
       setZIndexOffset: jest.fn(),
       events: {},
     };
@@ -62,15 +64,18 @@ describe("LocationMap", () => {
     expect(onSelect).toHaveBeenCalledWith("second");
     expect(mockMarkers).toHaveLength(2);
     expect(mockMarkers.every((marker) => marker.bindPopup === undefined)).toBe(true);
-    expect(mockMarkers[0].options.icon.html.querySelector("img").src).toBe("https://example.com/logo.webp");
-    expect(mockMarkers[1].options.icon.html.classList.contains("has-logo")).toBe(false);
+    expect(mockMarkers[0].options.icon.iconUrl).toBe("https://example.com/logo.webp");
+    expect(mockMarkers[0].options.icon.iconSize).toEqual([22, 22]);
+    expect(mockMarkers[1].options.icon.className).toContain("location-school-marker-default");
   });
 
   it("falls back to the default marker when a school logo fails", () => {
     act(() => root.render(<LocationMap records={[{ id: "broken", school_name: "Broken Logo", latitude: 33.7, longitude: -118.2, school_logo_url: "https://example.com/broken.webp" }]} selectedId="broken" onSelect={jest.fn()} />));
-    const markerContent = mockMarkers[0].options.icon.html;
-    markerContent.querySelector("img").dispatchEvent(new Event("error"));
-    expect(markerContent.classList.contains("has-logo")).toBe(false);
-    expect(markerContent.querySelector("img")).toBeNull();
+    act(() => mockMarkers[0].events.add());
+    act(() => mockMarkers[0].element.dispatchEvent(new Event("error")));
+    expect(mockMarkers[0].setIcon).toHaveBeenCalledWith(expect.objectContaining({
+      className: expect.stringContaining("location-school-marker-default"),
+      iconSize: [22, 22],
+    }));
   });
 });
