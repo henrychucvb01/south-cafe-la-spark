@@ -51,10 +51,9 @@ function App() {
   if (screen === "supervisorPin") return <SupervisorPinPage onSuccess={(verifiedPin) => { setSupervisorSessionPin(verifiedPin); setScreen("commandCenter"); }} onBack={() => { setSupervisorSessionPin(""); setScreen("login"); }} />;
   if (screen === "employeeSelect") return <EmployeeSelectPage location={selectedLocation} onEmployeeSelected={(employee) => { setSelectedEmployee(employee); setEditingCheck(null); setScreen("managerPin"); }} onBack={resetToLogin} />;
   if (screen === "managerPin") return <ManagerPinPage location={selectedLocation} employee={selectedEmployee} onSuccess={() => setScreen("homeBase")} onBack={() => { setSelectedEmployee(null); setScreen("employeeSelect"); }} />;
-
   if (screen === "homeBase") return managerPage(<HomeBase location={selectedLocation} employee={selectedEmployee} onSchoolHub={() => setScreen("schoolHub")} onIncidentHelper={() => setScreen("incidentHelper")} onDailyBites={() => setScreen("dailyBites")} onManagerResources={() => setScreen("managerResources")} onExit={resetToLogin} />);
   if (screen === "managerResources") return managerPage(<ManagerResourcesPage onAskSpark={() => setScreen("askSpark")} onOperationsHelp={() => setScreen("operationsHelp")} onLocationInformation={() => setScreen("locationInformation")} onBack={() => setScreen("homeBase")} />);
-  if (screen === "operationsHelp") return managerPage(<OperationsHelpPage onBack={() => setScreen("managerResources")} />);
+  if (screen === "operationsHelp") return managerPage(<OperationsHelpPage location={selectedLocation} onBack={() => setScreen("managerResources")} />);
   if (screen === "askSpark") return managerPage(<AskSparkPage location={selectedLocation} onBack={() => setScreen("managerResources")} />);
   if (screen === "locationInformation") return managerPage(<LocationInformationPage location={selectedLocation} onBack={() => setScreen("managerResources")} />);
   if (screen === "dailyBites") return managerPage(<DailyBitesPage location={selectedLocation} employee={selectedEmployee} onBack={() => setScreen("homeBase")} />);
