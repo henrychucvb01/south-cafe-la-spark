@@ -18,39 +18,26 @@ function ResourceLink({ icon, title, description, url, unavailableText }) {
   );
 }
 
-function ManagerResourcesPage({ onAskSpark, onLocationInformation, onBack }) {
+function ManagerResourcesPage({ onAskSpark, onLocationInformation, onOperationsHelp, onBack }) {
   const foodExchangeUrl = process.env.REACT_APP_FOOD_EXCHANGE_URL;
   const equipmentExchangeUrl = process.env.REACT_APP_EQUIPMENT_EXCHANGE_URL;
   return (
     <div className="manager-resources-page">
       <header className="login-header">
-        <div className="login-brand">
-          <div className="login-logo spark-login-logo"><img src="/spark-192.png" alt="Spark" /></div>
-          <div><div className="login-brand-name">SOUTH CAFÉ LA</div><div className="login-brand-subtitle">SPARK</div></div>
-        </div>
+        <div className="login-brand"><div className="login-logo spark-login-logo"><img src="/spark-192.png" alt="Spark" /></div><div><div className="login-brand-name">SOUTH CAFÉ LA</div><div className="login-brand-subtitle">SPARK</div></div></div>
         <button type="button" className="homebase-exit-button" onClick={onBack}>← Back to Home Base</button>
       </header>
       <main className="manager-resources-main">
-        <section className="manager-resources-hero">
-          <div><span>MANAGER RESOURCES</span><h1>Your operations toolkit</h1><p>Get trusted guidance, share available food, and coordinate equipment—all from one place.</p></div>
-          <div className="manager-resources-hero-mark" aria-hidden="true">✦</div>
-        </section>
+        <section className="manager-resources-hero"><div><span>MANAGER RESOURCES</span><h1>Your operations toolkit</h1><p>Get trusted guidance, share available food, and coordinate equipment—all from one place.</p></div><div className="manager-resources-hero-mark" aria-hidden="true">✦</div></section>
         <div className="manager-resources-heading"><div><span>TOOLS &amp; GUIDANCE</span><h2>What would you like to do?</h2></div><p>Designed for quick answers during a busy cafeteria day.</p></div>
         <section className="manager-resources-grid" aria-label="Manager resource tools">
-          <button type="button" className="manager-resource-card manager-resource-ask" onClick={onAskSpark}>
-            <span className="manager-resource-card-top"><span className="manager-resource-icon" aria-hidden="true">✦</span><span className="manager-resource-status featured">APPROVED GUIDANCE</span></span>
-            <span className="manager-resource-copy"><strong>Ask SPARK</strong><small>Ask a cafeteria operations question and get a clear answer with its approved training sources.</small></span>
-            <span className="manager-resource-arrow" aria-hidden="true">›</span>
-          </button>
-          <button type="button" className="manager-resource-card manager-resource-location" onClick={onLocationInformation}>
-            <span className="manager-resource-card-top"><span className="manager-resource-icon" aria-hidden="true">⌖</span><span className="manager-resource-status live">AREA DIRECTORY</span></span>
-            <span className="manager-resource-copy"><strong>Location Information</strong><small>View your school details and search manager, phone, and operating information for area locations.</small></span>
-            <span className="manager-resource-arrow" aria-hidden="true">›</span>
-          </button>
+          <button type="button" className="manager-resource-card manager-resource-ask" onClick={onAskSpark}><span className="manager-resource-card-top"><span className="manager-resource-icon" aria-hidden="true">✦</span><span className="manager-resource-status featured">APPROVED GUIDANCE</span></span><span className="manager-resource-copy"><strong>Ask SPARK</strong><small>Ask a cafeteria operations question and get a clear answer with its approved training sources.</small></span><span className="manager-resource-arrow" aria-hidden="true">›</span></button>
+          <button type="button" className="manager-resource-card" onClick={onOperationsHelp}><span className="manager-resource-card-top"><span className="manager-resource-icon" aria-hidden="true">🔧</span><span className="manager-resource-status live">QUICK HELP</span></span><span className="manager-resource-copy"><strong>Operations Help</strong><small>Find the right contact, M&amp;O craft, service-request steps, delivery help, HR, IT, and more—without using AI.</small></span><span className="manager-resource-arrow" aria-hidden="true">›</span></button>
+          <button type="button" className="manager-resource-card manager-resource-location" onClick={onLocationInformation}><span className="manager-resource-card-top"><span className="manager-resource-icon" aria-hidden="true">⌖</span><span className="manager-resource-status live">AREA DIRECTORY</span></span><span className="manager-resource-copy"><strong>Location Information</strong><small>View your school details and search manager, phone, and operating information for area locations.</small></span><span className="manager-resource-arrow" aria-hidden="true">›</span></button>
           <ResourceLink icon="🥕" title="Food Exchange" description="Open the Food Exchange." url={foodExchangeUrl} unavailableText="Existing exchange link is not configured in this deployment." />
           <ResourceLink icon="⚙️" title="Equipment Exchange" description="Open the Equipment Exchange." url={equipmentExchangeUrl} unavailableText="Existing exchange link is not configured in this deployment." />
         </section>
-        <div className="manager-resources-trust"><span aria-hidden="true">✓</span><p><strong>Built for managers.</strong> Ask SPARK searches only the approved training library—not the open internet.</p></div>
+        <div className="manager-resources-trust"><span aria-hidden="true">✓</span><p><strong>Built for managers.</strong> Use Operations Help for routine routing without consuming Ask SPARK AI usage.</p></div>
       </main>
     </div>
   );
