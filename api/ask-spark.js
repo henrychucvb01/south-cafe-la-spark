@@ -45,6 +45,38 @@ function expandDomainTerms(question) {
     .replace(/\bMPLH\b/gi, "Meals Per Labor Hour (MPLH)");
 }
 
+function conversationalResponse(question) {
+  const normalized = String(question || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[.!?]+$/g, "")
+    .replace(/\s+/g, " ");
+
+  const greetings = new Set([
+    "hi", "hello", "hey", "hiya", "howdy", "good morning", "good afternoon", "good evening",
+  ]);
+  if (greetings.has(normalized)) {
+    const greeting = normalized.startsWith("good ")
+      ? `${normalized.charAt(0).toUpperCase()}${normalized.slice(1)}!`
+      : "Hey!";
+    return `${greeting} 👋 What can I help you with today?`;
+  }
+
+  if (/^(thanks|thank you|thx|ty|thanks spark|thank you spark)$/.test(normalized)) {
+    return "You got it! ✨ I'm here whenever you need me.";
+  }
+
+  if (/^(help|help me|what can you do|what do you do)$/.test(normalized)) {
+    return "Sure! Ask me about cafeteria procedures, production records, meal counting, BIC, food safety, field trips, special diets, Administrative Review prep, or other manager training guidance.";
+  }
+
+  if (/^(who are you|what are you)$/.test(normalized)) {
+    return "I'm Ask SPARK ✨ — your cafeteria operations and training assistant. Ask me a work question and I'll check the approved training guidance for the answer.";
+  }
+
+  return null;
+}
+
 async function createEmbedding(question, apiKey) {
   const model = process.env.ASK_SPARK_EMBEDDING_MODEL || "gemini-embedding-001";
   const result = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:embedContent`, {
@@ -111,7 +143,7 @@ async function generateAnswer({ question, retrievalQuestion, chunks, apiKey }) {
     body: JSON.stringify({
       systemInstruction: {
         parts: [{
-          text: `You are Ask SPARK, a retrieval-only assistant for school cafeteria managers. Answer ONLY from the supplied approved excerpts. Never use outside knowledge or invent LAUSD policy. Interpret cafeteria-domain abbreviations using the provided expanded retrieval question; for example, AR means Administrative Review, not Arkansas. Give a concise, direct, manager-friendly answer. If the excerpts do not confirm the answer, set supported to false. Every factual instruction in a supported answer must be backed by one or more cited chunk IDs. Return JSON only: {"supported":boolean,"answer":string,"citation_ids":string[]}. Do not include citation labels in the answer text.`,
+          text: `You are Ask SPARK, a friendly school cafeteria operations assistant. For cafeteria work questions, answer ONLY from the supplied approved excerpts. Never use outside knowledge or invent LAUSD policy. Interpret cafeteria-domain abbreviations using the provided expanded retrieval question; for example, AR means Administrative Review, not Arkansas. Write naturally and manager-friendly, not like a compliance robot. Do not add labels such as "Confirmed answer" or "Verified answer". If the excerpts do not confirm the answer, set supported to false. Every factual work instruction in a supported answer must be backed by one or more cited chunk IDs. Return JSON only: {"supported":boolean,"answer":string,"citation_ids":string[]}. Do not include citation labels in the answer text.`,
         }],
       },
       contents: [
@@ -190,6 +222,16 @@ export default async function handler(request, response) {
   if (!question) return send(response, 400, { error: "Please enter a question." });
   if (question.length > MAX_QUESTION_LENGTH) {
     return send(response, 400, { error: `Please keep the question under ${MAX_QUESTION_LENGTH} characters.` });
+  }
+
+  const conversational = conversationalResponse(question);
+  if (conversational) {
+    return send(response, 200, {
+      supported: true,
+      conversational: true,
+      answer: conversational,
+      citations: [],
+    });
   }
 
   const retrievalQuestion = expandDomainTerms(question);
