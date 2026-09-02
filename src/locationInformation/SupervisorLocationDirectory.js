@@ -10,13 +10,12 @@ import AreaSupervisorCard from "./AreaSupervisorCard";
 const EDITABLE_FIELDS = [
   ["location_code", "Location code"],
   ["school_name", "School name"],
+  ["address", "School address"],
   ["manager_name", "FSM / Manager"],
   ["site_type", "Site type"],
   ["counting_claiming", "Counting & Claiming"],
   ["cafeteria_phone", "Cafeteria phone"],
   ["school_phone", "School phone"],
-  ["latitude", "Map latitude"],
-  ["longitude", "Map longitude"],
 ];
 
 function SupervisorLocationDirectory({ supervisorPin }) {
@@ -101,7 +100,7 @@ function SupervisorLocationDirectory({ supervisorPin }) {
           {!loading && draft && <form onSubmit={handleSave}>
             <div className="command-section-header"><div><h3>{draft.school_name}</h3><p>Location {draft.location_code || "not assigned"}</p></div>{draft.counting_claiming && <span className="location-editor-status">{draft.counting_claiming}</span>}</div>
             <div className="supervisor-location-form-grid">
-              {EDITABLE_FIELDS.map(([name, label]) => <label key={name}><span>{label}</span>{name === "site_type" ? <select value={draft[name] || ""} onChange={(event) => setDraft((current) => ({ ...current, [name]: event.target.value }))}><option value="">Select site type</option><option value="PREP">PREP</option><option value="NNC">NNC</option></select> : <input type={name === "latitude" || name === "longitude" ? "number" : "text"} step={name === "latitude" || name === "longitude" ? "any" : undefined} value={draft[name] ?? ""} onChange={(event) => setDraft((current) => ({ ...current, [name]: event.target.value }))} required={name === "school_name"} />}</label>)}
+              {EDITABLE_FIELDS.map(([name, label]) => <label key={name}><span>{label}</span>{name === "site_type" ? <select value={draft[name] || ""} onChange={(event) => setDraft((current) => ({ ...current, [name]: event.target.value }))}><option value="">Select site type</option><option value="PREP">PREP</option><option value="NNC">NNC</option></select> : <input type="text" value={draft[name] ?? ""} onChange={(event) => setDraft((current) => ({ ...current, [name]: event.target.value }))} required={name === "school_name"} />}</label>)}
             </div>
             <div className="supervisor-location-actions"><button type="button" className="command-small-button" onClick={() => selectRecord(records.find((item) => item.id === selectedId))} disabled={saving}>Discard changes</button><button type="submit" className="login-primary-button" disabled={saving}>{saving ? "Saving…" : "Save location"}</button></div>
           </form>}
