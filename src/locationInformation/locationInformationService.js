@@ -16,7 +16,7 @@ export const LOCATION_INFORMATION_FIELDS = [
   "latitude",
   "longitude",
   "cpm_name",
-  "cpm_phone",
+  "cpm_office_phone",
   "cpm_cell_phone",
   "cpm_email",
   "supervisor_id",
@@ -60,7 +60,7 @@ export async function saveLocationInformation(record, supervisorPin) {
     p_cafeteria_phone: record.cafeteria_phone || null,
     p_school_phone: record.school_phone || null,
     p_cpm_name: record.cpm_name || null,
-    p_cpm_phone: record.cpm_phone || null,
+    p_cpm_office_phone: record.cpm_office_phone || null,
     p_cpm_cell_phone: record.cpm_cell_phone || null,
     p_cpm_email: record.cpm_email || null,
   });
