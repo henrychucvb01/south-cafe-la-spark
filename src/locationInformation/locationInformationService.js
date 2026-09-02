@@ -49,6 +49,7 @@ export async function saveLocationInformation(record, supervisorPin) {
     p_id: record.id,
     p_location_code: record.location_code || null,
     p_school_name: record.school_name,
+    p_address: record.address || null,
     p_manager_name: record.manager_name || null,
     p_site_type: record.site_type || null,
     p_counting_claiming: record.counting_claiming || null,
