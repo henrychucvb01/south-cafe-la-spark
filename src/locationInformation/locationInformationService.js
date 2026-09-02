@@ -15,6 +15,10 @@ export const LOCATION_INFORMATION_FIELDS = [
   "school_logo_url",
   "latitude",
   "longitude",
+  "cpm_name",
+  "cpm_phone",
+  "cpm_cell_phone",
+  "cpm_email",
   "supervisor_id",
   "updated_at",
 ].join(",");
@@ -55,8 +59,10 @@ export async function saveLocationInformation(record, supervisorPin) {
     p_counting_claiming: record.counting_claiming || null,
     p_cafeteria_phone: record.cafeteria_phone || null,
     p_school_phone: record.school_phone || null,
-    p_latitude: record.latitude === "" || record.latitude == null ? null : Number(record.latitude),
-    p_longitude: record.longitude === "" || record.longitude == null ? null : Number(record.longitude),
+    p_cpm_name: record.cpm_name || null,
+    p_cpm_phone: record.cpm_phone || null,
+    p_cpm_cell_phone: record.cpm_cell_phone || null,
+    p_cpm_email: record.cpm_email || null,
   });
 
   if (error) throw error;
@@ -79,6 +85,7 @@ export function filterLocationDirectory(records, query) {
       record.manager_name,
       record.site_type,
       record.counting_claiming,
+      record.cpm_name,
     ]
       .filter(Boolean)
       .join(" ")
