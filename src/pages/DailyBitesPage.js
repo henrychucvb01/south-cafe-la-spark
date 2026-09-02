@@ -422,6 +422,8 @@ function DailyBitesPage({ location, employee, onBack }) {
   const [gamesLoading, setGamesLoading] = useState(true);
   const [gamesError, setGamesError] = useState("");
   const [arDailyPoints, setArDailyPoints] = useState(0);
+  const [arQuestions, setArQuestions] = useState([]);
+  const [arBatchKey, setArBatchKey] = useState("");
   const [arLoading, setArLoading] = useState(true);
   const [arError, setArError] = useState("");
   const arServiceDate = useMemo(() => getLosAngelesDate(new Date()), []);
@@ -434,7 +436,30 @@ function DailyBitesPage({ location, employee, onBack }) {
   useEffect(() => {
     if (!location?.id) return;
     loadArProgress();
+    loadArQuestions();
   }, [location?.id, arServiceDate]);
+
+  async function loadArQuestions() {
+    const { data, error } = await supabase.rpc("get_ar_training_question_batch", { p_location_id: location.id });
+    if (error) {
+      console.error("AR Training question batch error:", error);
+      setArError("AR Training questions are not ready. Run the supplied Supabase migration.");
+      setArQuestions([]);
+      return;
+    }
+    const rows = data || [];
+    setArQuestions(rows.map((row) => ({
+      id: row.id,
+      type: row.question_type,
+      category: row.category,
+      prompt: row.prompt,
+      choices: row.choices,
+      explanation: row.explanation,
+      source: { title: row.source_title, locator: row.source_locator, chunkId: row.source_chunk_id },
+    })));
+    const first = rows[0];
+    setArBatchKey(first ? `${first.cycle_number}-${first.batch_index}` : "");
+  }
 
   async function loadArProgress() {
     setArLoading(true);
@@ -473,8 +498,11 @@ function DailyBitesPage({ location, employee, onBack }) {
       correct: data?.correct === true,
       pointsEarned: Number(data?.points_earned || 0),
       dailyPoints: Number(data?.daily_points || 0),
+      correctIndex: Number(data?.correct_index),
+      batchAdvanced: data?.batch_advanced === true,
     };
     setArDailyPoints(result.dailyPoints);
+    if (result.batchAdvanced) await loadArQuestions();
     return result;
   }
 
@@ -1435,6 +1463,8 @@ function DailyBitesPage({ location, employee, onBack }) {
             weekday={isWeekdayDate(arServiceDate)}
             loading={arLoading}
             disabled={arLoading || Boolean(arError)}
+            questions={arQuestions}
+            batchKey={arBatchKey}
             onAnswer={submitArAnswer}
           />
 

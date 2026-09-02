@@ -1,15 +1,20 @@
-import React, { useMemo, useState } from "react";
-import { AR_TRAINING_QUESTIONS } from "../../data/arTrainingQuestions";
+import React, { useEffect, useMemo, useState } from "react";
 import { seededQuestionOrder } from "./arTrainingUtils";
 
-function ArTrainingQuiz({ serviceDate, dailyPoints, weekday, loading, disabled, onAnswer }) {
-  const questions = useMemo(() => seededQuestionOrder(AR_TRAINING_QUESTIONS, `${serviceDate}-${Date.now()}`), [serviceDate]);
+function ArTrainingQuiz({ serviceDate, dailyPoints, weekday, loading, disabled, questions = [], batchKey = "", onAnswer }) {
+  const orderedQuestions = useMemo(() => seededQuestionOrder(questions, `${serviceDate}-${batchKey}`), [questions, serviceDate, batchKey]);
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState(null);
   const [feedback, setFeedback] = useState(null);
   const [saving, setSaving] = useState(false);
-  const question = questions[index % questions.length];
+  const question = orderedQuestions.length ? orderedQuestions[index % orderedQuestions.length] : null;
   const capReached = dailyPoints >= 10;
+
+  useEffect(() => {
+    setIndex(0);
+    setSelected(null);
+    setFeedback(null);
+  }, [batchKey]);
 
   async function choose(choiceIndex) {
     if (saving || feedback || disabled) return;
@@ -21,7 +26,7 @@ function ArTrainingQuiz({ serviceDate, dailyPoints, weekday, loading, disabled, 
       setSaving(false);
       return;
     }
-    setFeedback({ correct: result.correct, points: result.pointsEarned || 0, dailyPoints: result.dailyPoints ?? dailyPoints });
+    setFeedback({ correct: result.correct, correctIndex: result.correctIndex, points: result.pointsEarned || 0, dailyPoints: result.dailyPoints ?? dailyPoints });
     setSaving(false);
   }
 
@@ -29,6 +34,17 @@ function ArTrainingQuiz({ serviceDate, dailyPoints, weekday, loading, disabled, 
     setIndex((current) => current + 1);
     setSelected(null);
     setFeedback(null);
+  }
+
+  if (!question) {
+    return (
+      <section className="ar-quiz" aria-labelledby="ar-training-title">
+        <div className="ar-quiz-heading">
+          <div className="ar-quiz-badge" aria-hidden="true">AR</div>
+          <div><span className="ar-quiz-eyebrow">ADMINISTRATIVE REVIEW PRACTICE</span><h2 id="ar-training-title">AR Training</h2><p>{loading ? "Loading this location’s 50-question practice set…" : "No AR Training questions are available yet."}</p></div>
+        </div>
+      </section>
+    );
   }
 
   return (
@@ -51,7 +67,7 @@ function ArTrainingQuiz({ serviceDate, dailyPoints, weekday, loading, disabled, 
       </div>
       <div className="ar-quiz-status">
         <span>{!weekday ? "Weekend practice — points resume Monday." : capReached ? "Daily points complete — keep practicing!" : "Earn 2 points for each correct answer."}</span>
-        <span>Question {index + 1}</span>
+        <span>Question {(index % orderedQuestions.length) + 1} of {orderedQuestions.length}</span>
       </div>
 
       <article className="ar-question-card">
@@ -59,7 +75,7 @@ function ArTrainingQuiz({ serviceDate, dailyPoints, weekday, loading, disabled, 
         <h3>{question.prompt}</h3>
         <div className="ar-choice-grid">
           {question.choices.map((choice, choiceIndex) => {
-            const isCorrect = feedback && choiceIndex === question.correctIndex;
+            const isCorrect = feedback && choiceIndex === feedback.correctIndex;
             const isWrong = feedback && selected === choiceIndex && !feedback.correct;
             return (
               <button key={choice} type="button" onClick={() => choose(choiceIndex)} disabled={saving || Boolean(feedback) || disabled} className={`${isCorrect ? "correct" : ""} ${isWrong ? "wrong" : ""}`}>
