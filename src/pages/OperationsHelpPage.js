@@ -1,0 +1,63 @@
+import React, { useMemo, useState } from "react";
+
+const QUICK_CONTACTS = [
+  { keywords: "it computer login technology", issue: "Computer / IT support", contact: "Miguel Lopez", detail: "Sr. IT Support Technician", phone: "(213) 264-2478", email: "miguel.lopez3@lausd.net" },
+  { keywords: "edison newton supper meal count pos", issue: "Edison / Newton / Supper system", contact: "Gunjan Patel", detail: "Food Service Training Specialist", phone: "(213) 549-6272", email: "gmp6685@lausd.net" },
+  { keywords: "emergency meals emergency meal nnc", issue: "Emergency meals", contact: "Javier Gutierrez", detail: "Newman Nutrition Center (NNC)", phone: "(213) 503-5854", email: "jxg8390@lausd.net" },
+  { keywords: "truck delivery delay hold holding shutdown sewage backup", issue: "Delivery delay / hold an order", contact: "Truck Operations", detail: "Use for delayed deliveries or holding deliveries during a shutdown, such as a sewage backup.", phone: "(562) 654-9001", secondary: "Operations: (562) 654-9003" },
+  { keywords: "warehouse order prep food order missing order", issue: "Warehouse order — PREP school", contact: "Latrella Stevenson", detail: "Food Order Unit", phone: "(562) 654-9008", email: "latrella.stevenson@lausd.net" },
+  { keywords: "training procedure training question", issue: "Training support", contact: "Dawn Soto", detail: "Sr. Food Service Training Specialist", phone: "(213) 923-9603", email: "dawn.soto@lausd.net" },
+  { keywords: "hr human resources employee personnel", issue: "Human Resources", contact: "Babatu Hansen", detail: "HR Representative", phone: "(213) 407-9688", email: "babatu.hansen@lausd.net" },
+  { keywords: "menu vendor quality food issue product quality", issue: "Menu / vendor quality / food issue", contact: "Kayley Drain or Ivy Marx", detail: "Menu Team — contact either for menu, vendor quality-control, or food-quality issues.", phone: "Kayley: (213) 407-4629 · Ivy: (213) 392-7129", email: "kayley.drain@lausd.net · ivy.marx@lausd.net" },
+];
+
+const CRAFTS = [
+  ["Pilot light out / oven gas", "PLUMBING"],
+  ["Hand-wash or compartment sink clogged, leaking, or water temperature", "PLUMBING"],
+  ["Walk-in cooler/freezer fan, ice build-up, gasket, or temperature", "REFRIGERATION / HVAC"],
+  ["Milk cooler broken door or temperature", "REFRIGERATION / MAINTENANCE WORKER"],
+  ["Milk cooler gasket", "REFRIGERATION / HVAC"],
+  ["Food warmer temperature / oven timer", "ELECTRICAL"],
+  ["Oven fan / hood filters", "HVAC"],
+  ["Cafeteria light fixtures / door fly fans", "ELECTRICAL"],
+  ["Cafeteria ceiling tile / hole in wall", "CARPENTRY"],
+  ["Unbolting equipment", "MAINTENANCE WORKER"],
+];
+
+function ContactCard({ item }) {
+  return <article className="dashboard-card" style={{ padding: 18 }}><strong>{item.issue}</strong><p style={{ margin: "8px 0 4px" }}>{item.contact}</p><small>{item.detail}</small><div style={{ marginTop: 10 }}>{item.phone && <div><strong>Call:</strong> {item.phone}</div>}{item.secondary && <div>{item.secondary}</div>}{item.email && <div><strong>Email:</strong> {item.email}</div>}</div></article>;
+}
+
+function OperationsHelpPage({ onBack }) {
+  const [query, setQuery] = useState("");
+  const filteredContacts = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return QUICK_CONTACTS;
+    return QUICK_CONTACTS.filter((item) => `${item.issue} ${item.contact} ${item.detail} ${item.keywords}`.toLowerCase().includes(q));
+  }, [query]);
+  const filteredCrafts = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return CRAFTS;
+    return CRAFTS.filter(([problem, craft]) => `${problem} ${craft}`.toLowerCase().includes(q));
+  }, [query]);
+
+  return <div className="manager-resources-page">
+    <header className="login-header"><div className="login-brand"><div className="login-logo spark-login-logo"><img src="/spark-192.png" alt="Spark" /></div><div><div className="login-brand-name">SOUTH CAFÉ LA</div><div className="login-brand-subtitle">SPARK</div></div></div><button type="button" className="homebase-exit-button" onClick={onBack}>← Manager Resources</button></header>
+    <main className="manager-resources-main">
+      <section className="manager-resources-hero"><div><span>MANAGER RESOURCES</span><h1>Operations Help</h1><p>Find the right person, M&amp;O craft, or next step without using Ask SPARK.</p></div><div className="manager-resources-hero-mark" aria-hidden="true">🔧</div></section>
+      <label className="supervisor-location-search" style={{ display: "block", marginBottom: 20 }}><span>What do you need help with?</span><input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Try: pilot light, Edison, delivery, HR, freezer..." /></label>
+
+      <section style={{ marginBottom: 28 }}><div className="manager-resources-heading"><div><span>QUICK ROUTING</span><h2>Who should I contact?</h2></div><p>Common Food Services contacts.</p></div><div className="manager-resources-grid">{filteredContacts.map((item) => <ContactCard key={item.issue} item={item} />)}</div></section>
+
+      <section style={{ marginBottom: 28 }}><div className="manager-resources-heading"><div><span>MAINTENANCE &amp; OPERATIONS</span><h2>What craft do I select?</h2></div><p>Common cafeteria repairs.</p></div><div className="dashboard-card" style={{ padding: 18 }}>{filteredCrafts.length ? filteredCrafts.map(([problem, craft]) => <div key={problem} style={{ display: "flex", justifyContent: "space-between", gap: 16, padding: "12px 4px", borderBottom: "1px solid #e4e9ef" }}><span>{problem}</span><strong>{craft}</strong></div>) : <p>No matching craft found.</p>}</div></section>
+
+      <section className="dashboard-card" style={{ padding: 20, marginBottom: 20 }}><h2 style={{ marginTop: 0 }}>Submit an M&amp;O service request</h2><p>Authenticate with your LAUSD SSO first, then open the M&amp;O Online Service Request. Enter the school, problem description, building/location detail, correct craft, type of work, your name and phone number. Review and submit the request, then record the ticket on the M&amp;O Ticket Log.</p><p><strong>Emergency during regular business hours:</strong> select your school in the M&amp;O system and call the M&amp;O Area number shown on screen.</p></section>
+
+      <section className="dashboard-card" style={{ padding: 20, marginBottom: 20 }}><h2 style={{ marginTop: 0 }}>Pest problem</h2><p>Rodents, roaches, and ants are urgent. Submit an M&amp;O request using <strong>Pest Control</strong> as the craft. If there is no inspection within 24–48 hours, contact your AFSS for escalation.</p></section>
+
+      <section className="dashboard-card" style={{ padding: 20 }}><h2 style={{ marginTop: 0 }}>Still not sure?</h2><p><strong>For an M&amp;O / facilities issue, call your CPM.</strong> They can help route an issue when the correct shop or craft is unclear.</p><p>For a Food Services operational issue that does not fit above, contact your AFSS.</p></section>
+    </main>
+  </div>;
+}
+
+export default OperationsHelpPage;
