@@ -16,6 +16,10 @@ const EDITABLE_FIELDS = [
   ["counting_claiming", "Counting & Claiming"],
   ["cafeteria_phone", "Cafeteria phone"],
   ["school_phone", "School phone"],
+  ["cpm_name", "CPM name"],
+  ["cpm_phone", "CPM office phone"],
+  ["cpm_cell_phone", "CPM cell phone"],
+  ["cpm_email", "CPM email"],
 ];
 
 function SupervisorLocationDirectory({ supervisorPin }) {
@@ -89,7 +93,7 @@ function SupervisorLocationDirectory({ supervisorPin }) {
       {message && <div className="location-save-message" role="status">{message}</div>}
       <div className="supervisor-location-workspace">
         <section className="dashboard-card supervisor-location-list-card">
-          <label className="supervisor-location-search"><span>Search locations</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="School, code, manager, or type" /></label>
+          <label className="supervisor-location-search"><span>Search locations</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="School, code, manager, CPM, or type" /></label>
           <div className="supervisor-location-list">
             {filtered.map((record) => <button type="button" key={record.id} className={record.id === selectedId ? "selected" : ""} onClick={() => selectRecord(record)}><strong>{record.school_name}</strong><small>{record.location_code ? `Location ${record.location_code}` : "No location code"} · {record.manager_name || "Manager not listed"}</small></button>)}
             {!loading && !filtered.length && <p>No matching locations.</p>}
