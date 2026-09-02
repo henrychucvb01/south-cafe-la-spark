@@ -6,11 +6,12 @@
   "main": "src/index.tsx",
   "dependencies": {
     "@supabase/supabase-js": "^2.0.0",
+    "leaflet": "1.9.4",
+    "pdf-lib": "1.17.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-scripts": "^5.0.0",
-    "recharts": "^2.15.0",
-    "pdf-lib": "1.17.1"
+    "recharts": "^2.15.0"
   },
   "devDependencies": {
     "@types/react": "19.0.0",
@@ -21,6 +22,9 @@
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
+    "ask-spark:load": "node scripts/load-ask-spark-corpus.mjs",
+    "test:ask-spark-route": "node scripts/test-ask-spark-route.mjs",
+    "test:ar-training-bank": "node scripts/validate-ar-training-bank.mjs",
     "test": "react-scripts test --env=jsdom",
     "eject": "react-scripts eject"
   },

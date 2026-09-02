@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
+import { cleanManagerPin, shouldAutoVerifyManagerPin } from "../security/managerPinUtils";
 
 function ManagerPinPage({ location, employee, onSuccess, onBack }) {
   const [mode, setMode] = useState("loading");
@@ -52,12 +53,16 @@ function ManagerPinPage({ location, employee, onSuccess, onBack }) {
   }
 
   function cleanPin(value) {
-    return value.replace(/\D/g, "").slice(0, 4);
+    return cleanManagerPin(value);
   }
 
   function handlePinChange(value) {
-    setPin(cleanPin(value));
+    const nextPin = cleanPin(value);
+    setPin(nextPin);
     setMessage("");
+    if (shouldAutoVerifyManagerPin({ pin: nextPin, mode, submitting })) {
+      verifyEnteredPin(nextPin);
+    }
   }
 
   function handleConfirmChange(value) {
@@ -78,28 +83,15 @@ function ManagerPinPage({ location, employee, onSuccess, onBack }) {
       return;
     }
 
+    if (mode === "verify" || mode === "verify-covering") {
+      await verifyEnteredPin(pin);
+      return;
+    }
+
     setSubmitting(true);
     setMessage("");
 
     try {
-      if (mode === "verify-covering") {
-        const { data, error } = await supabase.rpc("verify_covering_pin", {
-          p_pin: pin,
-        });
-
-        if (error) {
-          throw error;
-        }
-
-        if (data !== true) {
-          setMessage("That temporary PIN is not correct.");
-          return;
-        }
-
-        onSuccess();
-        return;
-      }
-
       if (mode === "create") {
         const { data, error } = await supabase.rpc("set_manager_pin", {
           p_employee_id: String(employee.id),
@@ -118,12 +110,45 @@ function ManagerPinPage({ location, employee, onSuccess, onBack }) {
         }
 
         onSuccess();
+      }
+    } catch (error) {
+      console.error("Manager PIN error:", error);
+      setMessage(
+        "SPARK could not verify your PIN. Please try again or contact your supervisor."
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function verifyEnteredPin(pinToVerify) {
+    if (pinToVerify.length !== 4 || submitting) return;
+    setSubmitting(true);
+    setMessage("");
+
+    try {
+      if (mode === "verify-covering") {
+        const { data, error } = await supabase.rpc("verify_covering_pin", {
+          p_pin: pinToVerify,
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        if (data !== true) {
+          setMessage("That temporary PIN is not correct.");
+          setPin("");
+          return;
+        }
+
+        onSuccess();
         return;
       }
 
       const { data, error } = await supabase.rpc("verify_manager_pin", {
         p_employee_id: String(employee.id),
-        p_pin: pin,
+        p_pin: pinToVerify,
       });
 
       if (error) {
@@ -132,6 +157,7 @@ function ManagerPinPage({ location, employee, onSuccess, onBack }) {
 
       if (data !== true) {
         setMessage("That PIN is not correct. Please try again.");
+        setPin("");
         return;
       }
 

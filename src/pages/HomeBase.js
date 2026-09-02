@@ -6,6 +6,7 @@ function HomeBase({
   onSchoolHub,
   onIncidentHelper,
   onDailyBites,
+  onManagerResources,
   onExit,
 }) {
   return (
@@ -105,7 +106,7 @@ function HomeBase({
               <div className="homebase-card-arrow">›</div>
             </button>
 
-            <div className="homebase-card homebase-card-coming">
+            <button type="button" className="homebase-card" onClick={onManagerResources}>
               <div className="homebase-card-icon">📚</div>
 
               <div className="homebase-card-body">
@@ -116,8 +117,8 @@ function HomeBase({
                 </span>
               </div>
 
-              <span className="homebase-coming-soon">Coming Soon</span>
-            </div>
+              <div className="homebase-card-arrow">›</div>
+            </button>
           </div>
         </section>
       </main>
