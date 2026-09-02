@@ -1,14 +1,20 @@
 const MAX_QUESTION_LENGTH = 500;
 const NO_ANSWER =
   "I couldn't find enough approved guidance to answer that confidently. Try describing what happened or what you need to do, and I'll search again.";
+const BUSY_MESSAGE =
+  "Ask SPARK is busy right now. Please try your question again in a moment.";
 const requestWindows = new Map();
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function isRateLimited(request) {
   const forwarded = String(request.headers["x-forwarded-for"] || "").split(",")[0].trim();
   const key = forwarded || request.socket?.remoteAddress || "unknown";
   const now = Date.now();
   const recent = (requestWindows.get(key) || []).filter((time) => now - time < 60_000);
-  if (recent.length >= 15) return true;
+  if (recent.length >= 60) return true;
   recent.push(now);
   requestWindows.set(key, recent);
   return false;
@@ -39,10 +45,36 @@ function originIsAllowed(request) {
 }
 
 function expandDomainTerms(question) {
-  return String(question || "")
+  let expanded = String(question || "")
     .replace(/\bAR\b/gi, "Administrative Review (AR)")
     .replace(/\bBIC\b/gi, "Breakfast in the Classroom (BIC)")
     .replace(/\bMPLH\b/gi, "Meals Per Labor Hour (MPLH)");
+
+  const normalized = expanded.toLowerCase();
+  const concepts = [];
+  const add = (text) => {
+    if (!concepts.includes(text)) concepts.push(text);
+  };
+
+  if (/\b(kid|kids|child|children|student|students)\b/.test(normalized)) add("student pupil child");
+  if (/\b(sick|ill|illness|vomit|vomiting|throw up|diarrhea|fever)\b/.test(normalized)) {
+    add("illness sickness employee health food safety exclusion restriction symptoms manager procedure");
+  }
+  if (/\b(warm|hot|cold|temperature|temp)\b/.test(normalized)) add("food temperature time temperature control TCS food safety");
+  if (/\b(milk|dairy)\b/.test(normalized)) add("milk dairy refrigeration temperature food safety");
+  if (/\b(count|counts|counted|meal count|claim|claiming)\b/.test(normalized)) add("meal counting claiming point of service meal count forms edit check");
+  if (/\b(production|production sheet|production record|worksheet)\b/.test(normalized)) add("food production worksheet production record planned prepared served leftovers");
+  if (/\b(field trip|offsite|off-site|trip meal)\b/.test(normalized)) add("field trip offsite meals point of service roster meal service");
+  if (/\b(allergy|allergies|special diet|different food|different meal|accommodation)\b/.test(normalized)) add("special diet food allergy meal accommodation medical statement");
+  if (/\b(civil rights|discrimination|poster|complaint)\b/.test(normalized)) add("civil rights nondiscrimination complaint required posting");
+  if (/\b(receive|receiving|delivery|deliveries|invoice|inventory|fifo|stock)\b/.test(normalized)) add("receiving delivery inventory FIFO storage inspection");
+  if (/\b(clean|cleaning|sanitize|sanitizing|sanitation|bleach)\b/.test(normalized)) add("cleaning sanitizing sanitation HACCP food safety");
+  if (/\b(leftover|leftovers|extra food|served extra)\b/.test(normalized)) add("leftovers served extra production record food safety");
+  if (/\b(roster|teacher list|student list)\b/.test(normalized)) add("roster accountability meal count record keeping");
+  if (/\b(breakfast|classroom breakfast)\b/.test(normalized)) add("Breakfast in the Classroom BIC breakfast service accountability");
+  if (/\b(supper|cacfp)\b/.test(normalized)) add("supper CACFP meal service record keeping monitoring");
+
+  return concepts.length ? `${expanded}\nRelated cafeteria training terms: ${concepts.join("; ")}` : expanded;
 }
 
 function conversationalResponse(question) {
@@ -62,35 +94,31 @@ function conversationalResponse(question) {
   return null;
 }
 
-async function interpretQuestion(question, apiKey) {
-  const model = process.env.ASK_SPARK_ANSWER_MODEL || "gemini-3.6-flash";
-  const result = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-    method: "POST",
-    headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: `You rewrite short, messy, misspelled cafeteria-manager questions into a strong search query for an internal approved training library. Preserve the manager's likely intent without answering the question or inventing policy. Expand obvious cafeteria terminology and useful synonyms. AR means Administrative Review, BIC means Breakfast in the Classroom, and MPLH means Meals Per Labor Hour. For vague illness wording such as "kid gets sick", include relevant search concepts such as student illness, student worker illness, vomiting, diarrhea, employee health, food safety, exclusion/restriction, and manager procedure, without asserting that any particular rule applies. Return JSON only: {"search_query":string}.` }] },
-      contents: [{ role: "user", parts: [{ text: question }] }],
-      generationConfig: {
-        temperature: 0,
-        responseMimeType: "application/json",
-        responseSchema: { type: "object", properties: { search_query: { type: "string" } }, required: ["search_query"] },
-      },
-    }),
-  });
-  if (!result.ok) throw new Error(`Intent service returned ${result.status}.`);
-  const payload = await result.json();
-  const text = payload?.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("");
-  const parsed = text ? JSON.parse(text) : null;
-  return String(parsed?.search_query || "").trim();
+async function fetchWith429Retry(url, options, label) {
+  const waits = [700, 1600];
+  let result = await fetch(url, options);
+  for (const wait of waits) {
+    if (result.status !== 429) return result;
+    await sleep(wait);
+    result = await fetch(url, options);
+  }
+  if (result.status === 429) {
+    const error = new Error(`${label} is temporarily rate limited.`);
+    error.code = "RATE_LIMITED";
+    throw error;
+  }
+  return result;
 }
 
 async function createEmbedding(question, apiKey) {
   const model = process.env.ASK_SPARK_EMBEDDING_MODEL || "gemini-embedding-001";
-  const result = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:embedContent`, {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:embedContent`;
+  const options = {
     method: "POST",
     headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
     body: JSON.stringify({ model: `models/${model}`, content: { parts: [{ text: question }] }, taskType: "RETRIEVAL_QUERY", outputDimensionality: 1536 }),
-  });
+  };
+  const result = await fetchWith429Retry(url, options, "Embedding service");
   if (!result.ok) throw new Error(`Embedding service returned ${result.status}.`);
   const body = await result.json();
   if (!Array.isArray(body?.embedding?.values)) throw new Error("Embedding service returned no vector.");
@@ -123,19 +151,22 @@ function buildContext(chunks) {
 
 async function generateAnswer({ question, retrievalQuestion, chunks, apiKey }) {
   const model = process.env.ASK_SPARK_ANSWER_MODEL || "gemini-3.6-flash";
-  const result = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const options = {
     method: "POST",
     headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: `You are Ask SPARK, a friendly school cafeteria operations assistant. For cafeteria work questions, answer ONLY from the supplied approved excerpts. Never use outside knowledge or invent LAUSD policy. The manager may type casually, misspell words, or describe a situation instead of using official terminology; infer their intended question from the original wording and retrieval meaning. AR means Administrative Review, not Arkansas. Write naturally and practically for a cafeteria manager. Do not add labels such as "Confirmed answer" or "Verified answer". If the excerpts do not actually support an answer, set supported to false. Every factual work instruction in a supported answer must be backed by cited chunk IDs. Return JSON only: {"supported":boolean,"answer":string,"citation_ids":string[]}.` }] },
-      contents: [{ role: "user", parts: [{ text: `Manager's original question:\n${question}\n\nInterpreted search intent (not a source):\n${retrievalQuestion}\n\nApproved retrieved excerpts:\n${buildContext(chunks)}` }] }],
+      systemInstruction: { parts: [{ text: `You are Ask SPARK, a friendly school cafeteria operations assistant. For cafeteria work questions, answer ONLY from the supplied approved excerpts. Never use outside knowledge or invent LAUSD policy. The manager may type casually, misspell words, or describe a situation instead of using official terminology. Use the related cafeteria training terms only to understand the likely intent; they are not policy or evidence. AR means Administrative Review, not Arkansas. Write naturally and practically for a cafeteria manager. Do not add labels such as "Confirmed answer" or "Verified answer". If the excerpts do not actually support an answer, set supported to false. Every factual work instruction in a supported answer must be backed by cited chunk IDs. Return JSON only: {"supported":boolean,"answer":string,"citation_ids":string[]}.` }] },
+      contents: [{ role: "user", parts: [{ text: `Manager's original question:\n${question}\n\nSearch wording (not a source):\n${retrievalQuestion}\n\nApproved retrieved excerpts:\n${buildContext(chunks)}` }] }],
       generationConfig: {
         temperature: 0.1,
+        maxOutputTokens: 450,
         responseMimeType: "application/json",
         responseSchema: { type: "object", properties: { supported: { type: "boolean" }, answer: { type: "string" }, citation_ids: { type: "array", items: { type: "string" } } }, required: ["supported", "answer", "citation_ids"] },
       },
     }),
-  });
+  };
+  const result = await fetchWith429Retry(url, options, "Answer service");
   if (!result.ok) throw new Error(`Answer service returned ${result.status}.`);
   const payload = await result.json();
   const outputText = payload?.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("");
@@ -162,7 +193,7 @@ function validatedResult(generated, chunks) {
 export default async function handler(request, response) {
   if (!originIsAllowed(request)) return send(response, 403, { error: "Origin not allowed." });
   if (request.method !== "POST") return send(response, 405, { error: "Method not allowed." });
-  if (isRateLimited(request)) return send(response, 429, { error: "Please wait a moment before asking another question." });
+  if (isRateLimited(request)) return send(response, 429, { error: "Ask SPARK is receiving a lot of questions at once. Please try again in a moment." });
   const question = String(request.body?.question || "").trim();
   const categories = Array.isArray(request.body?.categories) ? request.body.categories.map((value) => String(value).trim()).filter(Boolean).slice(0, 3) : [];
   if (!question) return send(response, 400, { error: "Please enter a question." });
@@ -185,19 +216,14 @@ export default async function handler(request, response) {
     return send(response, 503, { error: `Ask SPARK configuration has an invalid SUPABASE_URL: ${error.message}` });
   }
 
-  let retrievalQuestion = expandDomainTerms(question);
-  try {
-    const interpreted = await interpretQuestion(retrievalQuestion, geminiKey);
-    if (interpreted) retrievalQuestion = interpreted;
-  } catch (error) {
-    console.warn("Ask SPARK intent interpretation fallback:", error.message);
-  }
+  const retrievalQuestion = expandDomainTerms(question);
 
   let embedding;
   try {
     embedding = await createEmbedding(retrievalQuestion, geminiKey);
   } catch (error) {
     console.error("Ask SPARK embedding error:", error);
+    if (error.code === "RATE_LIMITED") return send(response, 503, { error: BUSY_MESSAGE });
     return send(response, 500, { error: `Ask SPARK embedding step failed: ${error.message}` });
   }
 
@@ -217,6 +243,7 @@ export default async function handler(request, response) {
     generated = await generateAnswer({ question, retrievalQuestion, chunks: credible.slice(0, 12), apiKey: geminiKey });
   } catch (error) {
     console.error("Ask SPARK answer error:", error);
+    if (error.code === "RATE_LIMITED") return send(response, 503, { error: BUSY_MESSAGE });
     return send(response, 500, { error: `Ask SPARK answer step failed: ${error.message}` });
   }
   return send(response, 200, validatedResult(generated, credible));
