@@ -25,13 +25,35 @@ check(new Set(rows.map((row) => row.id)).size === 500, "Question IDs are not uni
 check(new Set(rows.map((row) => row.order)).size === 500, "Bank order values are not unique");
 check(Math.min(...rows.map((row) => row.order)) === 1 && Math.max(...rows.map((row) => row.order)) === 500, "Bank order must span 1–500");
 const forbidden = /\b(EEC|CMS|Gold Standard|CACFP)\b/i;
+const encodingProblem = /(?:â€œ|â€|â€™|â€˜|ï¬|Ã|Â|ðŸ|�|ﬁ|ﬂ|producQon|secQon|a\[er|\bt he\b)/i;
+const normalize = (text) => text.toLowerCase().replace(/\s+/g, " ").trim();
+const duplicateSignatures = new Map();
+let malformedChoices = 0;
+let missingProvenance = 0;
+let encodingProblems = 0;
+let weakQuestions = 0;
 for (const row of rows) {
-  check(Array.isArray(row.choices) && row.choices.length === 4, `${row.id}: expected four choices`);
-  check(new Set(row.choices.map((choice) => choice.toLowerCase().trim())).size === 4, `${row.id}: duplicate choices`);
+  const choicesValid = Array.isArray(row.choices) && row.choices.length === 4 && row.choices.every((choice) => typeof choice === "string" && choice.trim());
+  const choicesDistinct = choicesValid && new Set(row.choices.map(normalize)).size === 4;
+  if (!choicesValid || !choicesDistinct) malformedChoices += 1;
+  check(choicesValid, `${row.id}: expected four non-empty choices`);
+  check(choicesDistinct, `${row.id}: duplicate choices`);
   check(row.correctIndex >= 0 && row.correctIndex < 4, `${row.id}: invalid correctIndex`);
-  check(Boolean(row.explanation && row.sourceTitle && row.sourceLocator && row.chunkId), `${row.id}: missing provenance`);
+  const hasProvenance = Boolean(row.explanation && row.sourceTitle && row.sourceLocator && /^ASKP1-C\d{6}$/.test(row.chunkId));
+  if (!hasProvenance) missingProvenance += 1;
+  check(hasProvenance, `${row.id}: missing provenance`);
   check(!forbidden.test(`${row.prompt} ${row.choices.join(" ")} ${row.explanation} ${row.sourceTitle}`), `${row.id}: forbidden material`);
+  if (encodingProblem.test(`${row.prompt} ${row.choices.join(" ")} ${row.explanation} ${row.sourceTitle}`)) encodingProblems += 1;
+  if (/Complete the approved|____/.test(row.prompt)) weakQuestions += 1;
+  const signature = JSON.stringify([normalize(row.prompt), ...row.choices.map(normalize)]);
+  duplicateSignatures.set(signature, (duplicateSignatures.get(signature) || 0) + 1);
 }
+const duplicates = [...duplicateSignatures.values()].reduce((total, count) => total + Math.max(0, count - 1), 0);
+check(duplicates === 0, `Found ${duplicates} duplicate questions`);
+check(malformedChoices === 0, `Found ${malformedChoices} malformed choice sets`);
+check(missingProvenance === 0, `Found ${missingProvenance} questions with missing provenance`);
+check(encodingProblems === 0, `Found ${encodingProblems} encoding problems`);
+check(weakQuestions === 0, `Found ${weakQuestions} weak fill-in-the-blank questions`);
 check(/offset v_state\.batch_index \* 50 limit 50/i.test(migration), "50-question batch query is missing");
 check(/batch_index = 9 then cycle_number \+ 1/i.test(migration), "Full-bank reshuffle cycle is missing");
 check(/points_awarded < 10/i.test(migration) && /v_points := least\(2, 10 - v_progress\.points_awarded\)/i.test(migration), "2-point/10-point scoring cap is missing");
@@ -44,4 +66,4 @@ if (failures.length) {
   process.exit(1);
 }
 const categories = Object.fromEntries([...new Set(rows.map((row) => row.category))].sort().map((category) => [category, rows.filter((row) => row.category === category).length]));
-console.log(JSON.stringify({ questions: rows.length, uniqueIds: 500, batchSize: 50, categories }, null, 2));
+console.log(JSON.stringify({ questions: rows.length, duplicates, malformedChoices, missingProvenance, encodingProblems, weakQuestions, uniqueIds: 500, batchSize: 50, categories }, null, 2));
