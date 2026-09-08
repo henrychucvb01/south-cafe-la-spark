@@ -188,12 +188,12 @@ function citationFromChunk(chunk) {
 
 function extractiveFallback(chunks) {
   const cited = chunks
-    .filter((chunk) => Number(chunk.text_rank) > 0 || Number(chunk.semantic_similarity) >= 0.5)
+    .filter((chunk) => Number(chunk.text_rank) > 0 && Number(chunk.semantic_similarity) >= 0.55)
     .slice(0, 3);
   if (!cited.length) return { supported: false, answer: NO_ANSWER, citations: [] };
   const excerpts = cited.map((chunk) => {
     const content = String(chunk.content || "").replace(/\s+/g, " ").trim();
-    const shortened = content.length > 650 ? `${content.slice(0, 647).trimEnd()}…` : content;
+    const shortened = content.length > 450 ? `${content.slice(0, 447).trimEnd()}…` : content;
     return `• ${shortened}`;
   });
   return {
