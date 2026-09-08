@@ -182,6 +182,27 @@ function buildContext(chunks) {
   return chunks.map((chunk) => `[${chunk.chunk_id}] ${chunk.citation_label}\nCategory: ${chunk.topic_category}\n${chunk.content}`).join("\n\n---\n\n");
 }
 
+function citationFromChunk(chunk) {
+  return { chunkId: chunk.chunk_id, title: chunk.title, sourceFilename: chunk.source_filename, category: chunk.topic_category, year: chunk.document_year || null, sourceType: chunk.source_type, locatorType: chunk.locator_type, locatorNumber: chunk.locator_number, citationLabel: chunk.citation_label };
+}
+
+function extractiveFallback(chunks) {
+  const cited = chunks
+    .filter((chunk) => Number(chunk.text_rank) > 0 || Number(chunk.semantic_similarity) >= 0.5)
+    .slice(0, 3);
+  if (!cited.length) return { supported: false, answer: NO_ANSWER, citations: [] };
+  const excerpts = cited.map((chunk) => {
+    const content = String(chunk.content || "").replace(/\s+/g, " ").trim();
+    const shortened = content.length > 650 ? `${content.slice(0, 647).trimEnd()}…` : content;
+    return `• ${shortened}`;
+  });
+  return {
+    supported: true,
+    answer: `Ask SPARK found this confirmed guidance in the approved training library:\n\n${excerpts.join("\n\n")}`,
+    citations: cited.map(citationFromChunk),
+  };
+}
+
 async function generateAnswer({ question, retrievalQuestion, chunks, apiKey }) {
   const model = process.env.ASK_SPARK_ANSWER_MODEL || "gemini-3.6-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
@@ -223,7 +244,7 @@ function validatedResult(generated, chunks) {
     seenSources.add(key);
     return true;
   });
-  return { supported: true, answer: String(generated.answer).trim(), citations: uniqueCited.map((chunk) => ({ chunkId: chunk.chunk_id, title: chunk.title, sourceFilename: chunk.source_filename, category: chunk.topic_category, year: chunk.document_year || null, sourceType: chunk.source_type, locatorType: chunk.locator_type, locatorNumber: chunk.locator_number, citationLabel: chunk.citation_label })) };
+  return { supported: true, answer: String(generated.answer).trim(), citations: uniqueCited.map(citationFromChunk) };
 }
 
 export default async function handler(request, response) {
@@ -279,7 +300,7 @@ export default async function handler(request, response) {
     generated = await generateAnswer({ question, retrievalQuestion, chunks: credible.slice(0, 12), apiKey: geminiKey });
   } catch (error) {
     console.error("Ask SPARK answer error:", error);
-    if (error.code === "RATE_LIMITED") return send(response, 503, { error: BUSY_MESSAGE });
+    if (error.code === "RATE_LIMITED") return send(response, 200, extractiveFallback(credible));
     return send(response, 500, { error: `Ask SPARK answer step failed: ${error.message}` });
   }
   return send(response, 200, validatedResult(generated, credible));
