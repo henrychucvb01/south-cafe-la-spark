@@ -3,6 +3,10 @@ const NO_ANSWER =
   "I couldn't find enough approved guidance to answer that confidently. Try describing what happened or what you need to do, and I'll search again.";
 const BUSY_MESSAGE =
   "Ask SPARK is busy right now. Please try your question again in a moment.";
+// This is the same public project URL used by the SPARK client. Keeping a
+// server-side fallback prevents Ask SPARK from failing when a deployment has
+// the private credentials but omits the non-secret SUPABASE_URL variable.
+const DEFAULT_SUPABASE_URL = "https://kkrcxqhfzepifhkryodd.supabase.co";
 const requestWindows = new Map();
 
 function sleep(ms) {
@@ -202,7 +206,7 @@ export default async function handler(request, response) {
   const conversational = conversationalResponse(question);
   if (conversational) return send(response, 200, { supported: true, conversational: true, answer: conversational, citations: [] });
 
-  const supabaseUrl = String(process.env.SUPABASE_URL || "").trim().replace(/\/+$/, "");
+  const supabaseUrl = String(process.env.SUPABASE_URL || DEFAULT_SUPABASE_URL).trim().replace(/\/+$/, "");
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const geminiKey = process.env.GEMINI_API_KEY;
   if (!supabaseUrl || !serviceKey || !geminiKey) {
