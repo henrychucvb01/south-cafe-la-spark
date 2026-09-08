@@ -183,7 +183,7 @@ function buildContext(chunks) {
 }
 
 async function generateAnswer({ question, retrievalQuestion, chunks, apiKey }) {
-  const model = process.env.ASK_SPARK_ANSWER_MODEL || "gemini-3.6-flash";
+  const model = process.env.ASK_SPARK_ANSWER_MODEL || "gemini-2.5-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const options = {
     method: "POST",
@@ -193,6 +193,7 @@ async function generateAnswer({ question, retrievalQuestion, chunks, apiKey }) {
       contents: [{ role: "user", parts: [{ text: `Manager's original question:\n${question}\n\nSearch wording (not a source):\n${retrievalQuestion}\n\nApproved retrieved excerpts:\n${buildContext(chunks)}` }] }],
       generationConfig: {
         temperature: 0.1,
+        thinkingConfig: { thinkingBudget: 0 },
         // Gemini's output budget also covers model thinking. A 450-token cap
         // could end after only the opening characters of the JSON response.
         maxOutputTokens: 2048,
