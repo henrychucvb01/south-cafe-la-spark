@@ -360,6 +360,21 @@
 .spark-leaderboard-error {
   background: #fff0f2;
   color: #9d2938;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.spark-leaderboard-error button {
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  padding: 7px 12px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
 }
 
 @media (max-width: 760px) {

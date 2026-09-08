@@ -44,7 +44,7 @@ const REIMBURSEMENT_RATES = {
   supper: 4.6,
 };
 
-function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, supervisorPin }) {
+function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, supervisorPin, leaderboardOpen, onOpenLeaderboard }) {
   const [schools, setSchools] = useState([]);
   const [selectedSchool, setSelectedSchool] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1125,6 +1125,17 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
           >
             <span>⚡</span>
             SPARK Points
+          </button>
+
+          <button
+            type="button"
+            className={`command-nav-button spark-leaderboard-native-button ${
+              leaderboardOpen ? "active" : ""
+            }`}
+            onClick={onOpenLeaderboard}
+          >
+            <span>🏆</span>
+            Leaderboard
           </button>
 
           <button

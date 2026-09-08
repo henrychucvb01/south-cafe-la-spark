@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 import "./supervisorLeaderboard.css";
 
@@ -103,7 +103,7 @@ function Movement({ value }) {
   return <span className="spark-leaderboard-movement down">▼ {Math.abs(value)}</span>;
 }
 
-async function fetchAllSeasonPoints(start, end) {
+async function fetchAllSeasonPoints(start, end, signal) {
   const pageSize = 1000;
   const allRows = [];
   let from = 0;
@@ -115,7 +115,8 @@ async function fetchAllSeasonPoints(start, end) {
       .gte("service_date", start)
       .lte("service_date", end)
       .order("service_date", { ascending: true })
-      .range(from, from + pageSize - 1);
+      .range(from, from + pageSize - 1)
+      .abortSignal(signal);
 
     if (error) throw error;
     const rows = data || [];
@@ -146,8 +147,14 @@ export default function SupervisorLeaderboard({ onClose }) {
   const [points, setPoints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const requestRef = useRef({ id: 0, controller: null });
+  const mountedRef = useRef(false);
 
-  async function loadLeaderboard() {
+  const loadLeaderboard = useCallback(async () => {
+    requestRef.current.controller?.abort();
+    const controller = new AbortController();
+    const requestId = requestRef.current.id + 1;
+    requestRef.current = { id: requestId, controller };
     setLoading(true);
     setError("");
     try {
@@ -156,24 +163,35 @@ export default function SupervisorLeaderboard({ onClose }) {
           .from("locations")
           .select("id, school_name, location_code")
           .eq("active", true)
-          .order("school_name"),
-        fetchAllSeasonPoints(season.start, season.end),
+          .order("school_name")
+          .abortSignal(controller.signal),
+        fetchAllSeasonPoints(season.start, season.end, controller.signal),
       ]);
 
       if (locationError) throw locationError;
+      if (!mountedRef.current || requestRef.current.id !== requestId) return;
       setSchools(locationRows || []);
       setPoints(pointRows || []);
     } catch (err) {
+      if (controller.signal.aborted || !mountedRef.current || requestRef.current.id !== requestId) return;
       console.error("SPARK leaderboard load error:", err);
       setError(err.message || "Could not load the SPARK leaderboard.");
     } finally {
-      setLoading(false);
+      if (mountedRef.current && requestRef.current.id === requestId) {
+        setLoading(false);
+        requestRef.current.controller = null;
+      }
     }
-  }
+  }, [season.end, season.start]);
 
   useEffect(() => {
+    mountedRef.current = true;
     loadLeaderboard();
-  }, []);
+    return () => {
+      mountedRef.current = false;
+      requestRef.current.controller?.abort();
+    };
+  }, [loadLeaderboard]);
 
   const selectedMonth = useMemo(() => {
     return seasonMonths.find(
@@ -242,7 +260,7 @@ export default function SupervisorLeaderboard({ onClose }) {
   const rows = view === "season" ? calculations.seasonRows : calculations.monthRows;
 
   return (
-    <div className="spark-leaderboard-page" role="dialog" aria-modal="true" aria-label="SPARK Leaderboard">
+    <div className="spark-leaderboard-page" role="dialog" aria-modal="true" aria-label="SPARK Leaderboard" aria-busy={loading}>
       <header className="spark-leaderboard-header">
         <div>
           <div className="spark-leaderboard-kicker">SOUTH CAFÉ LA · SPARK LEAGUE</div>
@@ -266,7 +284,9 @@ export default function SupervisorLeaderboard({ onClose }) {
             <div>
               <small>{monthComplete ? "MONTHLY CHAMPION" : "MONTHLY LEADER"}</small>
               <strong>
-                {calculations.monthlyWinners.length
+                {loading
+                  ? "Loading standings…"
+                  : calculations.monthlyWinners.length
                   ? calculations.monthlyWinners.map((row) => row.schoolName).join(" · ")
                   : "No points yet"}
               </strong>
@@ -279,7 +299,9 @@ export default function SupervisorLeaderboard({ onClose }) {
             <div>
               <small>{seasonComplete ? "SEASON CHAMPION" : "SEASON LEADER"}</small>
               <strong>
-                {calculations.seasonLeaders.length
+                {loading
+                  ? "Loading standings…"
+                  : calculations.seasonLeaders.length
                   ? calculations.seasonLeaders.map((row) => row.schoolName).join(" · ")
                   : "No points yet"}
               </strong>
@@ -336,7 +358,10 @@ export default function SupervisorLeaderboard({ onClose }) {
           </div>
 
           {error ? (
-            <div className="spark-leaderboard-error">{error}</div>
+            <div className="spark-leaderboard-error" role="alert">
+              <span>{error}</span>
+              <button type="button" onClick={loadLeaderboard}>Try again</button>
+            </div>
           ) : loading ? (
             <div className="spark-leaderboard-loading">Loading standings…</div>
           ) : (
