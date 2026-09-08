@@ -166,7 +166,7 @@ async function generateAnswer({ question, retrievalQuestion, chunks, apiKey }) {
         temperature: 0.1,
         maxOutputTokens: 450,
         responseMimeType: "application/json",
-        responseSchema: { type: "object", properties: { supported: { type: "boolean" }, answer: { type: "string" }, citation_ids: { type: "array", items: { type: "string" } } }, required: ["supported", "answer", "citation_ids"] },
+        responseJsonSchema: { type: "object", properties: { supported: { type: "boolean" }, answer: { type: "string" }, citation_ids: { type: "array", items: { type: "string" } } }, required: ["supported", "answer", "citation_ids"], additionalProperties: false },
       },
     }),
   };
@@ -175,7 +175,13 @@ async function generateAnswer({ question, retrievalQuestion, chunks, apiKey }) {
   const payload = await result.json();
   const outputText = payload?.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("");
   if (!outputText) throw new Error("Answer service returned no text.");
-  return JSON.parse(outputText);
+  const normalized = outputText.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+  const objectStart = normalized.indexOf("{");
+  const objectEnd = normalized.lastIndexOf("}");
+  const jsonText = objectStart >= 0 && objectEnd > objectStart
+    ? normalized.slice(objectStart, objectEnd + 1)
+    : normalized;
+  return JSON.parse(jsonText);
 }
 
 function validatedResult(generated, chunks) {
