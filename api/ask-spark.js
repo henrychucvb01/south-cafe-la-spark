@@ -102,16 +102,45 @@ async function fetchWith429Retry(url, options, label) {
   const waits = [700, 1600];
   let result = await fetch(url, options);
   for (const wait of waits) {
-    if (result.status !== 429) return result;
+    if (![429, 502, 503, 504].includes(result.status)) return result;
     await sleep(wait);
     result = await fetch(url, options);
   }
-  if (result.status === 429) {
-    const error = new Error(`${label} is temporarily rate limited.`);
+  if ([429, 502, 503, 504].includes(result.status)) {
+    const error = new Error(`${label} is temporarily unavailable.`);
     error.code = "RATE_LIMITED";
     throw error;
   }
   return result;
+}
+
+function parseGeneratedOutput(outputText) {
+  const normalized = outputText.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+  const objectStart = normalized.indexOf("{");
+  const objectEnd = normalized.lastIndexOf("}");
+  const objectText = objectStart >= 0 && objectEnd > objectStart
+    ? normalized.slice(objectStart, objectEnd + 1)
+    : normalized;
+
+  try {
+    return JSON.parse(objectText);
+  } catch (jsonError) {
+    // Gemini can occasionally emit a JavaScript/Python-style object even when
+    // JSON output is requested. Parse only the three fields in our fixed
+    // response contract; never evaluate model-produced text as code.
+    const supportedMatch = objectText.match(/["']?supported["']?\s*:\s*(true|false)/i);
+    const answerMatch = objectText.match(/["']?answer["']?\s*:\s*(["'])([\s\S]*?)\1\s*,\s*["']?citation_ids["']?\s*:/i);
+    const citationSection = objectText.match(/["']?citation_ids["']?\s*:\s*\[([\s\S]*?)\]/i);
+    const citationIds = citationSection?.[1]?.match(/ASKP1-C\d{6}/g) || [];
+    if (!supportedMatch || !answerMatch || (!citationSection && supportedMatch[1].toLowerCase() === "true")) {
+      throw jsonError;
+    }
+    return {
+      supported: supportedMatch[1].toLowerCase() === "true",
+      answer: answerMatch[2].replace(/\\n/g, "\n").replace(/\\(["'\\])/g, "$1").trim(),
+      citation_ids: citationIds,
+    };
+  }
 }
 
 async function createEmbedding(question, apiKey) {
@@ -175,13 +204,7 @@ async function generateAnswer({ question, retrievalQuestion, chunks, apiKey }) {
   const payload = await result.json();
   const outputText = payload?.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("");
   if (!outputText) throw new Error("Answer service returned no text.");
-  const normalized = outputText.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
-  const objectStart = normalized.indexOf("{");
-  const objectEnd = normalized.lastIndexOf("}");
-  const jsonText = objectStart >= 0 && objectEnd > objectStart
-    ? normalized.slice(objectStart, objectEnd + 1)
-    : normalized;
-  return JSON.parse(jsonText);
+  return parseGeneratedOutput(outputText);
 }
 
 function validatedResult(generated, chunks) {

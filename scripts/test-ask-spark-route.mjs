@@ -35,6 +35,7 @@ try {
       locatorNumber: 2,
       content: "Submit the field trip meal request in advance and retain the completed meal count documentation.",
       answer: "Submit the field trip meal request in advance and retain the completed meal count documentation.",
+      relaxedJson: true,
     },
     {
       question: "What are the BIC procedures?",
@@ -84,8 +85,11 @@ try {
         answer: currentCase.answer,
         citation_ids: [currentCase.chunkId],
       };
+      const generatedText = currentCase.relaxedJson
+        ? `{supported: true, answer: '${currentCase.answer}', citation_ids: ['${currentCase.chunkId}']}`
+        : JSON.stringify(grounded);
       return new Response(JSON.stringify({
-        candidates: [{ content: { parts: [{ text: JSON.stringify(grounded) }] } }],
+        candidates: [{ content: { parts: [{ text: generatedText }] } }],
       }), { status: 200, headers: { "Content-Type": "application/json" } });
     }
     throw new Error(`Unexpected outbound request: ${url}`);
