@@ -186,9 +186,15 @@ function citationFromChunk(chunk) {
   return { chunkId: chunk.chunk_id, title: chunk.title, sourceFilename: chunk.source_filename, category: chunk.topic_category, year: chunk.document_year || null, sourceType: chunk.source_type, locatorType: chunk.locator_type, locatorNumber: chunk.locator_number, citationLabel: chunk.citation_label };
 }
 
-function extractiveFallback(chunks) {
+function extractiveFallback(question, chunks) {
+  const ignored = new Set(["about", "approved", "cafeteria", "could", "manager", "procedure", "should", "spark", "training", "what", "when", "where", "which", "with"]);
+  const questionTerms = new Set(String(question || "").toLowerCase().match(/[a-z0-9]+/g)?.filter((term) => term.length >= 4 && !ignored.has(term)) || []);
   const cited = chunks
-    .filter((chunk) => Number(chunk.text_rank) > 0 && Number(chunk.semantic_similarity) >= 0.55)
+    .filter((chunk) => {
+      const contentTerms = new Set(String(chunk.content || "").toLowerCase().match(/[a-z0-9]+/g) || []);
+      const overlap = [...questionTerms].filter((term) => contentTerms.has(term)).length;
+      return overlap >= 2 || (overlap >= 1 && Number(chunk.semantic_similarity) >= 0.42);
+    })
     .slice(0, 3);
   if (!cited.length) return { supported: false, answer: NO_ANSWER, citations: [] };
   const excerpts = cited.map((chunk) => {
@@ -300,7 +306,7 @@ export default async function handler(request, response) {
     generated = await generateAnswer({ question, retrievalQuestion, chunks: credible.slice(0, 12), apiKey: geminiKey });
   } catch (error) {
     console.error("Ask SPARK answer error:", error);
-    if (error.code === "RATE_LIMITED") return send(response, 200, extractiveFallback(credible));
+    if (error.code === "RATE_LIMITED") return send(response, 200, extractiveFallback(question, credible));
     return send(response, 500, { error: `Ask SPARK answer step failed: ${error.message}` });
   }
   return send(response, 200, validatedResult(generated, credible));
