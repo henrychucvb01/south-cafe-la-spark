@@ -11,6 +11,11 @@ import {
 import { supabase } from "../supabaseClient";
 import SupervisorLocationDirectory from "../locationInformation/SupervisorLocationDirectory";
 import SupervisorFeedbackPanel from "../feedback/SupervisorFeedbackPanel";
+import SupervisorLeaderboard from "../leaderboard/SupervisorLeaderboard";
+
+function isDemoSchool(school) {
+  return String(school?.school_name || "").trim().toLowerCase() === "test high school";
+}
 
 function isFinishLineCommentItem(item) {
   return String(item?.item_key || "").endsWith("_comment");
@@ -69,6 +74,10 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
   const [excludedReason, setExcludedReason] = useState("");
   const [excludedDays, setExcludedDays] = useState([]);
   const [excludedSaving, setExcludedSaving] = useState(false);
+  const [holidayDate, setHolidayDate] = useState("");
+  const [holidayReason, setHolidayReason] = useState("");
+  const [holidays, setHolidays] = useState([]);
+  const [holidaySaving, setHolidaySaving] = useState(false);
 
   // =========================================
   // MONITORING POINTS
@@ -364,6 +373,11 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
 
       if (trendSchoolId !== "all") {
         query = query.eq("location_id", trendSchoolId);
+      } else {
+        const realSchoolIds = schools
+          .filter((school) => !isDemoSchool(school))
+          .map((school) => school.id);
+        query = query.in("location_id", realSchoolIds);
       }
 
       const { data, error: trendError } = await query;
@@ -443,6 +457,118 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
     setView("spark-points");
     setPointsMessage("");
     setPointsError("");
+    loadSystemwideHolidays();
+  }
+
+  async function loadSystemwideHolidays() {
+    if (!schools.length) {
+      setHolidays([]);
+      return;
+    }
+
+    try {
+      const schoolIds = schools.map((school) => school.id);
+      const { data, error } = await supabase
+        .from("spark_excluded_days")
+        .select("service_date, reason, created_by, location_id")
+        .in("location_id", schoolIds)
+        .order("service_date", { ascending: false });
+
+      if (error) throw error;
+
+      const grouped = new Map();
+      (data || []).forEach((row) => {
+        const key = `${row.service_date}|${row.reason}`;
+        const current = grouped.get(key) || { ...row, locationIds: new Set() };
+        current.locationIds.add(String(row.location_id));
+        grouped.set(key, current);
+      });
+
+      setHolidays(
+        Array.from(grouped.values()).filter(
+          (row) => row.locationIds.size === schoolIds.length
+        )
+      );
+    } catch (error) {
+      console.error("System-wide holiday load error:", error);
+      setPointsError(error.message || "Could not load system-wide holidays.");
+    }
+  }
+
+  async function saveSystemwideHoliday() {
+    if (!holidayDate) {
+      setPointsError("Select the holiday date.");
+      return;
+    }
+    if (!holidayReason.trim()) {
+      setPointsError("Enter the holiday name or reason.");
+      return;
+    }
+    if (!schools.length) {
+      setPointsError("No schools are available.");
+      return;
+    }
+    if (
+      !window.confirm(`Mark ${holidayDate} as a holiday for all schools?`)
+    ) {
+      return;
+    }
+
+    setHolidaySaving(true);
+    setPointsError("");
+    setPointsMessage("");
+
+    try {
+      const rows = schools.map((school) => ({
+        location_id: Number(school.id),
+        service_date: holidayDate,
+        reason: holidayReason.trim(),
+        created_by: "Supervisor — All Schools",
+      }));
+      const { error } = await supabase.from("spark_excluded_days").upsert(rows, {
+        onConflict: "location_id,service_date",
+      });
+      if (error) throw error;
+
+      setHolidayDate("");
+      setHolidayReason("");
+      setPointsMessage("Holiday saved for all schools.");
+      await loadSystemwideHolidays();
+      if (pointsSchoolId) await loadSparkPointsSupervisor(pointsSchoolId);
+    } catch (error) {
+      console.error("System-wide holiday save error:", error);
+      setPointsError(error.message || "Could not save the holiday.");
+    } finally {
+      setHolidaySaving(false);
+    }
+  }
+
+  async function removeSystemwideHoliday(row) {
+    if (
+      !window.confirm(
+        `Remove ${row.service_date} as a holiday for all schools?`
+      )
+    ) {
+      return;
+    }
+
+    setPointsError("");
+    setPointsMessage("");
+    try {
+      const { error } = await supabase
+        .from("spark_excluded_days")
+        .delete()
+        .eq("service_date", row.service_date)
+        .in("location_id", schools.map((school) => school.id));
+      if (error) throw error;
+
+      setPointsMessage("Holiday removed for all schools.");
+      await loadSystemwideHolidays();
+      if (pointsSchoolId) await loadSparkPointsSupervisor(pointsSchoolId);
+    } catch (error) {
+      console.error("System-wide holiday remove error:", error);
+      setPointsError(error.message || "Could not remove the holiday.");
+    }
   }
 
   async function loadSparkPointsSupervisor(locationId) {
@@ -1129,6 +1255,16 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
 
           <button
             className={`command-nav-button ${
+              view === "leaderboard" ? "active" : ""
+            }`}
+            onClick={() => setView("leaderboard")}
+          >
+            <span>🏆</span>
+            Leaderboard
+          </button>
+
+          <button
+            className={`command-nav-button ${
               view === "location-directory" ? "active" : ""
             }`}
             onClick={() => setView("location-directory")}
@@ -1185,6 +1321,8 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
                 ? "South Café LA Finish Line"
                 : view === "spark-points"
                 ? "South Café LA SPARK Points"
+                : view === "leaderboard"
+                ? "South Café LA Leaderboard"
                 : view === "pin-reset"
                 ? "South Café LA Manager PIN Reset"
                 : view === "location-directory"
@@ -1207,6 +1345,8 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
                   )}.`
                 : view === "spark-points"
                 ? "Review school point totals and make documented supervisor adjustments."
+                : view === "leaderboard"
+                ? "Review monthly and season standings for the 28 operating schools."
                 : view === "pin-reset"
                 ? "Reset a verified manager's SPARK PIN."
                 : view === "location-directory"
@@ -1250,7 +1390,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
               </>
             )}
 
-            {view !== "pin-reset" && view !== "location-directory" && view !== "feedback" && (
+            {view !== "pin-reset" && view !== "location-directory" && view !== "feedback" && view !== "leaderboard" && (
               <button
                 className="command-refresh"
                 onClick={
@@ -1343,6 +1483,8 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
         <div className="command-content">
           {view === "feedback" ? (
             <SupervisorFeedbackPanel supervisorPin={supervisorPin} />
+          ) : view === "leaderboard" ? (
+            <SupervisorLeaderboard embedded />
           ) : view === "location-directory" ? (
             <SupervisorLocationDirectory supervisorPin={supervisorPin} />
           ) : view === "meal-trends" ? (
@@ -1381,6 +1523,124 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
                     and do not overwrite previous transactions.
                   </p>
                 </div>
+              </div>
+
+              <div
+                style={{
+                  marginTop: "18px",
+                  padding: "18px",
+                  border: "2px solid #d9a514",
+                  borderRadius: "12px",
+                  background: "#fffaf0",
+                }}
+              >
+                <h4 style={{ margin: "0 0 6px" }}>Holidays — All Schools</h4>
+                <p style={{ margin: "0 0 14px", color: "#667482" }}>
+                  Add an LAUSD holiday once. It will be excluded from Finish Line
+                  streak requirements for every school; no school selection is needed.
+                </p>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "180px minmax(280px, 1fr) auto",
+                    gap: "12px",
+                    alignItems: "end",
+                  }}
+                >
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: "11px",
+                        fontWeight: "800",
+                        marginBottom: "6px",
+                      }}
+                    >
+                      Holiday Date
+                    </label>
+                    <input
+                      type="date"
+                      value={holidayDate}
+                      onChange={(e) => setHolidayDate(e.target.value)}
+                      style={{
+                        width: "100%",
+                        boxSizing: "border-box",
+                        padding: "10px",
+                        border: "1px solid #d6dfe7",
+                        borderRadius: "8px",
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: "11px",
+                        fontWeight: "800",
+                        marginBottom: "6px",
+                      }}
+                    >
+                      Holiday Name / Reason
+                    </label>
+                    <input
+                      type="text"
+                      value={holidayReason}
+                      onChange={(e) => setHolidayReason(e.target.value)}
+                      placeholder="Example: LAUSD Admission Day"
+                      style={{
+                        width: "100%",
+                        boxSizing: "border-box",
+                        padding: "10px",
+                        border: "1px solid #d6dfe7",
+                        borderRadius: "8px",
+                      }}
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    className="finish-line-submit finish-line-ready"
+                    disabled={holidaySaving}
+                    onClick={saveSystemwideHoliday}
+                  >
+                    {holidaySaving ? "Saving..." : "Add Holiday to All Schools"}
+                  </button>
+                </div>
+
+                {holidays.length > 0 && (
+                  <div style={{ overflowX: "auto", marginTop: "16px" }}>
+                    <table className="command-table">
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Holiday / Reason</th>
+                          <th>Scope</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {holidays.map((row) => (
+                          <tr key={`${row.service_date}-${row.reason}`}>
+                            <td>{formatDate(row.service_date)}</td>
+                            <td>{row.reason}</td>
+                            <td>All Schools</td>
+                            <td>
+                              <button
+                                type="button"
+                                className="dashboard-exit"
+                                onClick={() => removeSystemwideHoliday(row)}
+                              >
+                                Remove
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
 
               <div
@@ -1750,10 +2010,11 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
                     }}
                   >
                     <h4 style={{ margin: "0 0 6px" }}>
-                      Unassigned / Excluded Days
+                      School-Specific Unassigned / Excluded Days
                     </h4>
                     <p style={{ margin: "0 0 14px", color: "#667482" }}>
-                      Excluded dates do not break the school's Finish Line streak.
+                      Use this only when the selected school is individually excluded.
+                      For an LAUSD holiday, use Holidays — All Schools above.
                     </p>
 
                     <div
@@ -3478,6 +3739,7 @@ function MealTrendsView({
               {schools.map((school) => (
                 <option key={school.id} value={school.id}>
                   {school.school_name}
+                  {isDemoSchool(school) ? " (Demo — excluded from totals)" : ""}
                 </option>
               ))}
             </select>

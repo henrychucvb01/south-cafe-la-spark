@@ -127,7 +127,11 @@ async function fetchAllSeasonPoints(start, end) {
   return allRows;
 }
 
-export default function SupervisorLeaderboard({ onClose }) {
+function isDemoSchool(school) {
+  return String(school?.school_name || "").trim().toLowerCase() === "test high school";
+}
+
+export default function SupervisorLeaderboard({ onClose, embedded = false }) {
   const season = useMemo(() => getSeason(), []);
   const seasonMonths = useMemo(() => getSeasonMonths(season), [season]);
   const today = toDateKey(new Date());
@@ -161,8 +165,18 @@ export default function SupervisorLeaderboard({ onClose }) {
       ]);
 
       if (locationError) throw locationError;
-      setSchools(locationRows || []);
-      setPoints(pointRows || []);
+      const competitionSchools = (locationRows || []).filter(
+        (school) => !isDemoSchool(school)
+      );
+      const competitionIds = new Set(
+        competitionSchools.map((school) => String(school.id))
+      );
+      setSchools(competitionSchools);
+      setPoints(
+        (pointRows || []).filter((row) =>
+          competitionIds.has(String(row.location_id))
+        )
+      );
     } catch (err) {
       console.error("SPARK leaderboard load error:", err);
       setError(err.message || "Could not load the SPARK leaderboard.");
@@ -242,7 +256,12 @@ export default function SupervisorLeaderboard({ onClose }) {
   const rows = view === "season" ? calculations.seasonRows : calculations.monthRows;
 
   return (
-    <div className="spark-leaderboard-page" role="dialog" aria-modal="true" aria-label="SPARK Leaderboard">
+    <div
+      className={`spark-leaderboard-page${embedded ? " embedded" : ""}`}
+      role={embedded ? undefined : "dialog"}
+      aria-modal={embedded ? undefined : "true"}
+      aria-label="SPARK Leaderboard"
+    >
       <header className="spark-leaderboard-header">
         <div>
           <div className="spark-leaderboard-kicker">SOUTH CAFÉ LA · SPARK LEAGUE</div>
@@ -253,9 +272,11 @@ export default function SupervisorLeaderboard({ onClose }) {
           <button type="button" className="spark-leaderboard-refresh" onClick={loadLeaderboard} disabled={loading}>
             ↻ Refresh
           </button>
-          <button type="button" className="spark-leaderboard-close" onClick={onClose}>
-            ← Command Center
-          </button>
+          {!embedded && (
+            <button type="button" className="spark-leaderboard-close" onClick={onClose}>
+              ← Command Center
+            </button>
+          )}
         </div>
       </header>
 
