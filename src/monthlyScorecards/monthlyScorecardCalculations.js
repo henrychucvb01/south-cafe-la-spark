@@ -60,12 +60,13 @@ function calculateMonth(school,dataset,month){
   const production=(dataset.production_rows||[]).filter((row)=>String(row.location_id)===String(school.directory_id)&&inMonth(row.production_date,month));
   const productionTotals=production.reduce((acc,row)=>({planned:acc.planned+n(row.planned),prepared:acc.prepared+n(row.prepared),served:acc.served+n(row.served),leftover:acc.leftover+n(row.leftover)}),{planned:0,prepared:0,served:0,leftover:0});
   const entreeTotals=new Map();production.filter(isLikelyEntree).forEach((row)=>{const prior=entreeTotals.get(row.item_name)||0;entreeTotals.set(row.item_name,prior+n(row.served));});
-  const topEntree=[...entreeTotals].sort((a,b)=>b[1]-a[1])[0]||null;
+  const topEntrees=[...entreeTotals].sort((a,b)=>b[1]-a[1]).slice(0,3);
+  const topEntree=topEntrees[0]||null;
   const menuFallback=production.map((row)=>row.menu_name).filter(Boolean).reduce((counts,name)=>counts.set(name,(counts.get(name)||0)+1),new Map());
   const topMenu=[...menuFallback].sort((a,b)=>b[1]-a[1])[0]?.[0]||null;
   return{month,operatingDays:dates.length,totals,averages,participation,lunchTrend,lunchAverage:participation.lunch,
     laborHours:dailyMplh.reduce((sum,row)=>sum+row.hours,0),averageMplh:mean(dailyMplh.map((row)=>row.mplh)),daysMeetingTarget:target.min===null?null:dailyMplh.filter((row)=>row.mplh>=target.min).length,daysBelowTarget:target.min===null?null:dailyMplh.filter((row)=>row.mplh<target.min).length,target,
-    dataThrough:dates.at(-1)||null,costs,costAvailable,recordedFoodCost,totalCost,foodCostPerMeal:totalMeals&&totalCost!==null?totalCost/totalMeals:null,revenues,revenue,operatingMargin:null,productionTotals,menuPerformance:topEntree?{label:"Top entrée",name:topEntree[0],served:topEntree[1]}:topMenu?{label:"Most-used menu plan",name:topMenu,served:null}:null,
+    dataThrough:dates.at(-1)||null,costs,costAvailable,recordedFoodCost,totalCost,foodCostPerMeal:totalMeals&&totalCost!==null?totalCost/totalMeals:null,revenues,revenue,operatingMargin:null,productionTotals,menuPerformance:topEntree?{label:"Top entrée",name:topEntree[0],served:topEntree[1],topItems:topEntrees.map(([name,served])=>({name,served}))}:topMenu?{label:"Most-used menu plan",name:topMenu,served:null,topItems:[]}:null,
     hasProduction:production.length>0,hasCost:Object.values(costAvailable).some(Boolean),hasCompleteCost:completeCostCoverage,hasMeals:services.length>0};
 }
 
@@ -75,7 +76,9 @@ function managerSummary(current,previous){
   const win=pp!==null&&pp>0?`Lunch participation increased ${round(pp)} percentage points.`:current.menuPerformance?`${current.menuPerformance.name} was a strong menu performer.`:"Monthly operating data is available for review.";
   const watch=current.daysBelowTarget>0?`${current.daysBelowTarget} operating days were below the MPLH target.`:current.foodCostPerMeal!==null?`Monitor food cost per meal at $${current.foodCostPerMeal.toFixed(2)}.`:"Watch for missing cost or labor records.";
   const action=current.daysBelowTarget>0?"Review staffing adjustments on below-target days.":"Review high- and low-participation days with the menu plan.";
-  const goal=pp!==null&&pp<0?"Recover lunch participation toward the prior-month average.":mplh!==null&&mplh<0?"Return MPLH to at least the prior-month average.":"Maintain participation while meeting the school MPLH target.";
+  const participationGoal=current.participation.lunch===null?null:Math.max(1,Math.floor(current.participation.lunch));
+  const belowTargetGoal=current.daysBelowTarget===null?null:Math.max(0,current.daysBelowTarget-1);
+  const goal=participationGoal!==null&&belowTargetGoal!==null?`Keep lunch participation at or above ${participationGoal}% while reducing below-target MPLH days from ${current.daysBelowTarget} to ${belowTargetGoal} or fewer.`:pp!==null&&pp<0?"Recover lunch participation toward the prior-month average.":mplh!==null&&mplh<0?"Return MPLH to at least the prior-month average.":"Maintain participation while meeting the school MPLH target.";
   return{win,watch,action,goal};
 }
 
