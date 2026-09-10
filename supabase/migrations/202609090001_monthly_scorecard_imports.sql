@@ -85,6 +85,31 @@ create table if not exists public.monthly_excluded_source_sites (
   active boolean not null default true
 );
 
+-- Upgrade installations that already ran the original Phase 1 migration.
+alter table public.monthly_import_batches add column if not exists ignored_row_count integer not null default 0;
+alter table public.monthly_import_batches add column if not exists out_of_area_row_count integer not null default 0;
+alter table public.monthly_production_rows add column if not exists menu_name text;
+alter table public.monthly_production_rows add column if not exists meals_served integer;
+alter table public.monthly_production_rows add column if not exists mma_oz_eq numeric;
+alter table public.monthly_production_rows add column if not exists grain_oz_eq numeric;
+alter table public.monthly_production_rows add column if not exists fruit_cups numeric;
+alter table public.monthly_production_rows add column if not exists veg_cups numeric;
+alter table public.monthly_production_rows add column if not exists milk_cups numeric;
+
+alter table public.monthly_site_mappings drop constraint if exists monthly_site_mappings_main_location_id_fkey;
+alter table public.monthly_production_rows drop constraint if exists monthly_production_rows_location_id_fkey;
+alter table public.monthly_production_cost_rows drop constraint if exists monthly_production_cost_rows_location_id_fkey;
+
+-- Mapping rows are derived configuration. Rebuild them against the shared
+-- location_information roster, then safely remap any already-imported rows.
+update public.monthly_production_rows set location_id=null;
+update public.monthly_production_cost_rows set location_id=null;
+delete from public.monthly_site_mappings;
+
+alter table public.monthly_site_mappings
+  add constraint monthly_site_mappings_main_location_id_fkey
+  foreign key (main_location_id) references public.location_information(id);
+
 insert into public.monthly_excluded_source_sites(source_site_id,source_site_name,reason)
 values ('1913101','HAWTHORNE ACADEMY','Outside South Café LA supervisory area')
 on conflict (source_site_id) do update set source_site_name=excluded.source_site_name,reason=excluded.reason,active=true;
@@ -98,6 +123,13 @@ insert into public.monthly_site_mappings(source_site_id,main_location_id,source_
 select '1195701',id,'WILLENBERG SP ED','main' from public.location_information
 where active=true and location_code='1957' and lower(trim(school_name))='willenberg special ed'
 on conflict (source_site_id) do update set main_location_id=excluded.main_location_id,source_site_name=excluded.source_site_name,program_type='main',updated_at=now();
+
+do $$
+begin
+  if not exists (select 1 from public.monthly_site_mappings where source_site_id='1195701') then
+    raise exception 'Verified Willenberg location_information record (location 1957) was not found';
+  end if;
+end $$;
 
 insert into public.monthly_site_mappings(source_site_id,main_location_id,source_site_name,program_type)
 select mapping.source_site_id,l.id,mapping.source_site_name,mapping.program_type
@@ -113,6 +145,23 @@ from (values
 ) mapping(source_site_id,main_location_code,source_site_name,program_type)
 join public.location_information l on l.location_code=mapping.main_location_code
 on conflict (source_site_id) do update set main_location_id=excluded.main_location_id,source_site_name=excluded.source_site_name,program_type=excluded.program_type,updated_at=now();
+
+update public.monthly_production_rows p
+set location_id=m.main_location_id
+from public.monthly_site_mappings m
+where m.active=true and m.source_site_id=p.source_site_id;
+
+update public.monthly_production_cost_rows c
+set location_id=m.main_location_id
+from public.monthly_site_mappings m
+where m.active=true and m.source_site_id=c.source_site_id;
+
+alter table public.monthly_production_rows
+  add constraint monthly_production_rows_location_id_fkey
+  foreign key (location_id) references public.location_information(id);
+alter table public.monthly_production_cost_rows
+  add constraint monthly_production_cost_rows_location_id_fkey
+  foreign key (location_id) references public.location_information(id);
 
 create table if not exists public.monthly_reimbursement_rates (
   school_year text not null,
@@ -141,6 +190,9 @@ revoke all on public.monthly_import_batches, public.monthly_import_raw_rows,
   public.monthly_production_rows, public.monthly_production_cost_rows,
   public.monthly_site_mappings, public.monthly_excluded_source_sites, public.monthly_reimbursement_rates
 from anon, authenticated;
+
+drop function if exists public.import_monthly_scorecard_report(text,text,text,date,text,text,text,text,integer,jsonb,jsonb,jsonb);
+drop function if exists public.import_monthly_scorecard_report(text,text,text,date,text,text,text,text,integer,integer,integer,jsonb,jsonb,jsonb);
 
 create or replace function public.import_monthly_scorecard_report(
   p_supervisor_pin text,
