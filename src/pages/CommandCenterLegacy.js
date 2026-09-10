@@ -11,6 +11,7 @@ import {
 import { supabase } from "../supabaseClient";
 import SupervisorLocationDirectory from "../locationInformation/SupervisorLocationDirectory";
 import SupervisorFeedbackPanel from "../feedback/SupervisorFeedbackPanel";
+import MonthlyScorecardsPage from "../monthlyScorecards/MonthlyScorecardsPage";
 
 function isFinishLineCommentItem(item) {
   return String(item?.item_key || "").endsWith("_comment");
@@ -1118,6 +1119,14 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
           </button>
 
           <button
+            className={`command-nav-button ${view === "monthly-scorecards" ? "active" : ""}`}
+            onClick={() => setView("monthly-scorecards")}
+          >
+            <span>🗓</span>
+            Monthly Scorecards
+          </button>
+
+          <button
             className={`command-nav-button ${
               view === "spark-points" ? "active" : ""
             }`}
@@ -1202,6 +1211,8 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
                 ? "South Café LA Location Directory"
                 : view === "feedback"
                 ? "South Café LA Feedback"
+                : view === "monthly-scorecards"
+                ? "South Café LA Monthly Scorecards"
                 : "South Café LA Command Center"}
             </h2>
 
@@ -1224,6 +1235,8 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
                 ? "Maintain the location records managers use across SPARK."
                 : view === "feedback"
                 ? "Review manager questions, suggestions, and reported problems."
+                : view === "monthly-scorecards"
+                ? "Import and verify recurring LAUSD monthly reports."
                 : `Area operations overview for ${formatDate(
                     dashboardDate
                   )}.`}
@@ -1261,7 +1274,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
               </>
             )}
 
-            {view !== "pin-reset" && view !== "location-directory" && view !== "feedback" && (
+            {view !== "pin-reset" && view !== "location-directory" && view !== "feedback" && view !== "monthly-scorecards" && (
               <button
                 className="command-refresh"
                 onClick={
@@ -1354,6 +1367,8 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
         <div className="command-content">
           {view === "feedback" ? (
             <SupervisorFeedbackPanel supervisorPin={supervisorPin} />
+          ) : view === "monthly-scorecards" ? (
+            <MonthlyScorecardsPage supervisorPin={supervisorPin} />
           ) : view === "location-directory" ? (
             <SupervisorLocationDirectory supervisorPin={supervisorPin} />
           ) : view === "meal-trends" ? (
