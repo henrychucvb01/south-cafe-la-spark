@@ -45,8 +45,8 @@ function shortDate(value){return new Date(`${value}T12:00:00`).toLocaleDateStrin
 
 function rankEntrees(production,meal){
   const totals=new Map();
-  production.filter((row)=>row.meal_type===meal&&isLikelyEntree(row)).forEach((row)=>totals.set(row.item_name,(totals.get(row.item_name)||0)+n(row.served)));
-  return [...totals].sort((a,b)=>b[1]-a[1]).slice(0,3).map(([name,served],index)=>({rank:index+1,name,served}));
+  production.filter((row)=>row.meal_type===meal&&isLikelyEntree(row)).forEach((row)=>{const item=totals.get(row.item_name)||{name:row.item_name,served:0,weeks:new Map()};const served=n(row.served),week=mondayFor(row.production_date);item.served+=served;item.weeks.set(week,(item.weeks.get(week)||0)+served);totals.set(row.item_name,item);});
+  return [...totals.values()].sort((a,b)=>b.served-a.served).slice(0,3).map((item,index)=>{const strongest=[...item.weeks].sort((a,b)=>b[1]-a[1])[0];return{rank:index+1,name:item.name,served:item.served,strongestWeek:strongest?.[0]||null,strongestWeekServed:strongest?.[1]||0,strongestWeekLabel:strongest?`Week of ${shortDate(strongest[0])}`:null};});
 }
 
 function worstLeftovers(production,totalPrepared){

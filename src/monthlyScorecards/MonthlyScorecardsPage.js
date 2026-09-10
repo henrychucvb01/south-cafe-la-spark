@@ -22,6 +22,7 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
   const [busy,setBusy] = useState("");
   const [error,setError] = useState("");
   const [message,setMessage] = useState("");
+  const [dragging,setDragging] = useState("");
   const years = useMemo(() => { const current=Number(schoolYear.slice(0,4)); return [-1,0,1].map((n)=>`${current+n}-${String(current+n+1).slice(-2)}`); },[schoolYear]);
 
   const refresh = useCallback(async () => {
@@ -61,15 +62,16 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
     </div>
     {error && <div className="monthly-alert error" role="alert">{error}</div>}
     {message && <div className="monthly-alert success" role="status">{message}</div>}
+    <div className="monthly-upload-guidance"><strong>Two files complete the monthly scorecard</strong><span>Drop the LAUSD Production Report and Daily Production Cost into their matching areas below. Snack and Extra Sales remain excluded.</span></div>
     <div className="monthly-import-grid">
       {REPORT_ORDER.map((type) => {
         const batch=imports.find((item)=>item.report_type===type);
-        return <article className="monthly-import-card" key={type}>
+        return <article className={`monthly-import-card ${dragging===type?"dragging":""}`} key={type} onDragOver={(event)=>{event.preventDefault();if(!busy)setDragging(type);}} onDragLeave={(event)=>{if(!event.currentTarget.contains(event.relatedTarget))setDragging("");}} onDrop={(event)=>{event.preventDefault();setDragging("");if(!busy)upload(type,event.dataTransfer.files?.[0]);}}>
           <div className="monthly-import-title"><span aria-hidden="true">{type==="production"?"📋":"💵"}</span><div><h4>{REPORT_TYPES[type]}</h4><p>{type==="production"?"Menu and production detail":"Breakfast, Lunch, and Supper food cost"}</p></div></div>
           <div className={`monthly-status ${batch?.status || "missing"}`}>{batch ? batch.status : "Not uploaded"}</div>
           {batch ? <dl className="monthly-import-facts"><div><dt>File</dt><dd>{batch.original_filename}</dd></div><div><dt>Imported</dt><dd>{batch.imported_row_count.toLocaleString()} rows</dd></div><div><dt>Rejected</dt><dd>{batch.rejected_row_count.toLocaleString()} rows</dd></div><div><dt>Outside month</dt><dd>{Number(batch.ignored_row_count || 0).toLocaleString()} rows</dd></div><div><dt>Out of area</dt><dd>{Number(batch.out_of_area_row_count || 0).toLocaleString()} rows</dd></div><div><dt>Uploaded</dt><dd>{new Date(batch.uploaded_at).toLocaleString()}</dd></div></dl> : <p className="monthly-empty">No report stored for this month.</p>}
           {Array.isArray(batch?.warnings) && batch.warnings.length>0 && <ul className="monthly-warnings">{batch.warnings.map((warning,index)=><li key={index}>{warning}</li>)}</ul>}
-          <label className={`monthly-upload ${busy===type?"disabled":""}`}>{busy===type?"Processing…":batch?"Replace CSV":"Upload CSV"}<input type="file" accept=".csv,text/csv" disabled={Boolean(busy)} onChange={(e)=>{ upload(type,e.target.files?.[0]); e.target.value=""; }} /></label>
+          <label className={`monthly-upload ${busy===type?"disabled":""}`}><span>{busy===type?"Processing…":"Drag & drop CSV here"}</span><small>{busy===type?"Validating and storing daily records":batch?"or choose a file to replace this month":"or choose a file"}</small><input type="file" accept=".csv,text/csv" disabled={Boolean(busy)} onChange={(e)=>{ upload(type,e.target.files?.[0]); e.target.value=""; }} /></label>
         </article>;
       })}
     </div>
