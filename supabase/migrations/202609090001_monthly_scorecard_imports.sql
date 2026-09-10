@@ -13,6 +13,7 @@ create table if not exists public.monthly_import_batches (
   imported_row_count integer not null default 0,
   rejected_row_count integer not null default 0,
   ignored_row_count integer not null default 0,
+  out_of_area_row_count integer not null default 0,
   warnings jsonb not null default '[]'::jsonb,
   errors jsonb not null default '[]'::jsonb,
   parser_version text not null,
@@ -33,16 +34,23 @@ create table if not exists public.monthly_import_raw_rows (
 create table if not exists public.monthly_production_rows (
   id bigint generated always as identity primary key,
   batch_id uuid not null references public.monthly_import_batches(id) on delete cascade,
-  location_id bigint references public.locations(id),
+  location_id bigint references public.location_information(id),
   source_site_id text not null,
   production_date date not null,
   meal_type text not null check (meal_type in ('breakfast','lunch','supper')),
+  menu_name text,
+  meals_served integer,
   item_name text not null,
   item_code text,
   planned numeric,
   prepared numeric,
   served numeric,
   leftover numeric,
+  mma_oz_eq numeric,
+  grain_oz_eq numeric,
+  fruit_cups numeric,
+  veg_cups numeric,
+  milk_cups numeric,
   source_row_number integer not null,
   unique (batch_id, source_row_number)
 );
@@ -50,7 +58,7 @@ create table if not exists public.monthly_production_rows (
 create table if not exists public.monthly_production_cost_rows (
   id bigint generated always as identity primary key,
   batch_id uuid not null references public.monthly_import_batches(id) on delete cascade,
-  location_id bigint references public.locations(id),
+  location_id bigint references public.location_information(id),
   source_site_id text not null,
   production_date date not null,
   meal_type text not null check (meal_type in ('breakfast','lunch','supper')),
@@ -62,7 +70,7 @@ create table if not exists public.monthly_production_cost_rows (
 create table if not exists public.monthly_site_mappings (
   id bigint generated always as identity primary key,
   source_site_id text not null unique,
-  main_location_id bigint not null references public.locations(id),
+  main_location_id bigint not null references public.location_information(id),
   source_site_name text,
   program_type text,
   active boolean not null default true,
@@ -70,9 +78,26 @@ create table if not exists public.monthly_site_mappings (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.monthly_excluded_source_sites (
+  source_site_id text primary key,
+  source_site_name text not null,
+  reason text not null,
+  active boolean not null default true
+);
+
+insert into public.monthly_excluded_source_sites(source_site_id,source_site_name,reason)
+values ('1913101','HAWTHORNE ACADEMY','Outside South Café LA supervisory area')
+on conflict (source_site_id) do update set source_site_name=excluded.source_site_name,reason=excluded.reason,active=true;
+
 insert into public.monthly_site_mappings(source_site_id,main_location_id,source_site_name,program_type)
-select '1' || lpad(location_code,4,'0') || '01',id,school_name,'main' from public.locations where location_code ~ '^[0-9]{4}$'
+select '1' || lpad(location_code,4,'0') || '01',id,school_name,'main' from public.location_information where active=true and location_code ~ '^[0-9]{4}$'
 on conflict (source_site_id) do nothing;
+
+-- Existing SPARK location/CPM migrations establish Willenberg as location 1957.
+insert into public.monthly_site_mappings(source_site_id,main_location_id,source_site_name,program_type)
+select '1195701',id,'WILLENBERG SP ED','main' from public.location_information
+where active=true and location_code='1957' and lower(trim(school_name))='willenberg special ed'
+on conflict (source_site_id) do update set main_location_id=excluded.main_location_id,source_site_name=excluded.source_site_name,program_type='main',updated_at=now();
 
 insert into public.monthly_site_mappings(source_site_id,main_location_id,source_site_name,program_type)
 select mapping.source_site_id,l.id,mapping.source_site_name,mapping.program_type
@@ -86,7 +111,7 @@ from (values
   ('1951401','3452','DOLORES EEC','EEC'),
   ('1958501','7781','WILMINGTON EEC','EEC')
 ) mapping(source_site_id,main_location_code,source_site_name,program_type)
-join public.locations l on l.location_code=mapping.main_location_code
+join public.location_information l on l.location_code=mapping.main_location_code
 on conflict (source_site_id) do update set main_location_id=excluded.main_location_id,source_site_name=excluded.source_site_name,program_type=excluded.program_type,updated_at=now();
 
 create table if not exists public.monthly_reimbursement_rates (
@@ -109,11 +134,12 @@ alter table public.monthly_import_raw_rows enable row level security;
 alter table public.monthly_production_rows enable row level security;
 alter table public.monthly_production_cost_rows enable row level security;
 alter table public.monthly_site_mappings enable row level security;
+alter table public.monthly_excluded_source_sites enable row level security;
 alter table public.monthly_reimbursement_rates enable row level security;
 
 revoke all on public.monthly_import_batches, public.monthly_import_raw_rows,
   public.monthly_production_rows, public.monthly_production_cost_rows,
-  public.monthly_site_mappings, public.monthly_reimbursement_rates
+  public.monthly_site_mappings, public.monthly_excluded_source_sites, public.monthly_reimbursement_rates
 from anon, authenticated;
 
 create or replace function public.import_monthly_scorecard_report(
@@ -128,6 +154,7 @@ create or replace function public.import_monthly_scorecard_report(
   p_source_row_count integer,
   p_rejected_row_count integer,
   p_ignored_row_count integer,
+  p_out_of_area_row_count integer,
   p_raw_rows jsonb,
   p_normalized_rows jsonb,
   p_warnings jsonb default '[]'::jsonb
@@ -144,12 +171,12 @@ begin
   if jsonb_typeof(p_raw_rows) <> 'array' or jsonb_typeof(p_normalized_rows) <> 'array' then raise exception 'Import rows must be arrays'; end if;
 
   insert into public.monthly_import_batches(report_type, school_year, reporting_month, original_filename, uploaded_by, status,
-    source_row_count, imported_row_count, rejected_row_count, ignored_row_count, warnings, parser_version, source_checksum)
+    source_row_count, imported_row_count, rejected_row_count, ignored_row_count, out_of_area_row_count, warnings, parser_version, source_checksum)
   values (p_report_type, p_school_year, v_month, left(p_original_filename,255), left(p_uploaded_by,160), 'processing',
-    p_source_row_count, 0, 0, 0, coalesce(p_warnings,'[]'::jsonb), p_parser_version, p_source_checksum)
+    p_source_row_count, 0, 0, 0, 0, coalesce(p_warnings,'[]'::jsonb), p_parser_version, p_source_checksum)
   on conflict (report_type, school_year, reporting_month) do update set
     original_filename=excluded.original_filename, uploaded_at=now(), uploaded_by=excluded.uploaded_by, status='processing',
-    source_row_count=excluded.source_row_count, imported_row_count=0, rejected_row_count=0, ignored_row_count=0,
+    source_row_count=excluded.source_row_count, imported_row_count=0, rejected_row_count=0, ignored_row_count=0, out_of_area_row_count=0,
     warnings=excluded.warnings, errors='[]'::jsonb, parser_version=excluded.parser_version, source_checksum=excluded.source_checksum
   returning id into v_batch_id;
 
@@ -159,17 +186,20 @@ begin
 
   if p_report_type='production' then
     delete from public.monthly_production_rows where batch_id=v_batch_id;
-    insert into public.monthly_production_rows(batch_id,location_id,source_site_id,production_date,meal_type,item_name,item_code,planned,prepared,served,leftover,source_row_number)
-    select v_batch_id,l.id,x->>'source_site_id',(x->>'production_date')::date,x->>'meal_type',x->>'item_name',nullif(x->>'item_code',''),
-      nullif(x->>'planned','')::numeric,nullif(x->>'prepared','')::numeric,nullif(x->>'served','')::numeric,nullif(x->>'leftover','')::numeric,(x->>'source_row_number')::integer
+    insert into public.monthly_production_rows(batch_id,location_id,source_site_id,production_date,meal_type,menu_name,meals_served,item_name,item_code,planned,prepared,served,leftover,mma_oz_eq,grain_oz_eq,fruit_cups,veg_cups,milk_cups,source_row_number)
+    select v_batch_id,l.id,x->>'source_site_id',(x->>'production_date')::date,x->>'meal_type',nullif(x->>'menu_name',''),nullif(x->>'meals_served','')::integer,x->>'item_name',nullif(x->>'item_code',''),
+      nullif(x->>'planned','')::numeric,nullif(x->>'prepared','')::numeric,nullif(x->>'served','')::numeric,nullif(x->>'leftover','')::numeric,
+      nullif(x->>'mma_oz_eq','')::numeric,nullif(x->>'grain_oz_eq','')::numeric,nullif(x->>'fruit_cups','')::numeric,nullif(x->>'veg_cups','')::numeric,nullif(x->>'milk_cups','')::numeric,(x->>'source_row_number')::integer
     from jsonb_array_elements(p_normalized_rows) x left join public.monthly_site_mappings sm on sm.source_site_id=x->>'source_site_id' and sm.active=true
-    left join public.locations l on l.id=sm.main_location_id;
+    left join public.location_information l on l.id=sm.main_location_id
+    where not exists (select 1 from public.monthly_excluded_source_sites e where e.source_site_id=x->>'source_site_id' and e.active=true);
   elsif p_report_type='cost' then
     delete from public.monthly_production_cost_rows where batch_id=v_batch_id;
     insert into public.monthly_production_cost_rows(batch_id,location_id,source_site_id,production_date,meal_type,food_cost,source_row_number)
     select v_batch_id,l.id,x->>'source_site_id',(x->>'production_date')::date,x->>'meal_type',(x->>'food_cost')::numeric,(x->>'source_row_number')::integer
     from jsonb_array_elements(p_normalized_rows) x left join public.monthly_site_mappings sm on sm.source_site_id=x->>'source_site_id' and sm.active=true
-    left join public.locations l on l.id=sm.main_location_id;
+    left join public.location_information l on l.id=sm.main_location_id
+    where not exists (select 1 from public.monthly_excluded_source_sites e where e.source_site_id=x->>'source_site_id' and e.active=true);
   end if;
 
   select count(*) into v_unmapped from (
@@ -178,7 +208,7 @@ begin
   ) q;
 
   update public.monthly_import_batches set status='completed', imported_row_count=v_imported,
-    rejected_row_count=greatest(0,p_rejected_row_count), ignored_row_count=greatest(0,p_ignored_row_count),
+    rejected_row_count=greatest(0,p_rejected_row_count), ignored_row_count=greatest(0,p_ignored_row_count), out_of_area_row_count=greatest(0,p_out_of_area_row_count),
     warnings=case when v_unmapped>0 then warnings || jsonb_build_array(v_unmapped || ' normalized rows have unmapped site IDs') else warnings end
   where id=v_batch_id;
   return v_batch_id;
@@ -191,9 +221,42 @@ begin
   return query select * from public.monthly_import_batches where school_year=p_school_year and reporting_month=date_trunc('month',p_reporting_month)::date order by report_type;
 end $$;
 
-revoke all on function public.import_monthly_scorecard_report(text,text,text,date,text,text,text,text,integer,integer,integer,jsonb,jsonb,jsonb) from public;
+create or replace function public.get_monthly_scorecard_dataset(
+  p_supervisor_pin text,p_school_year text,p_reporting_month date
+) returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  v_month date := date_trunc('month',p_reporting_month)::date;
+  v_next date := (date_trunc('month',p_reporting_month)+interval '1 month')::date;
+  v_previous date := (date_trunc('month',p_reporting_month)-interval '1 month')::date;
+begin
+  if public.verify_supervisor_pin(p_supervisor_pin) is not true then raise exception 'Supervisor authorization failed'; end if;
+  return jsonb_build_object(
+    'schools',coalesce((select jsonb_agg(to_jsonb(s) order by s.school_name) from (
+      select d.id directory_id,o.id location_id,d.location_code,d.school_name,d.site_type,
+        o.enrollment,o.labor_type,o.budget_labor_hours
+      from public.location_information d
+      left join public.locations o on o.location_code=d.location_code and o.active=true
+      where d.active=true and lower(trim(d.school_name)) not in ('test high school','hawthorne academy')
+    ) s),'[]'::jsonb),
+    'meal_counts',coalesce((select jsonb_agg(to_jsonb(m)) from public.meal_counts m join public.locations l on l.id=m.location_id
+      where l.active=true and lower(trim(l.school_name))<>'test high school' and m.service_date>=v_previous and m.service_date<v_next),'[]'::jsonb),
+    'labor_hours',coalesce((select jsonb_agg(to_jsonb(h)) from public.labor_hours h join public.locations l on l.id=h.location_id
+      where l.active=true and lower(trim(l.school_name))<>'test high school' and h.service_date>=v_previous and h.service_date<v_next),'[]'::jsonb),
+    'production_rows',coalesce((select jsonb_agg(to_jsonb(p)) from public.monthly_production_rows p join public.monthly_import_batches b on b.id=p.batch_id
+      where b.school_year=p_school_year and p.production_date>=v_previous and p.production_date<v_next),'[]'::jsonb),
+    'cost_rows',coalesce((select jsonb_agg(to_jsonb(c)) from public.monthly_production_cost_rows c join public.monthly_import_batches b on b.id=c.batch_id
+      where b.school_year=p_school_year and c.production_date>=v_previous and c.production_date<v_next),'[]'::jsonb),
+    'rates',coalesce((select jsonb_agg(to_jsonb(r)) from public.monthly_reimbursement_rates r where r.school_year=p_school_year),'[]'::jsonb),
+    'batches',coalesce((select jsonb_agg(to_jsonb(b)) from public.monthly_import_batches b
+      where b.school_year=p_school_year and b.reporting_month in (v_previous,v_month)),'[]'::jsonb)
+  );
+end $$;
+
+revoke all on function public.import_monthly_scorecard_report(text,text,text,date,text,text,text,text,integer,integer,integer,integer,jsonb,jsonb,jsonb) from public;
 revoke all on function public.list_monthly_scorecard_imports(text,text,date) from public;
-grant execute on function public.import_monthly_scorecard_report(text,text,text,date,text,text,text,text,integer,integer,integer,jsonb,jsonb,jsonb) to anon,authenticated;
+revoke all on function public.get_monthly_scorecard_dataset(text,text,date) from public;
+grant execute on function public.import_monthly_scorecard_report(text,text,text,date,text,text,text,text,integer,integer,integer,integer,jsonb,jsonb,jsonb) to anon,authenticated;
 grant execute on function public.list_monthly_scorecard_imports(text,text,date) to anon,authenticated;
+grant execute on function public.get_monthly_scorecard_dataset(text,text,date) to anon,authenticated;
 
 commit;

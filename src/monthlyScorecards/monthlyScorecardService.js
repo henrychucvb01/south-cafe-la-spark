@@ -28,10 +28,19 @@ export async function saveMonthlyImport({ supervisorPin, reportType, schoolYear,
     p_source_row_count: parsed.sourceRowCount,
     p_rejected_row_count: parsed.rejectedRows.length,
     p_ignored_row_count: parsed.ignoredRows.length,
+    p_out_of_area_row_count: parsed.ignoredOutOfAreaRows.length,
     p_raw_rows: parsed.rawRows,
     p_normalized_rows: parsed.normalizedRows,
     p_warnings: parsed.warnings,
   });
   if (error) throw error;
   return data;
+}
+
+export async function loadMonthlyScorecardDataset(supervisorPin,schoolYear,reportingMonth) {
+  const { data,error } = await supabase.rpc("get_monthly_scorecard_dataset",{
+    p_supervisor_pin:supervisorPin,p_school_year:schoolYear,p_reporting_month:reportingMonth,
+  });
+  if (error) throw error;
+  return data || {};
 }
