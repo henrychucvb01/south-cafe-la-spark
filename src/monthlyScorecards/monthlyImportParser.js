@@ -2,7 +2,6 @@ export const MONTHLY_PARSER_VERSION = "1.0.0";
 export const REPORT_TYPES = {
   production: "LAUSD Production Report",
   cost: "Daily Production Cost",
-  official_meal_count: "Official Meal Count",
 };
 
 const normalize = (value) => String(value ?? "").replace(/^\uFEFF/, "").trim();
@@ -72,9 +71,8 @@ function monthMatches(date, reportingMonth) {
 export function detectReportType(rows) {
   const sample = rows.slice(0, 100).flat().map(key);
   const has = (...terms) => terms.some((term) => sample.includes(key(term)));
-  if (has("Main Site ID") && (has("Meal", "Meal Type", "Program") && has("Count", "Meal Count", "Total Meals") || has("Breakfast", "Lunch", "Supper"))) return "official_meal_count";
-  if (has("Food Cost", "Production Cost", "Total Cost") && has("Production Date", "Date")) return "cost";
-  if (has("Planned", "Planned Qty") && has("Prepared", "Prepared Qty") && has("Served", "Quantity Served")) return "production";
+  if (has("Daily Production Cost") && has("Cost of Goods", "Cost of Food Used")) return "cost";
+  if (has("LAUSD Daily Meal Production Report") && has("Servings Planned") && has("Number of Portions Prepared") && has("Portions Served")) return "production";
   return null;
 }
 
@@ -82,88 +80,70 @@ function rawRows(rows) {
   return rows.map((row, index) => ({ source_row_number: index + 1, row_data: row }));
 }
 
-function parseFlat(rows, reportType, reportingMonth) {
-  const configs = {
-    cost: {
-      required: [["Production Date", "Date"], ["Meal", "Meal Type", "Program"], ["Food Cost", "Production Cost", "Total Cost"]],
-      build(row, map, line) {
-        return { source_site_id: valueAt(row,map,["Site ID","Location","Location Code","School ID"]), production_date: isoDate(valueAt(row,map,["Production Date","Date"])), meal_type: mealType(valueAt(row,map,["Meal","Meal Type","Program"])), food_cost: numberValue(valueAt(row,map,["Food Cost","Production Cost","Total Cost"])), source_row_number: line };
-      },
-    },
-    official_meal_count: {
-      required: [["Main Site ID"], ["Date", "Service Date"], ["Meal", "Meal Type", "Program"], ["Count", "Meal Count", "Total Meals"]],
-      build(row, map, line) {
-        const main = valueAt(row,map,["Main Site ID"]);
-        return { source_site_id: valueAt(row,map,["Site ID","Location ID","Serving Site ID"]) || main, main_site_id: main, service_date: isoDate(valueAt(row,map,["Service Date","Date"])), meal_type: mealType(valueAt(row,map,["Meal","Meal Type","Program"])), official_count: numberValue(valueAt(row,map,["Count","Meal Count","Total Meals"])), source_row_number: line };
-      },
-    },
-  };
-  if (reportType === "official_meal_count") {
-    const wideHeader = findHeader(rows, [["Main Site ID"],["Date","Service Date"],["Breakfast","Lunch","Supper"]]);
-    if (wideHeader >= 0) {
-      const map = headerMap(rows[wideHeader]), normalized = [], rejected = [];
-      rows.slice(wideHeader + 1).forEach((row, offset) => {
-        const line = wideHeader + offset + 2;
-        const main = valueAt(row,map,["Main Site ID"]), date = isoDate(valueAt(row,map,["Service Date","Date"]));
-        const source = valueAt(row,map,["Site ID","Location ID","Serving Site ID"]) || main;
-        ["breakfast","lunch","supper"].forEach((meal) => {
-          const count = numberValue(valueAt(row,map,[meal]));
-          if (count === null) return;
-          if (!main || !date || !Number.isInteger(count) || count < 0 || !monthMatches(date,reportingMonth)) rejected.push(line);
-          else normalized.push({ source_site_id:source,main_site_id:main,service_date:date,meal_type:meal,official_count:count,source_row_number:line });
-        });
-      });
-      return { normalized, rejected:[...new Set(rejected)] };
+function labeledValue(row, label) {
+  const index = row.findIndex((cell) => key(cell) === key(label));
+  if (index < 0) return "";
+  return normalize(row.slice(index + 1).find((cell) => normalize(cell)));
+}
+
+function parseCost(rows, reportingMonth) {
+  let context = null;
+  const normalized = [], rejected = [], ignored = [];
+  rows.forEach((row,index) => {
+    const first = normalize(row[0]);
+    if (/^Produced by\s+/i.test(first)) {
+      const site = first.match(/\((\d+)\)/);
+      const serviceDateCell = row.find((cell) => /Service Date:/i.test(normalize(cell)));
+      const date = isoDate(normalize(serviceDateCell).replace(/^.*Service Date:\s*/i,""));
+      const meal = row.map(mealType).find(Boolean) || null;
+      context = { source_site_id:site?.[1] || "",production_date:date,meal_type:meal };
+      return;
     }
-  }
-  const config = configs[reportType];
-  const headerIndex = findHeader(rows, config.required);
-  if (headerIndex < 0) throw new Error("Report format has changed. Import stopped before data was written.");
-  const map = headerMap(rows[headerIndex]);
-  const normalized = [], rejected = [];
-  rows.slice(headerIndex + 1).forEach((row, offset) => {
-    const line = headerIndex + offset + 2;
-    const item = config.build(row, map, line);
-    const date = item.production_date || item.service_date;
-    if (!mealType(valueAt(row,map,["Meal","Meal Type","Program"]))) return;
-    const valid = reportType === "cost"
-      ? item.source_site_id && item.production_date && item.food_cost !== null
-      : item.main_site_id && item.service_date && Number.isInteger(item.official_count) && item.official_count >= 0;
-    if (!valid || !monthMatches(date, reportingMonth)) rejected.push(line); else normalized.push(item);
+    const foodCostIndex = row.findIndex((cell) => key(cell) === "costoffoodused");
+    if (foodCostIndex < 0 || !context) return;
+    const cost = row.slice(foodCostIndex + 1).map(numberValue).find((value) => value !== null);
+    const item = { ...context,food_cost:cost,source_row_number:index+1 };
+    if (!item.source_site_id || !item.production_date || !item.meal_type || item.food_cost === null) rejected.push(index+1);
+    else if (!monthMatches(item.production_date,reportingMonth)) ignored.push(index+1);
+    else normalized.push(item);
   });
-  return { normalized, rejected };
+  if (!normalized.length && !rejected.length) throw new Error("Report format has changed. Import stopped before data was written.");
+  return { normalized,rejected,ignored };
 }
 
 function parseProduction(rows, reportingMonth) {
   let context = { source_site_id: "", production_date: "", meal_type: "" };
   let map = null;
-  const normalized = [], rejected = [];
+  const normalized = [], rejected = [], ignored = [];
   rows.forEach((row, index) => {
-    const joined = row.map(normalize).join(" | ");
-    const site = joined.match(/(?:site|location)(?:\s+id|\s+code)?\s*[:#-]?\s*(\d{3,8})/i);
-    const date = joined.match(/(?:production\s+date|date)\s*[:#-]?\s*(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}|\d{4}-\d{2}-\d{2})/i);
-    const meal = joined.match(/(?:meal|program)\s*[:#-]?\s*(breakfast|lunch|supper|dinner)/i);
+    const siteValue = labeledValue(row,"Site:");
+    const dateValue = labeledValue(row,"Menu Plan Date:");
+    const mealValue = labeledValue(row,"Meal:");
+    const site = siteValue.match(/\((\d+)\)/) || siteValue.match(/\b(\d{3,8})\b/);
     if (site) context.source_site_id = site[1];
-    if (date) context.production_date = isoDate(date[1]);
-    if (meal) context.meal_type = mealType(meal[1]);
+    if (dateValue) context.production_date = isoDate(dateValue);
+    if (mealValue) context.meal_type = mealType(mealValue);
     const candidate = headerMap(row);
-    if (findColumn(candidate,["Planned","Planned Qty"]) >= 0 && findColumn(candidate,["Prepared","Prepared Qty"]) >= 0 && findColumn(candidate,["Served","Quantity Served"]) >= 0) { map = candidate; return; }
+    if (findColumn(candidate,["Servings Planned"]) >= 0 && findColumn(candidate,["Number of Portions Prepared"]) >= 0 && findColumn(candidate,["Portions Served"]) >= 0) { map = candidate; return; }
     if (!map) return;
     const itemName = valueAt(row,map,["Item","Item Name","Menu Item","Recipe Name","Description"]);
     if (!itemName) return;
-    const item = { ...context, item_name:itemName, item_code:valueAt(row,map,["Item Code","Recipe Number","Recipe No"]), planned:numberValue(valueAt(row,map,["Planned","Planned Qty"])), prepared:numberValue(valueAt(row,map,["Prepared","Prepared Qty"])), served:numberValue(valueAt(row,map,["Served","Quantity Served"])), leftover:numberValue(valueAt(row,map,["Leftover","Leftovers","Remaining"])), source_row_number:index+1 };
-    if (!item.source_site_id || !item.production_date || !item.meal_type || !monthMatches(item.production_date, reportingMonth)) rejected.push(index+1); else normalized.push(item);
+    if (/^total$/i.test(itemName)) return;
+    const item = { ...context, item_name:itemName, item_code:valueAt(row,map,["ItemID / Recipe Number","Item Code","Recipe Number","Recipe No"]), planned:numberValue(valueAt(row,map,["Servings Planned"])), prepared:numberValue(valueAt(row,map,["Number of Portions Prepared"])), served:numberValue(valueAt(row,map,["Portions Served"])), leftover:numberValue(valueAt(row,map,["Number of Portions Leftover"])), source_row_number:index+1 };
+    if (!item.source_site_id || !item.production_date || !item.meal_type) rejected.push(index+1);
+    else if (!monthMatches(item.production_date, reportingMonth)) ignored.push(index+1);
+    else normalized.push(item);
   });
   if (!map) throw new Error("Report format has changed. Import stopped before data was written.");
-  return { normalized, rejected };
+  return { normalized, rejected, ignored };
 }
 
 export function parseMonthlyReport(csvText, expectedType, reportingMonth) {
   const rows = parseCsv(csvText);
   const detectedType = detectReportType(rows);
   if (!detectedType || detectedType !== expectedType) throw new Error("The selected file does not match the expected report type. Import stopped before data was written.");
-  const parsed = expectedType === "production" ? parseProduction(rows, reportingMonth) : parseFlat(rows, expectedType, reportingMonth);
+  const parsed = expectedType === "production" ? parseProduction(rows, reportingMonth) : parseCost(rows, reportingMonth);
   if (!parsed.normalized.length) throw new Error("No valid Breakfast, Lunch, or Supper rows were found for the selected month. Import stopped before data was written.");
-  return { reportType:detectedType, sourceRowCount:rows.length, rawRows:rawRows(rows), normalizedRows:parsed.normalized, rejectedRows:parsed.rejected,
+  return { reportType:detectedType, sourceRowCount:rows.length, rawRows:rawRows(rows), normalizedRows:parsed.normalized, rejectedRows:parsed.rejected, ignoredRows:parsed.ignored || [],
     warnings:parsed.rejected.length ? [`${parsed.rejected.length} rows were rejected because required values were missing or outside the selected month.`] : [] };
 }

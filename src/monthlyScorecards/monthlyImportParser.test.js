@@ -4,29 +4,16 @@ test("parses quoted CSV fields", () => {
   expect(parseCsv('Name,Value\n"Soup, tomato",12')[1]).toEqual(["Soup, tomato", "12"]);
 });
 
-test("detects and filters official meal counts", () => {
-  const csv = "Main Site ID,Site ID,Service Date,Meal Type,Meal Count\n8575,9901,09/03/2026,Breakfast,100\n8575,9901,09/03/2026,Snack,10";
-  const result = parseMonthlyReport(csv, "official_meal_count", "2026-09-01");
-  expect(result.normalizedRows).toHaveLength(1);
-  expect(result.normalizedRows[0]).toMatchObject({ main_site_id:"8575", meal_type:"breakfast", official_count:100 });
-});
-
-test("expands wide official meal count rows", () => {
-  const csv = "Main Site ID,Site ID,Service Date,Breakfast,Lunch,Supper,Snack\n8575,8575,09/03/2026,80,200,25,10";
-  const result = parseMonthlyReport(csv,"official_meal_count","2026-09-01");
-  expect(result.normalizedRows.map((row)=>row.meal_type)).toEqual(["breakfast","lunch","supper"]);
-});
-
-test("detects daily production cost and excludes Extra Sales", () => {
-  const csv = "Location Code,Production Date,Program,Food Cost\n8575,09/03/2026,Lunch,$250.25\n8575,09/03/2026,Extra Sales,$4";
+test("detects repeated daily production cost and excludes extra sales", () => {
+  const csv = "Daily Production Cost,,,,,,,,,,,,,\nProduced by (1195701) WILLENBERG SP ED,,,,,,,,Lunch,,,Service Date: 8/12/2026,,\nItem Description,,,Case / Unit Description,,,,Quantity Used,,,,Cost of Goods,,Donated Value\nTotal Used For Lunch,,,,,Plate Count: 128,,,,,,$188.80,,$0.00\n,,,,For Meals,,Per Plate,,,For Extra Sales,,,,\n,Cost of Food Used,,,$188.80,,$1.475,,,$12.00,,,,";
   expect(detectReportType(parseCsv(csv))).toBe("cost");
-  expect(parseMonthlyReport(csv,"cost","2026-09-01").normalizedRows).toHaveLength(1);
+  expect(parseMonthlyReport(csv,"cost","2026-08-01").normalizedRows[0]).toMatchObject({ source_site_id:"1195701",meal_type:"lunch",food_cost:188.8 });
 });
 
 test("parses repeated production report sections", () => {
-  const csv = "LAUSD Daily Meal Production Report\nLocation ID: 8575\nProduction Date: 09/03/2026\nMeal: Lunch\nItem Code,Item Name,Planned,Prepared,Served,Leftover\n10,Bean Bowl,100,105,98,7";
-  const result = parseMonthlyReport(csv,"production","2026-09-01");
-  expect(result.normalizedRows[0]).toMatchObject({ source_site_id:"8575", item_name:"Bean Bowl", served:98 });
+  const csv = "LAUSD DAILY MEAL PRODUCTION REPORT,,,,,,,,,,,,,,,,,,,,,,,,,,,,,\nMenu Plan Date:,,,8/12/2026,Program:,NSLP,,Site:,(1195701) WILLENBERG SP ED,,,,,,,,,,,,,,,,,,Meal:,Lunch\nItemID / Recipe Number,,Menu Item,,,,,,,,,,,,Servings Planned,,,,,,Number of Portions Prepared,,,Portions Served,,,Number of Portions Leftover\nR10,,Bean Bowl,,,,,,,,,,,,100,,,,,,105,,,98,,,7";
+  const result = parseMonthlyReport(csv,"production","2026-08-01");
+  expect(result.normalizedRows[0]).toMatchObject({ source_site_id:"1195701", item_name:"Bean Bowl", served:98 });
 });
 
 test("rejects an unexpected format before producing rows", () => {
