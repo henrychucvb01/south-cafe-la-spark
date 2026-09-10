@@ -48,10 +48,15 @@ function calculateMonth(school,dataset,month){
     return{date,hours,mplh:hours>0?equivalents/hours:null};
   }).filter((row)=>row.mplh!==null);
   const target=MPLH_TARGETS[school.labor_type]||{label:"Not Classified",min:null,max:null};
-  const costs={breakfast:0,lunch:0,supper:0};(dataset.cost_rows||[]).filter((row)=>String(row.location_id)===String(school.directory_id)&&inMonth(row.production_date,month)).forEach((row)=>{costs[row.meal_type]+=n(row.food_cost);});
-  const totalMeals=Object.values(totals).reduce((a,b)=>a+b,0), totalCost=Object.values(costs).reduce((a,b)=>a+b,0);
+  const costs={breakfast:0,lunch:0,supper:0},costRowCounts={breakfast:0,lunch:0,supper:0};
+  (dataset.cost_rows||[]).filter((row)=>String(row.location_id)===String(school.directory_id)&&inMonth(row.production_date,month)).forEach((row)=>{costs[row.meal_type]+=n(row.food_cost);costRowCounts[row.meal_type]+=1;});
+  const costAvailable=Object.fromEntries(Object.keys(costs).map((meal)=>[meal,costRowCounts[meal]>0]));
+  const totalMeals=Object.values(totals).reduce((a,b)=>a+b,0);
+  const completeCostCoverage=Object.keys(totals).every((meal)=>totals[meal]===0||costAvailable[meal]);
+  const recordedFoodCost=Object.values(costs).reduce((a,b)=>a+b,0),totalCost=completeCostCoverage?recordedFoodCost:null;
   const rates=Object.fromEntries((dataset.rates||[]).map((row)=>[row.meal_type,n(row.rate)]));
-  const revenue=totals.breakfast*n(rates.breakfast)+totals.lunch*n(rates.lunch)+totals.supper*n(rates.supper);
+  const revenues={breakfast:totals.breakfast*n(rates.breakfast),lunch:totals.lunch*n(rates.lunch),supper:totals.supper*n(rates.supper)};
+  const revenue=Object.values(revenues).reduce((a,b)=>a+b,0);
   const production=(dataset.production_rows||[]).filter((row)=>String(row.location_id)===String(school.directory_id)&&inMonth(row.production_date,month));
   const productionTotals=production.reduce((acc,row)=>({planned:acc.planned+n(row.planned),prepared:acc.prepared+n(row.prepared),served:acc.served+n(row.served),leftover:acc.leftover+n(row.leftover)}),{planned:0,prepared:0,served:0,leftover:0});
   const entreeTotals=new Map();production.filter(isLikelyEntree).forEach((row)=>{const prior=entreeTotals.get(row.item_name)||0;entreeTotals.set(row.item_name,prior+n(row.served));});
@@ -60,8 +65,8 @@ function calculateMonth(school,dataset,month){
   const topMenu=[...menuFallback].sort((a,b)=>b[1]-a[1])[0]?.[0]||null;
   return{month,operatingDays:dates.length,totals,averages,participation,lunchTrend,lunchAverage:participation.lunch,
     laborHours:dailyMplh.reduce((sum,row)=>sum+row.hours,0),averageMplh:mean(dailyMplh.map((row)=>row.mplh)),daysMeetingTarget:target.min===null?null:dailyMplh.filter((row)=>row.mplh>=target.min).length,daysBelowTarget:target.min===null?null:dailyMplh.filter((row)=>row.mplh<target.min).length,target,
-    costs,totalCost,foodCostPerMeal:totalMeals?totalCost/totalMeals:null,revenue,operatingMargin:null,productionTotals,menuPerformance:topEntree?{label:"Top entrée",name:topEntree[0],served:topEntree[1]}:topMenu?{label:"Most-used menu plan",name:topMenu,served:null}:null,
-    hasProduction:production.length>0,hasCost:totalCost>0,hasMeals:services.length>0};
+    dataThrough:dates.at(-1)||null,costs,costAvailable,recordedFoodCost,totalCost,foodCostPerMeal:totalMeals&&totalCost!==null?totalCost/totalMeals:null,revenues,revenue,operatingMargin:null,productionTotals,menuPerformance:topEntree?{label:"Top entrée",name:topEntree[0],served:topEntree[1]}:topMenu?{label:"Most-used menu plan",name:topMenu,served:null}:null,
+    hasProduction:production.length>0,hasCost:Object.values(costAvailable).some(Boolean),hasCompleteCost:completeCostCoverage,hasMeals:services.length>0};
 }
 
 function managerSummary(current,previous){
