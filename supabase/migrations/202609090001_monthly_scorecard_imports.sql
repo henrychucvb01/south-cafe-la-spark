@@ -118,16 +118,20 @@ insert into public.monthly_site_mappings(source_site_id,main_location_id,source_
 select '1' || lpad(location_code,4,'0') || '01',id,school_name,'main' from public.location_information where active=true and location_code ~ '^[0-9]{4}$'
 on conflict (source_site_id) do nothing;
 
--- Existing SPARK location/CPM migrations establish Willenberg as location 1957.
+-- Willenberg's directory record may legitimately have no location code.
+-- Map the LAUSD source site directly to the existing, exact school record;
+-- do not invent or require a location code.
 insert into public.monthly_site_mappings(source_site_id,main_location_id,source_site_name,program_type)
 select '1195701',id,'WILLENBERG SP ED','main' from public.location_information
-where active=true and location_code='1957' and lower(trim(school_name))='willenberg special ed'
+where active=true and lower(trim(school_name)) in ('willenberg special ed','willenberg sp ed')
+order by case when lower(trim(school_name))='willenberg special ed' then 0 else 1 end,id
+limit 1
 on conflict (source_site_id) do update set main_location_id=excluded.main_location_id,source_site_name=excluded.source_site_name,program_type='main',updated_at=now();
 
 do $$
 begin
   if not exists (select 1 from public.monthly_site_mappings where source_site_id='1195701') then
-    raise exception 'Verified Willenberg location_information record (location 1957) was not found';
+    raise exception 'Existing Willenberg Special Ed location_information record was not found';
   end if;
 end $$;
 
