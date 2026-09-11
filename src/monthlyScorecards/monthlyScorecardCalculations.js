@@ -2,8 +2,8 @@ export const MPLH_TARGETS = {
   secondary: { label: "Secondary", min: 18, max: 20 },
   elementary_prep: { label: "Elementary Prep", min: 20, max: 22 },
   elementary_nnc: { label: "Elementary NNC", min: 24, max: 25 },
-  special: { label: "Special Education", min: null, max: null },
-  special_ed: { label: "Special Education", min: null, max: null },
+  special: { label: "Special Education", min: 24, max: 25 },
+  special_ed: { label: "Special Education", min: 24, max: 25 },
 };
 
 const MEALS = ["breakfast", "lunch", "supper"];
@@ -60,6 +60,7 @@ const leftoverPercent = (prepared, served) =>
 function deduplicateRowsByKey(rows, getKey) {
   const map = new Map();
   (rows || []).forEach((row) => {
+    if (!row) return;
     const key = getKey(row);
     map.set(key, row);
   });
@@ -68,12 +69,12 @@ function deduplicateRowsByKey(rows, getKey) {
 
 function laborCostForMonth(school, dataset, operatingDays, laborRows) {
   const staffing = (dataset?.staffing || []).filter(
-    (row) => String(row.source_site_id) === String(school.source_site_id)
+    (row) => String(row?.source_site_id) === String(school?.source_site_id)
   );
   const rates = new Map(
     (dataset?.labor_rates || []).map((row) => [
-      row.classification_key,
-      n(row.hourly_rate),
+      row?.classification_key,
+      n(row?.hourly_rate),
     ])
   );
   if (!staffing.length || !rates.size)
@@ -81,40 +82,40 @@ function laborCostForMonth(school, dataset, operatingDays, laborRows) {
       total: null,
       scheduled: null,
       adjustments: null,
-      budgetedDailyHours: n(school.budget_labor_hours) || null,
+      budgetedDailyHours: n(school?.budget_labor_hours) || null,
     };
   const manager = staffing.find(
     (row) =>
-      String(row.classification_key).startsWith("manager_") &&
-      n(row.filled_count) > 0
+      String(row?.classification_key || "").startsWith("manager_") &&
+      n(row?.filled_count) > 0
   );
   const missingRate = staffing.some(
-    (row) => n(row.filled_daily_hours) > 0 && !rates.has(row.classification_key)
+    (row) => n(row?.filled_daily_hours) > 0 && !rates.has(row?.classification_key)
   );
   if (!manager || missingRate)
     return {
       total: null,
       scheduled: null,
       adjustments: null,
-      budgetedDailyHours: n(school.budget_labor_hours) || null,
+      budgetedDailyHours: n(school?.budget_labor_hours) || null,
     };
 
   const filledDailyHours = staffing.reduce(
-    (sum, row) => sum + n(row.filled_daily_hours),
+    (sum, row) => sum + n(row?.filled_daily_hours),
     0
   );
   const scheduledDailyCost = staffing.reduce(
     (sum, row) =>
-      sum + n(row.filled_daily_hours) * n(rates.get(row.classification_key)),
+      sum + n(row?.filled_daily_hours) * n(rates.get(row?.classification_key)),
     0
   );
   const scheduled = scheduledDailyCost * operatingDays;
-  const extraWorkerHours = laborRows.reduce(
-    (sum, row) => sum + n(row.additional_worker_hours),
+  const extraWorkerHours = (laborRows || []).reduce(
+    (sum, row) => sum + n(row?.additional_worker_hours),
     0
   );
-  const managerExtraHours = laborRows.reduce(
-    (sum, row) => sum + n(row.manager_overtime_hours),
+  const managerExtraHours = (laborRows || []).reduce(
+    (sum, row) => sum + n(row?.manager_overtime_hours),
     0
   );
   const adjustments =
@@ -126,7 +127,7 @@ function laborCostForMonth(school, dataset, operatingDays, laborRows) {
     scheduled,
     adjustments,
     budgetedDailyHours:
-      filledDailyHours || n(school.budget_labor_hours) || null,
+      filledDailyHours || n(school?.budget_labor_hours) || null,
   };
 }
 
@@ -144,21 +145,22 @@ function serviceCounts(school, rawProductionRows, rawMealRows, startDate, endDat
   prodRows
     .filter(
       (row) =>
-        String(row.location_id) === String(school.directory_id) &&
-        inRange(row.production_date, startDate, endDate) &&
-        row.meals_served !== null
+        String(row?.location_id) === String(school?.directory_id) &&
+        inRange(row?.production_date, startDate, endDate) &&
+        row?.meals_served !== null &&
+        row?.meals_served !== undefined
     )
     .forEach((row) => {
       const k = `${row.production_date}|${row.meal_type}`;
       if (!byDay.has(k)) byDay.set(k, n(row.meals_served));
     });
 
-  if (!byDay.size && school.location_id) {
+  if (!byDay.size && school?.location_id) {
     mealRows
       .filter(
         (row) =>
-          String(row.location_id) === String(school.location_id) &&
-          inRange(row.service_date, startDate, endDate)
+          String(row?.location_id) === String(school?.location_id) &&
+          inRange(row?.service_date, startDate, endDate)
       )
       .forEach((row) => {
         byDay.set(`${row.service_date}|breakfast`, n(row.breakfast_count));
@@ -190,8 +192,8 @@ function shortDate(value) {
 
 function rankEntrees(production, meal) {
   const totals = new Map();
-  production
-    .filter((row) => row.meal_type === meal && isLikelyEntree(row))
+  (production || [])
+    .filter((row) => row?.meal_type === meal && isLikelyEntree(row))
     .forEach((row) => {
       const item = totals.get(row.item_name) || {
         name: row.item_name,
@@ -224,12 +226,12 @@ function rankEntrees(production, meal) {
 
 function worstLeftovers(production, totalPrepared) {
   const items = new Map();
-  production
+  (production || [])
     .filter(
       (row) =>
-        row.item_name &&
-        row.prepared !== null &&
-        row.served !== null &&
+        row?.item_name &&
+        row?.prepared !== null &&
+        row?.served !== null &&
         isMeaningfulLeftoverItem(row.item_name)
     )
     .forEach((row) => {
@@ -282,20 +284,24 @@ function weeklyPerformance({ dates, services, production, dailyMplh, enrollment,
   const weeks = [...groups.values()]
     .sort((a, b) => a.weekStart.localeCompare(b.weekStart))
     .map((week) => {
-      const rows = production.filter((row) => week.dates.includes(row.production_date)),
-        prepared = rows.reduce((sum, row) => sum + n(row.prepared), 0),
-        served = rows.reduce((sum, row) => sum + n(row.served), 0),
-        lunch = services
-          .filter((row) => week.dates.includes(row.date) && row.meal === "lunch")
-          .reduce((sum, row) => sum + row.count, 0),
-        labor = dailyMplh.filter((row) => week.dates.includes(row.date)),
-        hours = labor.reduce((sum, row) => sum + row.hours, 0),
-        equivalents = labor.reduce((sum, row) => sum + row.equivalents, 0);
+      const rows = (production || []).filter((row) =>
+        week.dates.includes(row?.production_date)
+      );
+      const prepared = rows.reduce((sum, row) => sum + n(row?.prepared), 0);
+      const served = rows.reduce((sum, row) => sum + n(row?.served), 0);
+      const lunch = (services || [])
+        .filter((row) => week.dates.includes(row.date) && row.meal === "lunch")
+        .reduce((sum, row) => sum + row.count, 0);
+      const labor = (dailyMplh || []).filter((row) =>
+        week.dates.includes(row.date)
+      );
+      const hours = labor.reduce((sum, row) => sum + row.hours, 0);
+      const equivalents = labor.reduce((sum, row) => sum + row.equivalents, 0);
       return {
         weekStart: week.weekStart,
         startDate: week.dates[0],
-        endDate: week.dates.at(-1),
-        label: `${shortDate(week.dates[0])}–${shortDate(week.dates.at(-1))}`,
+        endDate: week.dates[week.dates.length - 1],
+        label: `${shortDate(week.dates[0])}–${shortDate(week.dates[week.dates.length - 1])}`,
         operatingDays: week.dates.length,
         prepared,
         served,
@@ -322,7 +328,7 @@ function weeklyPerformance({ dates, services, production, dailyMplh, enrollment,
   eligible.forEach((week) => {
     const participationScore = normalize(week.lunchParticipation, participations),
       leftoverScore = normalize(week.leftoverPercentage, leftovers, false),
-      mplhScore = target.min === null ? null : Math.min(1, week.mplh / target.min),
+      mplhScore = target?.min === null || target?.min === undefined ? null : Math.min(1, week.mplh / target.min),
       parts = [participationScore, mplhScore, leftoverScore].filter(
         (value) => value !== null
       );
@@ -334,12 +340,12 @@ function weeklyPerformance({ dates, services, production, dailyMplh, enrollment,
   return {
     weeks,
     bestWeek: ranked.length > 1 ? ranked[0] : null,
-    watchWeek: ranked.length > 1 ? ranked.at(-1) : null,
+    watchWeek: ranked.length > 1 ? ranked[ranked.length - 1] : null,
   };
 }
 
 export function calculateDateRange(school, dataset, startDate, endDate, excludedDates = []) {
-  const excludedSet = new Set(excludedDates);
+  const excludedSet = new Set(excludedDates || []);
 
   const services = serviceCounts(
     school,
@@ -353,19 +359,23 @@ export function calculateDateRange(school, dataset, startDate, endDate, excluded
   const curr = new Date(`${startDate}T12:00:00`);
   const end = new Date(`${endDate}T12:00:00`);
 
-  while (curr <= end) {
-    const dStr = curr.toISOString().slice(0, 10);
-    if (!isWeekend(dStr) && !excludedSet.has(dStr)) {
-      rangeDates.push(dStr);
+  if (!isNaN(curr.getTime()) && !isNaN(end.getTime())) {
+    while (curr <= end) {
+      const dStr = curr.toISOString().slice(0, 10);
+      if (!isWeekend(dStr) && !excludedSet.has(dStr)) {
+        rangeDates.push(dStr);
+      }
+      curr.setDate(curr.getDate() + 1);
     }
-    curr.setDate(curr.getDate() + 1);
   }
 
   const operatingDaysCount = rangeDates.length;
 
   const totals = { breakfast: 0, lunch: 0, supper: 0 };
   services.forEach((row) => {
-    totals[row.meal] += row.count;
+    if (totals[row.meal] !== undefined) {
+      totals[row.meal] += row.count;
+    }
   });
 
   const averages = Object.fromEntries(
@@ -374,7 +384,7 @@ export function calculateDateRange(school, dataset, startDate, endDate, excluded
       operatingDaysCount ? totals[meal] / operatingDaysCount : 0,
     ])
   );
-  const enrollment = n(school.enrollment) || null;
+  const enrollment = n(school?.enrollment) || null;
   const participation = {
     breakfast: enrollment ? (averages.breakfast / enrollment) * 100 : null,
     lunch: enrollment ? (averages.lunch / enrollment) * 100 : null,
@@ -414,10 +424,10 @@ export function calculateDateRange(school, dataset, startDate, endDate, excluded
   );
   const rangeLaborRows = dedupedLabor.filter(
     (row) =>
-      String(row.location_id) === String(school.location_id) &&
-      inRange(row.service_date, startDate, endDate) &&
-      !excludedSet.has(row.service_date) &&
-      !isWeekend(row.service_date)
+      String(row?.location_id) === String(school?.location_id) &&
+      inRange(row?.service_date, startDate, endDate) &&
+      !excludedSet.has(row?.service_date) &&
+      !isWeekend(row?.service_date)
   );
   const laborByDate = new Map(rangeLaborRows.map((row) => [row.service_date, row]));
 
@@ -427,7 +437,7 @@ export function calculateDateRange(school, dataset, startDate, endDate, excluded
       const counts = Object.fromEntries(rows.map((row) => [row.meal, row.count]));
       const adjustment = laborByDate.get(date);
       const hours =
-        n(school.budget_labor_hours) +
+        n(school?.budget_labor_hours) +
         n(adjustment?.additional_worker_hours) +
         n(adjustment?.manager_overtime_hours);
       const equivalents =
@@ -441,7 +451,7 @@ export function calculateDateRange(school, dataset, startDate, endDate, excluded
     })
     .filter((row) => row.mplh !== null);
 
-  const target = MPLH_TARGETS[school.labor_type] || {
+  const target = MPLH_TARGETS[school?.labor_type] || {
     label: "Not Classified",
     min: null,
     max: null,
@@ -458,14 +468,16 @@ export function calculateDateRange(school, dataset, startDate, endDate, excluded
   dedupedCosts
     .filter(
       (row) =>
-        String(row.location_id) === String(school.directory_id) &&
-        inRange(row.production_date, startDate, endDate) &&
-        !excludedSet.has(row.production_date) &&
-        !isWeekend(row.production_date)
+        String(row?.location_id) === String(school?.directory_id) &&
+        inRange(row?.production_date, startDate, endDate) &&
+        !excludedSet.has(row?.production_date) &&
+        !isWeekend(row?.production_date)
     )
     .forEach((row) => {
-      costs[row.meal_type] += n(row.food_cost);
-      costRowCounts[row.meal_type] += 1;
+      if (costs[row.meal_type] !== undefined) {
+        costs[row.meal_type] += n(row.food_cost);
+        costRowCounts[row.meal_type] += 1;
+      }
     });
 
   const costAvailable = Object.fromEntries(
@@ -507,7 +519,7 @@ export function calculateDateRange(school, dataset, startDate, endDate, excluded
       : null;
 
   const rates = Object.fromEntries(
-    (dataset?.rates || []).map((row) => [row.meal_type, n(row.rate)])
+    (dataset?.rates || []).map((row) => [row?.meal_type, n(row?.rate)])
   );
   const revenues = {
     breakfast: totals.breakfast * n(rates.breakfast),
@@ -523,17 +535,17 @@ export function calculateDateRange(school, dataset, startDate, endDate, excluded
   );
   const production = dedupedProd.filter(
     (row) =>
-      String(row.location_id) === String(school.directory_id) &&
-      inRange(row.production_date, startDate, endDate) &&
-      !excludedSet.has(row.production_date) &&
-      !isWeekend(row.production_date)
+      String(row?.location_id) === String(school?.directory_id) &&
+      inRange(row?.production_date, startDate, endDate) &&
+      !excludedSet.has(row?.production_date) &&
+      !isWeekend(row?.production_date)
   );
 
   const productionTotals = production.reduce(
     (acc, row) => ({
-      planned: acc.planned + n(row.planned),
-      prepared: acc.prepared + n(row.prepared),
-      served: acc.served + n(row.served),
+      planned: acc.planned + n(row?.planned),
+      prepared: acc.prepared + n(row?.prepared),
+      served: acc.served + n(row?.served),
     }),
     { planned: 0, prepared: 0, served: 0 }
   );
@@ -588,15 +600,15 @@ export function calculateDateRange(school, dataset, startDate, endDate, excluded
     budgetedLaborHours: laborCost.budgetedDailyHours,
     averageMplh: mean(dailyMplh.map((row) => row.mplh)),
     daysMeetingTarget:
-      target.min === null
+      target?.min === null || target?.min === undefined
         ? null
         : dailyMplh.filter((row) => row.mplh >= target.min).length,
     daysBelowTarget:
-      target.min === null
+      target?.min === null || target?.min === undefined
         ? null
         : dailyMplh.filter((row) => row.mplh < target.min).length,
     target,
-    dataThrough: rangeDates.at(-1) || null,
+    dataThrough: rangeDates.length ? rangeDates[rangeDates.length - 1] : null,
     costs,
     costAvailable,
     totalCost,
@@ -609,7 +621,7 @@ export function calculateDateRange(school, dataset, startDate, endDate, excluded
     menuRankings,
     worstItems,
     forecastObservation,
-    weekly: weekly.weeks,
+    weekly: weekly.weeks || [],
     bestWeek: weekly.bestWeek,
     watchWeek: weekly.watchWeek,
     hasProduction: production.length > 0,
@@ -618,76 +630,146 @@ export function calculateDateRange(school, dataset, startDate, endDate, excluded
   };
 }
 
-export function buildSchoolScorecard(school, dataset, dateRangeOrMonth, excludedDates = []) {
-  let startDate, endDate;
-  if (typeof dateRangeOrMonth === "string") {
-    startDate = `${dateRangeOrMonth.slice(0, 7)}-01`;
-    const y = Number(dateRangeOrMonth.slice(0, 4));
-    const m = Number(dateRangeOrMonth.slice(5, 7));
-    const lastDay = new Date(y, m, 0).getDate();
-    endDate = `${dateRangeOrMonth.slice(0, 7)}-${String(lastDay).padStart(2, "0")}`;
-  } else {
-    startDate = dateRangeOrMonth.startDate;
-    endDate = dateRangeOrMonth.endDate;
+function managerSummary(current, previous) {
+  const pp =
+    current?.participation?.lunch !== null && previous?.participation?.lunch != null
+      ? current.participation.lunch - previous.participation.lunch
+      : null;
+  const win =
+    pp !== null && pp > 0
+      ? `Lunch participation increased ${round(pp)} percentage points.`
+      : current?.bestWeek
+      ? `${current.bestWeek.label} was the strongest balanced operating week.`
+      : "Operating data is available for review.";
+  const watch =
+    current?.watchWeek && current?.watchWeek?.leftoverPercentage !== null
+      ? `${current.watchWeek.label} needs attention: ${round(current.watchWeek.leftoverPercentage)}% leftover and ${round(current.watchWeek.lunchParticipation)}% lunch participation.`
+      : current?.daysBelowTarget > 0
+      ? `${current.daysBelowTarget} operating days were below the MPLH target.`
+      : "Continue monitoring participation, MPLH, and production.";
+  const action = current?.worstItems?.length
+    ? `Review production quantities for ${current.worstItems.slice(0, 3).map((item) => item.name).join(", ")} before their next menu cycle.`
+    : current?.daysBelowTarget > 0
+    ? "Review staffing adjustments on below-target days."
+    : "Review high- and low-participation days with the menu plan.";
+  const participationGoal =
+    current?.participation?.lunch === null || current?.participation?.lunch === undefined
+      ? null
+      : Math.max(1, Math.floor(current.participation.lunch));
+  const belowTargetGoal =
+    current?.daysBelowTarget === null || current?.daysBelowTarget === undefined
+      ? null
+      : Math.max(0, current.daysBelowTarget - 1);
+  const goal =
+    participationGoal !== null && belowTargetGoal !== null
+      ? `Keep lunch participation at or above ${participationGoal}% while reducing below-target MPLH days from ${current.daysBelowTarget} to ${belowTargetGoal} or fewer.`
+      : "Maintain participation while meeting the school MPLH target.";
+  return { win, watch, action, goal };
+}
+
+function getPreviousMonthRange(dateStr) {
+  const parts = String(dateStr || "").slice(0, 7).split("-");
+  let y = Number(parts[0]) || new Date().getFullYear();
+  let m = Number(parts[1]) || 1;
+  m -= 1;
+  if (m < 1) {
+    m = 12;
+    y -= 1;
   }
-
-  const current = calculateDateRange(school, dataset, startDate, endDate, excludedDates);
-
-  const startDt = new Date(`${startDate}T12:00:00`);
-  const prevMonthStart = new Date(startDt);
-  prevMonthStart.setMonth(prevMonthStart.getMonth() - 1);
-  const prevMonthStr = prevMonthStart.toISOString().slice(0, 7);
-  const pY = Number(prevMonthStr.slice(0, 4));
-  const pM = Number(prevMonthStr.slice(5, 7));
-  const pLast = new Date(pY, pM, 0).getDate();
-  const prevStart = `${prevMonthStr}-01`;
-  const prevEnd = `${prevMonthStr}-${String(pLast).padStart(2, "0")}`;
-
-  const previous = calculateDateRange(school, dataset, prevStart, prevEnd, []);
-  const previousExists =
-    previous.hasMeals || previous.hasProduction || previous.hasCost;
-
-  const changes = {
-    breakfastParticipation:
-      current.participation.breakfast !== null &&
-      previous.participation.breakfast !== null
-        ? current.participation.breakfast - previous.participation.breakfast
-        : null,
-    lunchParticipation:
-      current.participation.lunch !== null && previous.participation.lunch !== null
-        ? current.participation.lunch - previous.participation.lunch
-        : null,
-    supperParticipation:
-      current.participation.supper !== null &&
-      previous.participation.supper !== null
-        ? current.participation.supper - previous.participation.supper
-        : null,
-    mplh:
-      current.averageMplh !== null && previous.averageMplh !== null
-        ? current.averageMplh - previous.averageMplh
-        : null,
-    laborCost:
-      current.laborCost !== null && previous.laborCost !== null
-        ? current.laborCost - previous.laborCost
-        : null,
-    foodCost:
-      current.totalCost !== null && previous.totalCost !== null
-        ? current.totalCost - previous.totalCost
-        : null,
-    leftoverPercentage:
-      current.productionTotals.leftoverPercentage !== null &&
-      previous.productionTotals.leftoverPercentage !== null
-        ? current.productionTotals.leftoverPercentage -
-          previous.productionTotals.leftoverPercentage
-        : null,
-    revenue: previous.hasMeals ? current.revenue - previous.revenue : null,
-  };
-
+  const mStr = String(m).padStart(2, "0");
+  const lastDay = new Date(y, m, 0).getDate();
   return {
-    school,
-    current,
-    previous: previousExists ? previous : null,
-    changes,
-    summary: managerSummary(current, previousExists ? previous : null),
+    startDate: `${y}-${mStr}-01`,
+    endDate: `${y}-${mStr}-${String(lastDay).padStart(2, "0")}`,
   };
+}
+
+export function buildSchoolScorecard(school, dataset, dateRangeOrMonth, excludedDates = []) {
+  try {
+    let startDate, endDate;
+    if (typeof dateRangeOrMonth === "string") {
+      startDate = `${dateRangeOrMonth.slice(0, 7)}-01`;
+      const y = Number(dateRangeOrMonth.slice(0, 4));
+      const m = Number(dateRangeOrMonth.slice(5, 7));
+      const lastDay = new Date(y, m, 0).getDate();
+      endDate = `${dateRangeOrMonth.slice(0, 7)}-${String(lastDay).padStart(2, "0")}`;
+    } else {
+      startDate = dateRangeOrMonth?.startDate || `${new Date().getFullYear()}-01-01`;
+      endDate = dateRangeOrMonth?.endDate || new Date().toISOString().slice(0, 10);
+    }
+
+    const current = calculateDateRange(school, dataset, startDate, endDate, excludedDates);
+    const prevRange = getPreviousMonthRange(startDate);
+    const previous = calculateDateRange(school, dataset, prevRange.startDate, prevRange.endDate, []);
+    const previousExists =
+      previous.hasMeals || previous.hasProduction || previous.hasCost;
+
+    const changes = {
+      breakfastParticipation:
+        current.participation?.breakfast !== null &&
+        previous.participation?.breakfast !== null
+          ? current.participation.breakfast - previous.participation.breakfast
+          : null,
+      lunchParticipation:
+        current.participation?.lunch !== null && previous.participation?.lunch !== null
+          ? current.participation.lunch - previous.participation.lunch
+          : null,
+      supperParticipation:
+        current.participation?.supper !== null &&
+        previous.participation?.supper !== null
+          ? current.participation.supper - previous.participation.supper
+          : null,
+      mplh:
+        current.averageMplh !== null && previous.averageMplh !== null
+          ? current.averageMplh - previous.averageMplh
+          : null,
+      laborCost:
+        current.laborCost !== null && previous.laborCost !== null
+          ? current.laborCost - previous.laborCost
+          : null,
+      foodCost:
+        current.totalCost !== null && previous.totalCost !== null
+          ? current.totalCost - previous.totalCost
+          : null,
+      leftoverPercentage:
+        current.productionTotals?.leftoverPercentage !== null &&
+        previous.productionTotals?.leftoverPercentage !== null
+          ? current.productionTotals.leftoverPercentage -
+            previous.productionTotals.leftoverPercentage
+          : null,
+      revenue: previous.hasMeals ? current.revenue - previous.revenue : null,
+    };
+
+    return {
+      school,
+      current,
+      previous: previousExists ? previous : null,
+      changes,
+      summary: managerSummary(current, previousExists ? previous : null),
+    };
+  } catch (err) {
+    console.error(`Error building scorecard for ${school?.school_name}:`, err);
+    return {
+      school,
+      current: {
+        totals: { breakfast: 0, lunch: 0, supper: 0 },
+        averages: { breakfast: 0, lunch: 0, supper: 0 },
+        participation: { breakfast: null, lunch: null, supper: null },
+        participationTrend: [],
+        operatingDays: 0,
+        hasMeals: false,
+        hasProduction: false,
+        hasCost: false,
+        target: { label: "N/A", min: null, max: null },
+        costs: { breakfast: 0, lunch: 0, supper: 0 },
+        costAvailable: { breakfast: false, lunch: false, supper: false },
+        menuRankings: { breakfast: [], lunch: [] },
+        worstItems: [],
+        weekly: [],
+      },
+      previous: null,
+      changes: {},
+      summary: { win: "—", watch: "—", action: "—", goal: "—" },
+    };
+  }
 }
