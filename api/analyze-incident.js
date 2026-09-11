@@ -133,13 +133,13 @@ Return ONLY valid JSON matching this schema:
 `;
 
     // Note: Using standard gemini-1.5-flash (gemini-3.6-flash does not exist)
+    // Use ?key= in the URL (more reliable than headers)
     const geminiResponse = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
         },
         body: JSON.stringify({
           contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -154,7 +154,11 @@ Return ONLY valid JSON matching this schema:
     if (!geminiResponse.ok) {
       const errorText = await geminiResponse.text();
       console.error("Gemini API error:", errorText);
-      return response.status(500).json({ error: "Gemini could not analyze the incident." });
+
+      // 🔴 Show the REAL error on screen so we see what Google is complaining about:
+      return response.status(500).json({
+        error: `Google Error: ${errorText}`,
+      });
     }
 
     const result = await geminiResponse.json();
