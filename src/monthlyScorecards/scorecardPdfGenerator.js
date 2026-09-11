@@ -359,7 +359,7 @@ export async function appendSchoolScorecardPages(pdfDoc, card, dateRange) {
     }
   );
 
-  // 3. Financial Snapshot (Requirement 5 & 6)
+  // 3. Financial Snapshot
   y -= 84;
   page1.drawText("03  FINANCIAL SNAPSHOT", {
     x: 36,
@@ -526,7 +526,7 @@ export async function appendSchoolScorecardPages(pdfDoc, card, dateRange) {
     });
   }
 
-  // 5. Forecasting & Leftovers (Requirement 4)
+  // 5. Forecasting & Leftovers
   y2 -= 78;
   page2.drawText("05  FORECASTING & LEFTOVERS", {
     x: 36,
