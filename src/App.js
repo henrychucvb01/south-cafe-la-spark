@@ -17,6 +17,7 @@ import AskSparkPage from "./pages/AskSparkPage";
 import LocationInformationPage from "./pages/LocationInformationPage";
 import OperationsHelpPage from "./pages/OperationsHelpPage";
 import ManagerFeedback from "./feedback/ManagerFeedback";
+import HowToEarnPointsPage from "./pages/HowToEarnPointsPage";
 
 function App() {
   const [screen, setScreen] = useState("login");
