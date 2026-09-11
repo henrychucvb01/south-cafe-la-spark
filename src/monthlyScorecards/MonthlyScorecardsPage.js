@@ -17,9 +17,16 @@ import "./monthlyScorecards.css";
 
 const REPORT_ORDER = ["production", "cost"];
 const todayString = () => new Date().toISOString().slice(0, 10);
-const firstDayOfMonth = (date = new Date()) => {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-01`;
-};
+
+function getDefaultDates() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const start = `${y}-${m}-01`;
+  const end = now.toISOString().slice(0, 10);
+  return { start, end };
+}
+
 const schoolYearFor = (value) => {
   const date = new Date(`${value}T12:00:00`);
   const year = date.getFullYear();
@@ -28,15 +35,15 @@ const schoolYearFor = (value) => {
 };
 
 export default function MonthlyScorecardsPage({ supervisorPin }) {
-  // Date Range Controls
-  const [startDate, setStartDate] = useState(firstDayOfMonth());
-  const [endDate, setEndDate] = useState(todayString());
+  const defaults = useMemo(() => getDefaultDates(), []);
+  const [startDate, setStartDate] = useState(defaults.start);
+  const [endDate, setEndDate] = useState(defaults.end);
   const [appliedRange, setAppliedRange] = useState({
-    startDate: firstDayOfMonth(),
-    endDate: todayString(),
+    startDate: defaults.start,
+    endDate: defaults.end,
   });
 
-  const [schoolYear, setSchoolYear] = useState(schoolYearFor(firstDayOfMonth()));
+  const [schoolYear, setSchoolYear] = useState(schoolYearFor(defaults.start));
   const [imports, setImports] = useState([]);
   const [dataset, setDataset] = useState(null);
   const [selectedSchoolId, setSelectedSchoolId] = useState(null);
@@ -74,7 +81,6 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
     refresh();
   }, [refresh]);
 
-  // Date Validation & Apply
   function handleApplyRange() {
     setError("");
     setMessage("");
@@ -96,7 +102,19 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
     setSchoolYear(schoolYearFor(startDate));
   }
 
-  // Upload handler for CSV production / cost files
+  // Quick preset for completed month
+  function selectCompletedMonth(yearMonth) {
+    const y = Number(yearMonth.slice(0, 4));
+    const m = Number(yearMonth.slice(5, 7));
+    const start = `${yearMonth}-01`;
+    const lastDay = new Date(y, m, 0).getDate();
+    const end = `${yearMonth}-${String(lastDay).padStart(2, "0")}`;
+    setStartDate(start);
+    setEndDate(end);
+    setAppliedRange({ startDate: start, endDate: end });
+    setSchoolYear(schoolYearFor(start));
+  }
+
   async function upload(reportType, file) {
     if (!file) return;
     setBusy(reportType);
@@ -118,7 +136,7 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
         checksum,
       });
       setMessage(
-        `${REPORT_TYPES[reportType]} imported: ${parsed.normalizedRows.length} normalized rows.`
+        `${REPORT_TYPES[reportType]} imported: ${parsed.normalizedRows.length} rows updated.`
       );
       await refresh();
     } catch (err) {
@@ -128,19 +146,21 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
     }
   }
 
-  // Build cards for all schools
   const cards = useMemo(() => {
     return (dataset?.schools || [])
       .filter((school) => !isExcludedSchool(school))
-      .map((school) =>
-        buildSchoolScorecard(school, dataset, appliedRange)
-      );
+      .map((school) => buildSchoolScorecard(school, dataset, appliedRange));
   }, [dataset, appliedRange]);
 
-  // Individual PDF Export Handler
   async function handleExportSingle(card) {
-    if (!card.current.hasMeals && !card.current.hasProduction && !card.current.hasCost) {
-      setError(`No valid scorecard data exists for ${card.school.school_name} in this date range.`);
+    if (
+      !card.current.hasMeals &&
+      !card.current.hasProduction &&
+      !card.current.hasCost
+    ) {
+      setError(
+        `No valid scorecard data exists for ${card.school.school_name} in this date range.`
+      );
       return;
     }
 
@@ -158,7 +178,6 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
     }
   }
 
-  // Export All Schools Combined Multi-Page PDF
   async function handleExportAll() {
     if (exportingAll) return;
     setExportingAll(true);
@@ -171,12 +190,16 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
         cards,
         appliedRange,
         (current, total, schoolName) => {
-          setExportStatus(`Generating ${current} of ${total} school scorecards (${schoolName})...`);
+          setExportStatus(
+            `Generating ${current} of ${total} school scorecards (${schoolName})...`
+          );
         }
       );
       setMessage(
         `Successfully exported combined PDF for ${result.exportedCount} school scorecards.${
-          result.skippedCount > 0 ? ` (${result.skippedCount} skipped due to missing data or demo status)` : ""
+          result.skippedCount > 0
+            ? ` (${result.skippedCount} skipped due to missing data or demo status)`
+            : ""
         }`
       );
     } catch (err) {
@@ -187,7 +210,6 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
     }
   }
 
-  // If a school's scorecard is being viewed on screen
   const selectedCard = cards.find(
     (card) => String(card.school.directory_id) === String(selectedSchoolId)
   );
@@ -209,7 +231,7 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
           <span className="monthly-kicker">MONTHLY OPERATIONS</span>
           <h3 id="monthly-scorecards-title">Monthly Scorecards</h3>
           <p>
-            Review supervisor schools for the selected reporting range, view scorecards, or export individual and combined multi-page PDFs.
+            Review supervisor schools for the selected reporting range, view on-screen scorecards, or export individual and combined multi-page PDFs.
           </p>
         </div>
         <button
@@ -222,8 +244,17 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
         </button>
       </div>
 
-      {/* Date Range Selector & Actions Bar */}
-      <div className="monthly-period-card" style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-end", gap: "14px" }}>
+      {/* Date Range Selector & Export All Controls */}
+      <div
+        className="monthly-period-card"
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          justifyContent: "space-between",
+          alignItems: "flex-end",
+          gap: "14px",
+        }}
+      >
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: "12px" }}>
           <label style={{ display: "flex", flexDirection: "column", fontSize: "11px", fontWeight: "800" }}>
             Start Date
@@ -265,7 +296,9 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
             disabled={exportingAll || loading || cards.length === 0}
             style={{ padding: "9px 18px", fontWeight: "800", height: "38px" }}
           >
-            {exportingAll ? (exportStatus || "Generating scorecards...") : "Export All Schools to PDF"}
+            {exportingAll
+              ? exportStatus || "Generating scorecards..."
+              : "Export All Schools to PDF"}
           </button>
         </div>
       </div>
@@ -290,7 +323,9 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
       {/* File Upload Dropzones */}
       <div className="monthly-upload-guidance">
         <strong>Report Imports ({appliedRange.startDate.slice(0, 7)})</strong>
-        <span>Drop monthly production and daily food cost CSV files below to refresh source records.</span>
+        <span>
+          Upload production and food-cost files. Overlapping dates replace previous records without duplication.
+        </span>
       </div>
 
       <div className="monthly-import-grid">
@@ -340,7 +375,7 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
         })}
       </div>
 
-      {/* School List Table with Actions */}
+      {/* School List Table */}
       <div className="monthly-school-list-heading" style={{ marginTop: "24px" }}>
         <div>
           <h3>Supervisor School List</h3>
@@ -374,7 +409,8 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
                   card.current.hasMeals ||
                   card.current.hasProduction ||
                   card.current.hasCost;
-                const isSingleExporting = exportingSingleId === card.school.directory_id;
+                const isSingleExporting =
+                  exportingSingleId === card.school.directory_id;
 
                 return (
                   <tr key={card.school.directory_id}>
@@ -386,7 +422,13 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
                     <td>
                       <span
                         className={`monthly-data-dot ${hasData ? "ready" : "missing"}`}
-                        style={{ display: "inline-block", padding: "3px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: "700" }}
+                        style={{
+                          display: "inline-block",
+                          padding: "3px 8px",
+                          borderRadius: "12px",
+                          fontSize: "11px",
+                          fontWeight: "700",
+                        }}
                       >
                         {hasData ? "Data Available" : "No Data"}
                       </span>
@@ -396,7 +438,9 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
                         <button
                           type="button"
                           className="command-small-button"
-                          onClick={() => setSelectedSchoolId(card.school.directory_id)}
+                          onClick={() =>
+                            setSelectedSchoolId(card.school.directory_id)
+                          }
                         >
                           View Scorecard
                         </button>
