@@ -3,9 +3,6 @@ const NO_ANSWER =
   "I couldn't find enough approved guidance to answer that confidently. Try describing what happened or what you need to do, and I'll search again.";
 const BUSY_MESSAGE =
   "Ask SPARK is busy right now. Please try your question again in a moment.";
-// This is the same public project URL used by the SPARK client. Keeping a
-// server-side fallback prevents Ask SPARK from failing when a deployment has
-// the private credentials but omits the non-secret SUPABASE_URL variable.
 const DEFAULT_SUPABASE_URL = "https://kkrcxqhfzepifhkryodd.supabase.co";
 const requestWindows = new Map();
 
@@ -241,10 +238,8 @@ function extractiveFallback(question, chunks) {
 }
 
 async function generateAnswer({ question, retrievalQuestion, chunks, apiKey }) {
-  // Use gemini-3.6-flash exactly as requested by Google's API
-  const chosenModel = process.env.ASK_SPARK_ANSWER_MODEL || "gemini-3.6-flash";
-  const cleanModel = chosenModel.replace(/^models\//, "").trim();
-
+  // HARDCODED: gemini-3.6-flash so Vercel's env variable cannot override it!
+  const cleanModel = "gemini-3.6-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${apiKey}`;
 
   const options = {
