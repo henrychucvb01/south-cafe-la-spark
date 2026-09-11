@@ -141,34 +141,45 @@ function parseGeneratedOutput(outputText) {
 }
 
 async function createEmbedding(question, apiKey) {
-  // Strip any accidental "models/" prefix so we never have a double "models/models/"
-  const rawModel = process.env.ASK_SPARK_EMBEDDING_MODEL || "text-embedding-004";
-  const cleanModel = rawModel.replace(/^models\//, "").trim();
+  // We try embedding-001 on v1beta first (supported natively on v1beta)
+  // If not found, try text-embedding-004 on v1
+  const endpoints = [
+    `https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1/models/text-embedding-004:embedContent?key=${apiKey}`,
+  ];
 
-  // Pass key in query param for Google Generative AI
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:embedContent?key=${apiKey}`;
+  let lastError = null;
 
-  const options = {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: `models/${cleanModel}`,
-      content: { parts: [{ text: question }] },
-      taskType: "RETRIEVAL_QUERY",
-    }),
-  };
+  for (const url of endpoints) {
+    const isEmbedding001 = url.includes("embedding-001");
+    const modelName = isEmbedding001 ? "models/embedding-001" : "models/text-embedding-004";
 
-  const result = await fetchWith429Retry(url, options, "Embedding service");
+    const options = {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: modelName,
+        content: { parts: [{ text: question }] },
+        taskType: "RETRIEVAL_QUERY",
+      }),
+    };
 
-  if (!result.ok) {
-    const errorDetails = await result.text();
-    console.error("Google Embedding Error:", result.status, errorDetails);
-    throw new Error(`Embedding service returned ${result.status}: ${errorDetails}`);
+    try {
+      const result = await fetchWith429Retry(url, options, "Embedding service");
+      if (result.ok) {
+        const body = await result.json();
+        if (Array.isArray(body?.embedding?.values)) {
+          return body.embedding.values;
+        }
+      }
+      lastError = await result.text();
+      console.warn(`Embedding failed on ${url}:`, result.status, lastError);
+    } catch (err) {
+      lastError = err.message;
+    }
   }
 
-  const body = await result.json();
-  if (!Array.isArray(body?.embedding?.values)) throw new Error("Embedding service returned no vector.");
-  return body.embedding.values;
+  throw new Error(`Embedding service could not generate vector: ${lastError}`);
 }
 
 async function retrieveChunks({ question, embedding, categories, supabaseUrl, serviceKey }) {
