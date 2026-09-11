@@ -174,7 +174,7 @@ async function createEmbedding(question, apiKey) {
       model: `models/${cleanModel}`,
       content: { parts: [{ text: question }] },
       taskType: "RETRIEVAL_QUERY",
-      outputDimensionality: 1536, // <--- Fixed: Outputs exactly 1536 dimensions to match Supabase!
+      outputDimensionality: 1536,
     }),
   };
 
@@ -241,9 +241,29 @@ function extractiveFallback(question, chunks) {
 }
 
 async function generateAnswer({ question, retrievalQuestion, chunks, apiKey }) {
-  const rawModel = process.env.ASK_SPARK_ANSWER_MODEL || "gemini-1.5-flash";
-  const cleanModel = rawModel.replace(/^models\//, "").trim();
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${apiKey}`;
+  // 1. Ask Google which generation models are active for this API key
+  const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+  const listRes = await fetch(listUrl);
+
+  let chosenModel = "gemini-1.5-flash-latest";
+
+  if (listRes.ok) {
+    const listData = await listRes.json();
+    const genModels = (listData.models || [])
+      .filter((m) => m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent"))
+      .map((m) => m.name.replace(/^models\//, ""));
+
+    // Auto-select: prefer 1.5-flash variants, then 2.0-flash, then any gemini model
+    chosenModel =
+      genModels.find((m) => m === "gemini-1.5-flash-latest") ||
+      genModels.find((m) => m.includes("1.5-flash")) ||
+      genModels.find((m) => m.includes("2.0-flash")) ||
+      genModels.find((m) => m.includes("gemini")) ||
+      genModels[0] ||
+      "gemini-1.5-flash-latest";
+  }
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${chosenModel}:generateContent?key=${apiKey}`;
 
   const options = {
     method: "POST",
