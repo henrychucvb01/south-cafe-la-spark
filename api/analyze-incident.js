@@ -128,7 +128,7 @@ Return ONLY valid JSON with this exact structure:
 `;
 
     // Connects directly to Google's verified gemini-2.5-flash model
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
 
     const geminiResponse = await fetch(url, {
       method: "POST",
