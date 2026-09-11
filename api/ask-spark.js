@@ -241,29 +241,11 @@ function extractiveFallback(question, chunks) {
 }
 
 async function generateAnswer({ question, retrievalQuestion, chunks, apiKey }) {
-  // 1. Ask Google which generation models are active for this API key
-  const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
-  const listRes = await fetch(listUrl);
+  // Use gemini-3.6-flash exactly as requested by Google's API
+  const chosenModel = process.env.ASK_SPARK_ANSWER_MODEL || "gemini-3.6-flash";
+  const cleanModel = chosenModel.replace(/^models\//, "").trim();
 
-  let chosenModel = "gemini-1.5-flash-latest";
-
-  if (listRes.ok) {
-    const listData = await listRes.json();
-    const genModels = (listData.models || [])
-      .filter((m) => m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent"))
-      .map((m) => m.name.replace(/^models\//, ""));
-
-    // Auto-select: prefer 1.5-flash variants, then 2.0-flash, then any gemini model
-    chosenModel =
-      genModels.find((m) => m === "gemini-1.5-flash-latest") ||
-      genModels.find((m) => m.includes("1.5-flash")) ||
-      genModels.find((m) => m.includes("2.0-flash")) ||
-      genModels.find((m) => m.includes("gemini")) ||
-      genModels[0] ||
-      "gemini-1.5-flash-latest";
-  }
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${chosenModel}:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${apiKey}`;
 
   const options = {
     method: "POST",
@@ -282,6 +264,7 @@ async function generateAnswer({ question, retrievalQuestion, chunks, apiKey }) {
       }],
       generationConfig: {
         temperature: 0.1,
+        thinkingConfig: { thinkingLevel: "minimal" },
         maxOutputTokens: 4096,
         responseMimeType: "application/json",
         responseJsonSchema: {
