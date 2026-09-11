@@ -125,9 +125,6 @@ function parseGeneratedOutput(outputText) {
   try {
     return JSON.parse(objectText);
   } catch (jsonError) {
-    // Gemini can occasionally emit a JavaScript/Python-style object even when
-    // JSON output is requested. Parse only the three fields in our fixed
-    // response contract; never evaluate model-produced text as code.
     const supportedMatch = objectText.match(/["']?supported["']?\s*:\s*(true|false)/i);
     const answerMatch = objectText.match(/["']?answer["']?\s*:\s*(["'])([\s\S]*?)\1\s*,\s*["']?citation_ids["']?\s*:/i);
     const citationSection = objectText.match(/["']?citation_ids["']?\s*:\s*\[([\s\S]*?)\]/i);
@@ -144,12 +141,16 @@ function parseGeneratedOutput(outputText) {
 }
 
 async function createEmbedding(question, apiKey) {
-  const model = process.env.ASK_SPARK_EMBEDDING_MODEL || "gemini-embedding-001";
+  const model = process.env.ASK_SPARK_EMBEDDING_MODEL || "text-embedding-004";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:embedContent`;
   const options = {
     method: "POST",
     headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: `models/${model}`, content: { parts: [{ text: question }] }, taskType: "RETRIEVAL_QUERY", outputDimensionality: 1536 }),
+    body: JSON.stringify({
+      model: `models/${model}`,
+      content: { parts: [{ text: question }] },
+      taskType: "RETRIEVAL_QUERY",
+    }),
   };
   const result = await fetchWith429Retry(url, options, "Embedding service");
   if (!result.ok) throw new Error(`Embedding service returned ${result.status}.`);
@@ -210,22 +211,37 @@ function extractiveFallback(question, chunks) {
 }
 
 async function generateAnswer({ question, retrievalQuestion, chunks, apiKey }) {
-  const model = process.env.ASK_SPARK_ANSWER_MODEL || "gemini-3.6-flash";
+  const model = process.env.ASK_SPARK_ANSWER_MODEL || "gemini-1.5-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const options = {
     method: "POST",
     headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: `You are Ask SPARK, a friendly school cafeteria operations assistant. For cafeteria work questions, answer ONLY from the supplied approved excerpts. Never use outside knowledge or invent LAUSD policy. The manager may type casually, misspell words, or describe a situation instead of using official terminology. Use the related cafeteria training terms only to understand the likely intent; they are not policy or evidence. AR means Administrative Review, not Arkansas. Write naturally and practically for a cafeteria manager. Do not add labels such as "Confirmed answer" or "Verified answer". If the excerpts do not actually support an answer, set supported to false. Every factual work instruction in a supported answer must be backed by cited chunk IDs. Return JSON only: {"supported":boolean,"answer":string,"citation_ids":string[]}.` }] },
-      contents: [{ role: "user", parts: [{ text: `Manager's original question:\n${question}\n\nSearch wording (not a source):\n${retrievalQuestion}\n\nApproved retrieved excerpts:\n${buildContext(chunks)}` }] }],
+      systemInstruction: {
+        parts: [{
+          text: `You are Ask SPARK, a friendly school cafeteria operations assistant. For cafeteria work questions, answer ONLY from the supplied approved excerpts. Never use outside knowledge or invent LAUSD policy. The manager may type casually, misspell words, or describe a situation instead of using official terminology. Use the related cafeteria training terms only to understand the likely intent; they are not policy or evidence. AR means Administrative Review, not Arkansas. Write naturally and practically for a cafeteria manager. Do not add labels such as "Confirmed answer" or "Verified answer". If the excerpts do not actually support an answer, set supported to false. Every factual work instruction in a supported answer must be backed by cited chunk IDs. Return JSON only: {"supported":boolean,"answer":string,"citation_ids":string[]}.`,
+        }],
+      },
+      contents: [{
+        role: "user",
+        parts: [{
+          text: `Manager's original question:\n${question}\n\nSearch wording (not a source):\n${retrievalQuestion}\n\nApproved retrieved excerpts:\n${buildContext(chunks)}`,
+        }],
+      }],
       generationConfig: {
         temperature: 0.1,
-        thinkingConfig: { thinkingLevel: "minimal" },
-        // Gemini's output budget also covers model thinking. Small caps ended
-        // partway through the JSON response even though generation succeeded.
         maxOutputTokens: 4096,
         responseMimeType: "application/json",
-        responseJsonSchema: { type: "object", properties: { supported: { type: "boolean" }, answer: { type: "string" }, citation_ids: { type: "array", items: { type: "string" } } }, required: ["supported", "answer", "citation_ids"], additionalProperties: false },
+        responseJsonSchema: {
+          type: "object",
+          properties: {
+            supported: { type: "boolean" },
+            answer: { type: "string" },
+            citation_ids: { type: "array", items: { type: "string" } },
+          },
+          required: ["supported", "answer", "citation_ids"],
+          additionalProperties: false,
+        },
       },
     }),
   };
