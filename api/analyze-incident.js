@@ -135,7 +135,7 @@ Return ONLY valid JSON matching this schema:
     // Note: Using standard gemini-1.5-flash (gemini-3.6-flash does not exist)
     // Use ?key= in the URL (more reliable than headers)
     const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+     `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: {
