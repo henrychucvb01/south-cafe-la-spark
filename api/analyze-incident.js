@@ -132,33 +132,44 @@ Return ONLY valid JSON matching this schema:
 }
 `;
 
-    // Note: Using standard gemini-1.5-flash (gemini-3.6-flash does not exist)
-    // Use ?key= in the URL (more reliable than headers)
-    const geminiResponse = await fetch(
-     `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+ // Try gemini-2.0-flash first (Google's current default)
+    let modelName = "gemini-2.0-flash";
+    let url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+
+    let geminiResponse = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          temperature: 0.2,
         },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseMimeType: "application/json",
-            temperature: 0.2,
-          },
-        }),
-      }
-    );
+      }),
+    });
 
+    // If that model fails, ask Google what models this key IS allowed to use
     if (!geminiResponse.ok) {
-      const errorText = await geminiResponse.text();
-      console.error("Gemini API error:", errorText);
+      try {
+        const listResponse = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
+        );
+        const listData = await listResponse.json();
+        
+        // Extract the valid model names for your key
+        const availableModels = (listData.models || [])
+          .map((m) => m.name.replace("models/", ""))
+          .filter((name) => name.includes("flash") || name.includes("gemini"))
+          .slice(0, 5)
+          .join(", ");
 
-      // 🔴 Show the REAL error on screen so we see what Google is complaining about:
-      return response.status(500).json({
-        error: `Google Error: ${errorText}`,
-      });
+        return response.status(500).json({
+          error: `Google rejected '${modelName}'. Your key only has access to: [ ${availableModels || "NO MODELS ENABLED - Check Google Cloud Console"} ]`,
+        });
+      } catch (err) {
+        const errorText = await geminiResponse.text();
+        return response.status(500).json({ error: errorText });
+      }
     }
 
     const result = await geminiResponse.json();
