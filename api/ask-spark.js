@@ -141,19 +141,31 @@ function parseGeneratedOutput(outputText) {
 }
 
 async function createEmbedding(question, apiKey) {
-  const model = process.env.ASK_SPARK_EMBEDDING_MODEL || "text-embedding-004";
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:embedContent`;
+  // Strip any accidental "models/" prefix so we never have a double "models/models/"
+  const rawModel = process.env.ASK_SPARK_EMBEDDING_MODEL || "text-embedding-004";
+  const cleanModel = rawModel.replace(/^models\//, "").trim();
+
+  // Pass key in query param for Google Generative AI
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:embedContent?key=${apiKey}`;
+
   const options = {
     method: "POST",
-    headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: `models/${model}`,
+      model: `models/${cleanModel}`,
       content: { parts: [{ text: question }] },
       taskType: "RETRIEVAL_QUERY",
     }),
   };
+
   const result = await fetchWith429Retry(url, options, "Embedding service");
-  if (!result.ok) throw new Error(`Embedding service returned ${result.status}.`);
+
+  if (!result.ok) {
+    const errorDetails = await result.text();
+    console.error("Google Embedding Error:", result.status, errorDetails);
+    throw new Error(`Embedding service returned ${result.status}: ${errorDetails}`);
+  }
+
   const body = await result.json();
   if (!Array.isArray(body?.embedding?.values)) throw new Error("Embedding service returned no vector.");
   return body.embedding.values;
@@ -211,11 +223,13 @@ function extractiveFallback(question, chunks) {
 }
 
 async function generateAnswer({ question, retrievalQuestion, chunks, apiKey }) {
-  const model = process.env.ASK_SPARK_ANSWER_MODEL || "gemini-1.5-flash";
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const rawModel = process.env.ASK_SPARK_ANSWER_MODEL || "gemini-1.5-flash";
+  const cleanModel = rawModel.replace(/^models\//, "").trim();
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${apiKey}`;
+
   const options = {
     method: "POST",
-    headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       systemInstruction: {
         parts: [{
@@ -245,8 +259,15 @@ async function generateAnswer({ question, retrievalQuestion, chunks, apiKey }) {
       },
     }),
   };
+
   const result = await fetchWith429Retry(url, options, "Answer service");
-  if (!result.ok) throw new Error(`Answer service returned ${result.status}.`);
+
+  if (!result.ok) {
+    const errorDetails = await result.text();
+    console.error("Google Answer Error:", result.status, errorDetails);
+    throw new Error(`Answer service returned ${result.status}: ${errorDetails}`);
+  }
+
   const payload = await result.json();
   const outputText = payload?.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("");
   if (!outputText) throw new Error("Answer service returned no text.");
