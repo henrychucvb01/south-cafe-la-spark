@@ -143,6 +143,16 @@ export default function MonthlySchoolScorecard({ card, onBack }) {
     current.startDate && current.endDate
       ? `${current.startDate} to ${current.endDate}`
       : readableMonth(current.month);
+  const mplhScale = Math.max(current.target.max || 25, 25);
+  const targetLeft = ((current.target.min || 0) / mplhScale) * 100;
+  const targetWidth =
+    current.target.min === null
+      ? 0
+      : ((current.target.max - current.target.min) / mplhScale) * 100;
+  const targetMid =
+    current.target.min === null
+      ? 0
+      : (((current.target.min + current.target.max) / 2) / mplhScale) * 100;
 
   return (
     <div className="monthly-school-scorecard scorecard-sheet">
@@ -320,6 +330,7 @@ export default function MonthlySchoolScorecard({ card, onBack }) {
           </div>
           <div className="scorecard-target-track">
             <span
+              className="scorecard-mplh-value"
               style={{
                 width:
                   current.averageMplh === null
@@ -327,21 +338,22 @@ export default function MonthlySchoolScorecard({ card, onBack }) {
                     : `${Math.min(
                         100,
                         (current.averageMplh /
-                          Math.max(current.target.max || 25, 25)) *
-                          100
+                          mplhScale) * 100
                       )}%`,
               }}
             />
-            <i
-              style={{
-                left: `${Math.min(
-                  100,
-                  ((current.target.min || 0) /
-                    Math.max(current.target.max || 25, 25)) *
-                    100
-                )}%`,
-              }}
-            />
+            {current.target.min !== null && (
+              <>
+                <b
+                  className="scorecard-mplh-target-zone"
+                  style={{ left: `${targetLeft}%`, width: `${targetWidth}%` }}
+                />
+                <i
+                  className="scorecard-mplh-midpoint"
+                  style={{ left: `${targetMid}%` }}
+                />
+              </>
+            )}
           </div>
         </div>
         <div className="scorecard-mini-grid">

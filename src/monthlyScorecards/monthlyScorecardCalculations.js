@@ -6,6 +6,20 @@ export const MPLH_TARGETS = {
   special_ed: { label: "Special Education", min: 24, max: 25 },
 };
 
+export function getMplhTarget(school) {
+  if (
+    String(school?.source_site_id) === "1195701" ||
+    /willenberg/i.test(String(school?.school_name || ""))
+  ) {
+    return MPLH_TARGETS.elementary_prep;
+  }
+  return MPLH_TARGETS[school?.labor_type] || {
+    label: "Not Classified",
+    min: null,
+    max: null,
+  };
+}
+
 const MEALS = ["breakfast", "lunch", "supper"];
 const n = (value) => Number(value) || 0;
 const inRange = (date, start, end) => {
@@ -451,11 +465,7 @@ export function calculateDateRange(school, dataset, startDate, endDate, excluded
     })
     .filter((row) => row.mplh !== null);
 
-  const target = MPLH_TARGETS[school?.labor_type] || {
-    label: "Not Classified",
-    min: null,
-    max: null,
-  };
+  const target = getMplhTarget(school);
 
   const rawCosts = dataset?.cost_rows || [];
   const dedupedCosts = deduplicateRowsByKey(

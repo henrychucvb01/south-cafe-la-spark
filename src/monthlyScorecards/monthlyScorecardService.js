@@ -15,7 +15,19 @@ export async function loadMonthlyImports(supervisorPin, schoolYear, reportingMon
   return data || [];
 }
 
+export function dedupeMonthlyRows(reportType,rows) {
+  const normalizedByKey=new Map();
+  rows.forEach((row)=>{
+    const recordKey=reportType==="cost"
+      ? `${row.source_site_id}|${row.production_date}|${row.meal_type}`
+      : `${row.source_site_id}|${row.production_date}|${row.meal_type}|${row.item_code||row.item_name}`;
+    normalizedByKey.set(recordKey,row);
+  });
+  return [...normalizedByKey.values()];
+}
+
 export async function saveMonthlyImport({ supervisorPin, reportType, schoolYear, reportingMonth, filename, parsed, checksum }) {
+  const normalizedRows=dedupeMonthlyRows(reportType,parsed.normalizedRows);
   const { data, error } = await supabase.rpc("import_monthly_scorecard_report", {
     p_supervisor_pin: supervisorPin,
     p_report_type: reportType,
@@ -30,7 +42,7 @@ export async function saveMonthlyImport({ supervisorPin, reportType, schoolYear,
     p_ignored_row_count: parsed.ignoredRows.length,
     p_out_of_area_row_count: parsed.ignoredOutOfAreaRows.length,
     p_raw_rows: parsed.rawRows,
-    p_normalized_rows: parsed.normalizedRows,
+    p_normalized_rows: normalizedRows,
     p_warnings: parsed.warnings,
   });
   if (error) throw error;
@@ -43,4 +55,9 @@ export async function loadMonthlyScorecardDataset(supervisorPin,schoolYear,repor
   });
   if (error) throw error;
   return data || {};
+}
+
+export async function loadMonthlyScorecardDatasetWithRetry(...args) {
+  try{return await loadMonthlyScorecardDataset(...args);}
+  catch(error){if(!/timeout|canceling statement/i.test(error?.message||""))throw error;return loadMonthlyScorecardDataset(...args);}
 }
