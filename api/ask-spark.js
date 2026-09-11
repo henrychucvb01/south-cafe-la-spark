@@ -141,7 +141,6 @@ function parseGeneratedOutput(outputText) {
 }
 
 async function createEmbedding(question, apiKey) {
-  // 1. Ask Google what models are actually available for this API key
   const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
   const listRes = await fetch(listUrl);
 
@@ -153,23 +152,20 @@ async function createEmbedding(question, apiKey) {
   const listData = await listRes.json();
   const availableModels = listData.models || [];
 
-  // 2. Find any model that supports embedContent
   const embedModels = availableModels
     .filter((m) => m.supportedGenerationMethods && m.supportedGenerationMethods.includes("embedContent"))
-    .map((m) => m.name); // e.g. "models/text-embedding-004" or "models/embedding-001"
+    .map((m) => m.name);
 
   if (embedModels.length === 0) {
     const sampleAvailable = availableModels.map((m) => m.name.replace("models/", "")).slice(0, 6).join(", ");
     throw new Error(
-      `Your Google API key does not have an embedding model enabled. Available models for your key are: [${sampleAvailable || "none found"}].`
+      `Your Google API key does not have an embedding model enabled. Available models: [${sampleAvailable || "none found"}].`
     );
   }
 
-  // Pick text-embedding-004 if available, otherwise take the first available embed model
   const chosenModelFull = embedModels.find((m) => m.includes("text-embedding-004")) || embedModels[0];
   const cleanModel = chosenModelFull.replace(/^models\//, "");
 
-  // 3. Generate embedding using Google's confirmed available model
   const embedUrl = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:embedContent?key=${apiKey}`;
   const options = {
     method: "POST",
@@ -178,6 +174,7 @@ async function createEmbedding(question, apiKey) {
       model: `models/${cleanModel}`,
       content: { parts: [{ text: question }] },
       taskType: "RETRIEVAL_QUERY",
+      outputDimensionality: 1536, // <--- Fixed: Outputs exactly 1536 dimensions to match Supabase!
     }),
   };
 
