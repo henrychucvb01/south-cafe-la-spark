@@ -142,10 +142,10 @@ Return ONLY valid JSON with this exact structure:
       }),
     });
 
-    if (!geminiResponse.ok) {
+if (!geminiResponse.ok) {
       const errorText = await geminiResponse.text();
       console.error("Gemini API error:", errorText);
-      return response.status(500).json({ error: "Gemini could not analyze the incident." });
+      return response.status(500).json({ error: errorText });
     }
 
     const result = await geminiResponse.json();
