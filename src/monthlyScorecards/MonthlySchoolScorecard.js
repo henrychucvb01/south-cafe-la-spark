@@ -1,37 +1,582 @@
 import React from "react";
-import {LineChart,Line,XAxis,YAxis,CartesianGrid,Tooltip,ResponsiveContainer,ReferenceLine} from "recharts";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+} from "recharts";
 
-const integer=(value)=>value===null||value===undefined?"—":Math.round(Number(value)).toLocaleString();
-const decimal=(value,digits=1)=>value===null||value===undefined?"—":Number(value).toFixed(digits);
-const money=(value)=>value===null||value===undefined?"Unavailable":Number(value).toLocaleString("en-US",{style:"currency",currency:"USD"});
-const readableDate=(value)=>value?new Date(`${value}T12:00:00`).toLocaleDateString("en-US",{month:"long",day:"numeric"}):"No service dates";
-const readableMonth=(value)=>new Date(`${String(value).slice(0,7)}-01T12:00:00`).toLocaleDateString("en-US",{month:"long",year:"numeric"});
-const signed=(value,suffix="")=>value===null||value===undefined?"Unavailable":`${value>=0?"+":""}${Number(value).toFixed(1)}${suffix}`;
-const isCurrentMonth=(value)=>{const formatter=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Los_Angeles",year:"numeric",month:"2-digit"}),parts=Object.fromEntries(formatter.formatToParts(new Date()).map((part)=>[part.type,part.value]));return String(value).slice(0,7)===`${parts.year}-${parts.month}`;};
+const integer = (value) =>
+  value === null || value === undefined
+    ? "—"
+    : Math.round(Number(value)).toLocaleString();
+const decimal = (value, digits = 1) =>
+  value === null || value === undefined ? "—" : Number(value).toFixed(digits);
+const money = (value) =>
+  value === null || value === undefined
+    ? "Unavailable"
+    : Number(value).toLocaleString("en-US", {
+        style: "currency",
+        currency: "USD",
+      });
+const readableDate = (value) =>
+  value
+    ? new Date(`${value}T12:00:00`).toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+      })
+    : "No service dates";
+const readableMonth = (value) =>
+  new Date(`${String(value).slice(0, 7)}-01T12:00:00`).toLocaleDateString(
+    "en-US",
+    { month: "long", year: "numeric" }
+  );
+const signed = (value, suffix = "") =>
+  value === null || value === undefined
+    ? "Unavailable"
+    : `${value >= 0 ? "+" : ""}${Number(value).toFixed(1)}${suffix}`;
 
-function MealKpi({meal,total,average,participation,delta,priorLabel}){return <article className={`scorecard-meal-kpi ${meal.toLowerCase()}`}><div className="scorecard-kpi-heading"><span>{meal}</span><small>Total meals</small></div><strong>{integer(total)}</strong><div className="scorecard-kpi-footer"><span><b>{decimal(average)}</b> avg/day</span><span><b>{decimal(participation)}%</b> participation{priorLabel&&<em>{signed(delta," pp")} vs {priorLabel}</em>}</span></div></article>}
-function CompactMetric({label,value,note,tone="default"}){return <div className={`scorecard-compact-metric ${tone}`}><span>{label}</span><strong>{value}</strong>{note&&<small>{note}</small>}</div>}
-function FinanceRow({label,value,unavailable=false}){return <div className={unavailable?"unavailable":""}><span>{label}</span><strong>{unavailable?"Unavailable":money(value)}</strong></div>}
-function EntreeRanking({title,items}){return <div className="scorecard-entree-list"><h5>{title} — Top Entrées</h5>{items.length?items.map((item)=><div key={item.name}><b>{item.rank}</b><span>{item.name}{item.strongestWeekLabel&&<small>{item.strongestWeekLabel} · {integer(item.strongestWeekServed)} served</small>}</span><strong>{integer(item.served)}<small>month</small></strong></div>):<p>No qualifying entrées available.</p>}</div>}
-function WeekSummary({label,week}){return <div className="scorecard-week-summary"><span>{label}</span>{week?<><strong>{week.label}</strong><small>{decimal(week.lunchParticipation)}% lunch · {decimal(week.mplh)} MPLH · {decimal(week.leftoverPercentage)}% leftover</small></>:<p>Not enough comparable weekly data.</p>}</div>}
+function MealKpi({ meal, total, average, participation, delta, priorLabel }) {
+  return (
+    <article className={`scorecard-meal-kpi ${meal.toLowerCase()}`}>
+      <div className="scorecard-kpi-heading">
+        <span>{meal}</span>
+        <small>Total meals</small>
+      </div>
+      <strong>{integer(total)}</strong>
+      <div className="scorecard-kpi-footer">
+        <span>
+          <b>{decimal(average)}</b> avg/day
+        </span>
+        <span>
+          <b>{decimal(participation)}%</b> participation
+          {priorLabel && (
+            <em>
+              {signed(delta, " pp")} vs {priorLabel}
+            </em>
+          )}
+        </span>
+      </div>
+    </article>
+  );
+}
 
-export default function MonthlySchoolScorecard({card,onBack}){
-  const {school,current,previous,changes,summary}=card,currentMonth=readableMonth(current.month),previousLabel=previous?readableMonth(previous.month).split(" ")[0]:null,monthToDate=isCurrentMonth(current.month);
-  return <div className="monthly-school-scorecard scorecard-sheet">
-    <div className="scorecard-toolbar"><button type="button" className="scorecard-back" onClick={onBack}>← All schools</button><span>Monthly management scorecard</span></div>
-    <header className="scorecard-sheet-header"><div><span className="scorecard-eyebrow">MONTHLY SCHOOL PERFORMANCE SCORECARD</span><h3>{school.school_name}</h3><p>Location {school.location_code||"Not assigned"} · {school.site_type||"Site type unavailable"}</p></div><div className="scorecard-period"><strong>{currentMonth}</strong><span>{monthToDate?`Month-to-Date through ${readableDate(current.dataThrough)}`:"Completed Month"}</span></div><div className="scorecard-enrollment"><span>Enrollment</span><strong>{school.enrollment?integer(school.enrollment):"Unavailable"}</strong><small>{current.operatingDays} operating days</small></div></header>
+function CompactMetric({ label, value, note, tone = "default" }) {
+  return (
+    <div className={`scorecard-compact-metric ${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      {note && <small>{note}</small>}
+    </div>
+  );
+}
 
-    <section className="scorecard-section"><div className="scorecard-section-title"><div><span>01</span><h4>Meal participation</h4></div></div><div className="scorecard-meal-kpis"><MealKpi meal="Breakfast" total={current.totals.breakfast} average={current.averages.breakfast} participation={current.participation.breakfast} delta={changes.breakfastParticipation} priorLabel={previousLabel}/><MealKpi meal="Lunch" total={current.totals.lunch} average={current.averages.lunch} participation={current.participation.lunch} delta={changes.lunchParticipation} priorLabel={previousLabel}/><MealKpi meal="Supper" total={current.totals.supper} average={current.averages.supper} participation={current.participation.supper} delta={changes.supperParticipation} priorLabel={previousLabel}/></div>{previous&&<div className="scorecard-previous-strip"><strong>Previous Month Comparison</strong><span>Breakfast {signed(changes.breakfastParticipation," pp")}</span><span>Lunch {signed(changes.lunchParticipation," pp")}</span><span>MPLH {signed(changes.mplh)}</span><span>Labor cost {changes.laborCost===null?"Unavailable":money(changes.laborCost)}</span><span>Food cost {changes.foodCost===null?"Unavailable":money(changes.foodCost)}</span><span>Leftover {signed(changes.leftoverPercentage," pp")}</span></div>}</section>
+function FinanceRow({ label, value, unavailable = false }) {
+  return (
+    <div className={unavailable ? "unavailable" : ""}>
+      <span>{label}</span>
+      <strong>{unavailable ? "Unavailable" : money(value)}</strong>
+    </div>
+  );
+}
 
-    <div className="scorecard-middle-grid"><section className="scorecard-section scorecard-chart-panel"><div className="scorecard-section-title"><div><span>02</span><h4>Lunch participation trend</h4></div><small>All {current.lunchTrend.length} operating days · Avg {decimal(current.lunchAverage)}%</small></div>{current.lunchTrend.some((row)=>row.participation!==null)?<div className="scorecard-chart"><ResponsiveContainer width="100%" height="100%"><LineChart data={current.lunchTrend} margin={{top:8,right:10,left:-18,bottom:0}}><CartesianGrid stroke="#e6ece9" strokeDasharray="3 3" vertical={false}/><XAxis dataKey="date" tickFormatter={(v)=>v.slice(5).replace("-","/")} interval={0} tick={{fontSize:10,fill:"#66766e"}} axisLine={false} tickLine={false}/><YAxis unit="%" tick={{fontSize:10,fill:"#66766e"}} axisLine={false} tickLine={false}/><Tooltip formatter={(v)=>[`${Number(v).toFixed(1)}%`,"Lunch participation"]} labelFormatter={(v)=>readableDate(v)}/><ReferenceLine y={current.lunchAverage} stroke="#e5962d" strokeDasharray="5 4"/><Line type="monotone" dataKey="participation" stroke="#16855b" strokeWidth={2.5} dot={{r:2.5,fill:"#fff",strokeWidth:2}} activeDot={{r:5}}/></LineChart></ResponsiveContainer></div>:<p className="scorecard-empty">Enrollment and meal data are required for this chart.</p>}</section>
-      <section className="scorecard-section scorecard-mplh-panel"><div className="scorecard-section-title"><div><span>03</span><h4>MPLH & labor</h4></div><small>{current.target.min===null?"Target unavailable":`Target ${current.target.min}–${current.target.max}`}</small></div><div className="scorecard-mplh-hero"><div><span>Average MPLH</span><strong>{decimal(current.averageMplh)}</strong><small>{previous?`${signed(changes.mplh)} vs ${previousLabel}`:"Baseline month"}</small></div><div className="scorecard-target-track"><span style={{width:current.averageMplh===null?"0%":`${Math.min(100,current.averageMplh/Math.max(current.target.max||25,25)*100)}%`}}/><i style={{left:`${Math.min(100,(current.target.min||0)/Math.max(current.target.max||25,25)*100)}%`}}/></div></div><div className="scorecard-mini-grid"><CompactMetric label="Labor hours" value={decimal(current.laborHours)}/><CompactMetric label="Estimated wages" value={current.laborCost===null?"Unavailable":money(current.laborCost)}/><CompactMetric label="Met target" value={current.daysMeetingTarget??"—"} note="days" tone="good"/><CompactMetric label="Below target" value={current.daysBelowTarget??"—"} note="days" tone={current.daysBelowTarget>0?"watch":"good"}/></div></section></div>
+function EntreeRanking({ title, items }) {
+  return (
+    <div className="scorecard-entree-list">
+      <h5>{title} — Top Entrées</h5>
+      {items.length ? (
+        items.map((item) => (
+          <div key={item.name}>
+            <b>{item.rank}</b>
+            <span>
+              {item.name}
+              {item.strongestWeekLabel && (
+                <small>
+                  {item.strongestWeekLabel} · {integer(item.strongestWeekServed)}{" "}
+                  served
+                </small>
+              )}
+            </span>
+            <strong>
+              {integer(item.served)}
+              <small>month</small>
+            </strong>
+          </div>
+        ))
+      ) : (
+        <p>No qualifying entrées available.</p>
+      )}
+    </div>
+  );
+}
 
-    <section className="scorecard-section"><div className="scorecard-section-title"><div><span>04</span><h4>Menu performance</h4></div><small>Ranked by actual portions served</small></div><div className="scorecard-menu-columns"><EntreeRanking title="Breakfast" items={current.menuRankings.breakfast}/><EntreeRanking title="Lunch" items={current.menuRankings.lunch}/></div></section>
+function WeekSummary({ label, week }) {
+  return (
+    <div className="scorecard-week-summary">
+      <span>{label}</span>
+      {week ? (
+        <>
+          <strong>{week.label}</strong>
+          <small>
+            {decimal(week.lunchParticipation)}% lunch · {decimal(week.mplh)}{" "}
+            MPLH · {decimal(week.leftoverPercentage)}% leftover
+          </small>
+        </>
+      ) : (
+        <p>Not enough comparable weekly data.</p>
+      )}
+    </div>
+  );
+}
 
-    <section className="scorecard-section scorecard-forecast-panel"><div className="scorecard-section-title"><div><span>05</span><h4>Forecasting & leftovers</h4></div><small>Prepared minus served</small></div><div className="scorecard-forecast-grid"><div className="scorecard-production-strip"><CompactMetric label="Planned" value={integer(current.productionTotals.planned)}/><CompactMetric label="Prepared" value={integer(current.productionTotals.prepared)}/><CompactMetric label="Served" value={integer(current.productionTotals.served)}/><CompactMetric label="Leftover" value={integer(current.productionTotals.leftover)}/><CompactMetric label="Leftover %" value={`${decimal(current.productionTotals.leftoverPercentage)}%`}/></div><div className="scorecard-weekly-list"><h5>Weekly leftover breakdown</h5>{current.weekly.map((week)=><div key={week.weekStart}><span>{week.label}</span><b>{decimal(week.leftoverPercentage)}%</b><small>{integer(week.prepared)} prepared · {integer(week.served)} served · {integer(week.leftover)} leftover</small></div>)}</div></div><div className="scorecard-leftover-items"><h5>Highest meaningful leftover items</h5>{current.worstItems.length?current.worstItems.map((item)=><div key={item.name}><span>{item.name}</span><small>{integer(item.prepared)} prepared · {integer(item.served)} served · {integer(item.leftover)} leftover · {item.serviceDays} days</small><strong>{decimal(item.leftoverPercentage)}%</strong></div>):<p>No items met the minimum volume and service-day threshold.</p>}</div>{current.forecastObservation&&<p className="scorecard-forecast-note">{current.forecastObservation}</p>}</section>
+export default function MonthlySchoolScorecard({ card, onBack }) {
+  const { school, current, previous, changes, summary } = card;
+  const previousLabel = previous
+    ? readableMonth(previous.month).split(" ")[0]
+    : null;
+  const periodLabel =
+    current.startDate && current.endDate
+      ? `${current.startDate} to ${current.endDate}`
+      : readableMonth(current.month);
 
-    <section className="scorecard-section scorecard-financial-panel"><div className="scorecard-section-title"><div><span>06</span><h4>Financial snapshot</h4></div></div><div className="scorecard-financial-grid three"><div><h5>Food cost</h5><FinanceRow label="Breakfast" value={current.costs.breakfast} unavailable={!current.costAvailable.breakfast}/><FinanceRow label="Lunch" value={current.costs.lunch} unavailable={!current.costAvailable.lunch}/><FinanceRow label="Supper" value={current.costs.supper} unavailable={!current.costAvailable.supper}/><FinanceRow label="Total food cost" value={current.totalCost} unavailable={current.totalCost===null}/><FinanceRow label="Food cost / meal" value={current.foodCostPerMeal} unavailable={current.foodCostPerMeal===null}/></div><div><h5>Labor</h5><FinanceRow label="Estimated wages" value={current.laborCost} unavailable={current.laborCost===null}/><div><span>Labor hours</span><strong>{decimal(current.laborHours)}</strong></div>{current.laborCostDetails?.filledDailyHours!=null&&<div><span>Filled PWI hours/day</span><strong>{decimal(current.laborCostDetails.filledDailyHours)}</strong></div>}</div><div><h5>Meal revenue</h5><FinanceRow label="Breakfast" value={current.revenues.breakfast}/><FinanceRow label="Lunch" value={current.revenues.lunch}/><FinanceRow label="Supper" value={current.revenues.supper}/><FinanceRow label="Total meal revenue" value={current.revenue}/></div></div>{!current.hasCompleteCost&&<p className="scorecard-data-note">Total food cost and food cost per meal are unavailable because a served meal has no corresponding source cost rows.</p>}{current.laborCostDetails?.method&&<p className="scorecard-data-note">{current.laborCostDetails.method}</p>}</section>
+  return (
+    <div className="monthly-school-scorecard scorecard-sheet">
+      <div className="scorecard-toolbar">
+        <button type="button" className="scorecard-back" onClick={onBack}>
+          ← All schools
+        </button>
+        <span>Monthly management scorecard</span>
+      </div>
 
-    <section className="scorecard-management"><div className="scorecard-section-title"><div><span>07</span><h4>Management focus</h4></div></div><div className="scorecard-week-comparison"><WeekSummary label="Best Week" week={current.bestWeek}/><WeekSummary label="Watch Week" week={current.watchWeek}/></div><div className="scorecard-summary-grid">{Object.entries(summary).map(([label,text])=><article key={label} className={label}><span>{label}</span><p>{text}</p></article>)}</div></section>
-  </div>;
+      <header className="scorecard-sheet-header">
+        <div>
+          <span className="scorecard-eyebrow">
+            MONTHLY SCHOOL PERFORMANCE SCORECARD
+          </span>
+          <h3>{school.school_name}</h3>
+          <p>
+            Location {school.location_code || "Not assigned"} ·{" "}
+            {school.site_type || school.labor_type || "Site type unavailable"}
+          </p>
+        </div>
+        <div className="scorecard-period">
+          <strong>{periodLabel}</strong>
+          <span>Reporting Period</span>
+        </div>
+        <div className="scorecard-enrollment">
+          <span>Enrollment</span>
+          <strong>
+            {school.enrollment ? integer(school.enrollment) : "Unavailable"}
+          </strong>
+          <small>{current.operatingDays} operating days</small>
+        </div>
+      </header>
+
+      {/* 01 MEAL PARTICIPATION */}
+      <section className="scorecard-section">
+        <div className="scorecard-section-title">
+          <div>
+            <span>01</span>
+            <h4>Meal participation</h4>
+          </div>
+        </div>
+        <div className="scorecard-meal-kpis">
+          <MealKpi
+            meal="Breakfast"
+            total={current.totals.breakfast}
+            average={current.averages.breakfast}
+            participation={current.participation.breakfast}
+            delta={changes.breakfastParticipation}
+            priorLabel={previousLabel}
+          />
+          <MealKpi
+            meal="Lunch"
+            total={current.totals.lunch}
+            average={current.averages.lunch}
+            participation={current.participation.lunch}
+            delta={changes.lunchParticipation}
+            priorLabel={previousLabel}
+          />
+          <MealKpi
+            meal="Supper"
+            total={current.totals.supper}
+            average={current.averages.supper}
+            participation={current.participation.supper}
+            delta={changes.supperParticipation}
+            priorLabel={previousLabel}
+          />
+        </div>
+        {previous && (
+          <div className="scorecard-previous-strip">
+            <strong>Previous Period Comparison</strong>
+            <span>Breakfast {signed(changes.breakfastParticipation, " pp")}</span>
+            <span>Lunch {signed(changes.lunchParticipation, " pp")}</span>
+            <span>MPLH {signed(changes.mplh)}</span>
+            <span>
+              Labor cost{" "}
+              {changes.laborCost === null
+                ? "Unavailable"
+                : money(changes.laborCost)}
+            </span>
+            <span>
+              Food cost{" "}
+              {changes.foodCost === null
+                ? "Unavailable"
+                : money(changes.foodCost)}
+            </span>
+            <span>Leftover {signed(changes.leftoverPercentage, " pp")}</span>
+          </div>
+        )}
+      </section>
+
+      {/* 02 PARTICIPATION TREND & 03 MPLH */}
+      <div className="scorecard-middle-grid">
+        <section className="scorecard-section scorecard-chart-panel">
+          <div className="scorecard-section-title">
+            <div>
+              <span>02</span>
+              <h4>Participation trend</h4>
+            </div>
+            <small>
+              Orange: Breakfast · Green: Lunch (Avg {decimal(current.lunchAverage)}%)
+            </small>
+          </div>
+          {current.lunchTrend.some((row) => row.participation !== null) ? (
+            <div className="scorecard-chart">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={current.lunchTrend}
+                  margin={{ top: 8, right: 10, left: -18, bottom: 0 }}
+                >
+                  <CartesianGrid stroke="#e6ece9" strokeDasharray="3 3" vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(v) => v.slice(5).replace("-", "/")}
+                    interval={0}
+                    tick={{ fontSize: 10, fill: "#66766e" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    unit="%"
+                    tick={{ fontSize: 10, fill: "#66766e" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip
+                    formatter={(v, name) => [
+                      `${Number(v).toFixed(1)}%`,
+                      name === "breakfastParticipation"
+                        ? "Breakfast participation"
+                        : "Lunch participation",
+                    ]}
+                    labelFormatter={(v) => readableDate(v)}
+                  />
+                  <ReferenceLine
+                    y={current.lunchAverage}
+                    stroke="#e5962d"
+                    strokeDasharray="5 4"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="breakfastParticipation"
+                    name="breakfastParticipation"
+                    stroke="#e5962d"
+                    strokeWidth={2}
+                    dot={{ r: 2 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="participation"
+                    name="participation"
+                    stroke="#16855b"
+                    strokeWidth={2.5}
+                    dot={{ r: 2.5, fill: "#fff", strokeWidth: 2 }}
+                    activeDot={{ r: 5 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <p className="scorecard-empty">
+              Enrollment and meal data are required for this chart.
+            </p>
+          )}
+        </section>
+
+        <section className="scorecard-section scorecard-mplh-panel">
+          <div className="scorecard-section-title">
+            <div>
+              <span>03</span>
+              <h4>MPLH & labor</h4>
+            </div>
+            <small>
+              {current.target.min === null
+                ? "Target unavailable"
+                : `Target ${current.target.min}–${current.target.max}`}
+            </small>
+          </div>
+          <div className="scorecard-mplh-hero">
+            <div>
+              <span>Average MPLH</span>
+              <strong>{decimal(current.averageMplh)}</strong>
+              <small>
+                {previous
+                  ? `${signed(changes.mplh)} vs ${previousLabel}`
+                  : "Baseline period"}
+              </small>
+            </div>
+            <div className="scorecard-target-track">
+              <span
+                style={{
+                  width:
+                    current.averageMplh === null
+                      ? "0%"
+                      : `${Math.min(
+                          100,
+                          (current.averageMplh /
+                            Math.max(current.target.max || 25, 25)) *
+                            100
+                        )}%`,
+                }}
+              />
+              <i
+                style={{
+                  left: `${Math.min(
+                    100,
+                    ((current.target.min || 0) /
+                      Math.max(current.target.max || 25, 25)) *
+                      100
+                  )}%`,
+                }}
+              />
+            </div>
+          </div>
+          <div className="scorecard-mini-grid">
+            <CompactMetric
+              label="Labor hours"
+              value={decimal(current.laborHours)}
+            />
+            <CompactMetric
+              label="Estimated wages"
+              value={
+                current.laborCost === null
+                  ? "Unavailable"
+                  : money(current.laborCost)
+              }
+            />
+            <CompactMetric
+              label="Met target"
+              value={current.daysMeetingTarget ?? "—"}
+              note="days"
+              tone="good"
+            />
+            <CompactMetric
+              label="Below target"
+              value={current.daysBelowTarget ?? "—"}
+              note="days"
+              tone={current.daysBelowTarget > 0 ? "watch" : "good"}
+            />
+          </div>
+        </section>
+      </div>
+
+      {/* 04 MENU PERFORMANCE */}
+      <section className="scorecard-section">
+        <div className="scorecard-section-title">
+          <div>
+            <span>04</span>
+            <h4>Menu performance</h4>
+          </div>
+          <small>Ranked by actual portions served</small>
+        </div>
+        <div className="scorecard-menu-columns">
+          <EntreeRanking
+            title="Breakfast"
+            items={current.menuRankings.breakfast}
+          />
+          <EntreeRanking title="Lunch" items={current.menuRankings.lunch} />
+        </div>
+      </section>
+
+      {/* 05 FORECASTING & LEFTOVERS */}
+      <section className="scorecard-section scorecard-forecast-panel">
+        <div className="scorecard-section-title">
+          <div>
+            <span>05</span>
+            <h4>Forecasting & leftovers</h4>
+          </div>
+          <small>Prepared minus served</small>
+        </div>
+        <div className="scorecard-forecast-grid">
+          <div className="scorecard-production-strip">
+            <CompactMetric
+              label="Planned"
+              value={integer(current.productionTotals.planned)}
+            />
+            <CompactMetric
+              label="Prepared"
+              value={integer(current.productionTotals.prepared)}
+            />
+            <CompactMetric
+              label="Served"
+              value={integer(current.productionTotals.served)}
+            />
+            <CompactMetric
+              label="Leftover"
+              value={integer(current.productionTotals.leftover)}
+            />
+            <CompactMetric
+              label="Leftover %"
+              value={`${decimal(current.productionTotals.leftoverPercentage)}%`}
+            />
+          </div>
+          <div className="scorecard-weekly-list">
+            <h5>Weekly leftover breakdown</h5>
+            {current.weekly.map((week) => (
+              <div key={week.weekStart}>
+                <span>{week.label}</span>
+                <b>{decimal(week.leftoverPercentage)}%</b>
+                <small>
+                  {integer(week.prepared)} prepared · {integer(week.served)}{" "}
+                  served · {integer(week.leftover)} leftover
+                </small>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="scorecard-leftover-items">
+          <h5>Highest meaningful leftover items</h5>
+          {current.worstItems.length ? (
+            current.worstItems.map((item) => (
+              <div key={item.name}>
+                <span>{item.name}</span>
+                <small>
+                  {integer(item.prepared)} prepared · {integer(item.served)}{" "}
+                  served · {integer(item.leftover)} leftover · {item.serviceDays}{" "}
+                  days
+                </small>
+                <strong>{decimal(item.leftoverPercentage)}%</strong>
+              </div>
+            ))
+          ) : (
+            <p>No items met the minimum volume and service-day threshold.</p>
+          )}
+        </div>
+        {current.forecastObservation && (
+          <p className="scorecard-forecast-note">
+            {current.forecastObservation}
+          </p>
+        )}
+      </section>
+
+      {/* 06 FINANCIAL SNAPSHOT */}
+      <section className="scorecard-section scorecard-financial-panel">
+        <div className="scorecard-section-title">
+          <div>
+            <span>06</span>
+            <h4>Financial snapshot</h4>
+          </div>
+        </div>
+        <div className="scorecard-financial-grid three">
+          <div>
+            <h5>Food cost</h5>
+            <FinanceRow
+              label="Breakfast"
+              value={current.costs.breakfast}
+              unavailable={!current.costAvailable.breakfast}
+            />
+            <FinanceRow
+              label="Lunch"
+              value={current.costs.lunch}
+              unavailable={!current.costAvailable.lunch}
+            />
+            <FinanceRow
+              label="Supper"
+              value={current.costs.supper}
+              unavailable={!current.costAvailable.supper}
+            />
+            <FinanceRow
+              label="Total food cost"
+              value={current.totalCost}
+              unavailable={current.totalCost === null}
+            />
+            <FinanceRow
+              label="Food cost / meal"
+              value={current.foodCostPerMeal}
+              unavailable={current.foodCostPerMeal === null}
+            />
+          </div>
+          <div>
+            <h5>Labor</h5>
+            <FinanceRow
+              label="Estimated wages"
+              value={current.laborCost}
+              unavailable={current.laborCost === null}
+            />
+            <div>
+              <span>Labor hours</span>
+              <strong>{decimal(current.laborHours)}</strong>
+            </div>
+            {current.laborCostDetails?.filledDailyHours != null && (
+              <div>
+                <span>Filled PWI hours/day</span>
+                <strong>
+                  {decimal(current.laborCostDetails.filledDailyHours)}
+                </strong>
+              </div>
+            )}
+          </div>
+          <div>
+            <h5>Meal revenue</h5>
+            <FinanceRow
+              label="Breakfast"
+              value={current.revenues.breakfast}
+            />
+            <FinanceRow label="Lunch" value={current.revenues.lunch} />
+            <FinanceRow label="Supper" value={current.revenues.supper} />
+            <FinanceRow
+              label="Total meal revenue"
+              value={current.revenue}
+            />
+          </div>
+        </div>
+        {!current.hasCompleteCost && (
+          <p className="scorecard-data-note">
+            Total food cost and food cost per meal are unavailable because a
+            served meal has no corresponding source cost rows.
+          </p>
+        )}
+        {current.laborCostDetails?.method && (
+          <p className="scorecard-data-note">{current.laborCostDetails.method}</p>
+        )}
+      </section>
+
+      {/* 07 MANAGEMENT FOCUS */}
+      <section className="scorecard-management">
+        <div className="scorecard-section-title">
+          <div>
+            <span>07</span>
+            <h4>Management focus</h4>
+          </div>
+        </div>
+        <div className="scorecard-week-comparison">
+          <WeekSummary label="Best Week" week={current.bestWeek} />
+          <WeekSummary label="Watch Week" week={current.watchWeek} />
+        </div>
+        <div className="scorecard-summary-grid">
+          {Object.entries(summary).map(([label, text]) => (
+            <article key={label} className={label}>
+              <span>{label}</span>
+              <p>{text}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
 }
