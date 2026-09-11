@@ -212,7 +212,7 @@ export default function MonthlySchoolScorecard({ card, onBack }) {
           />
         </div>
 
-        {/* Participation Trend Graph: Requirement 9 */}
+        {/* Dual Participation Trend Graph: Breakfast & Lunch */}
         <div style={{ marginTop: "18px" }}>
           <div style={{ marginBottom: "8px" }}>
             <strong style={{ fontSize: "12px", color: "#36454f" }}>
@@ -381,7 +381,6 @@ export default function MonthlySchoolScorecard({ card, onBack }) {
           </div>
         </div>
         <div className="scorecard-financial-grid three">
-          {/* Food Cost Column */}
           <div>
             <h5>Food Cost</h5>
             <FinanceRow
@@ -405,7 +404,7 @@ export default function MonthlySchoolScorecard({ card, onBack }) {
               unavailable={current.lunchCostPerMeal === null}
             />
 
-            {/* Requirement 5: If supper cost is unavailable, omit the line entirely */}
+            {/* If supper is unavailable, omit the line completely */}
             {current.costAvailable.supper && (
               <>
                 <FinanceRow label="Supper" value={current.costs.supper} />
@@ -424,7 +423,6 @@ export default function MonthlySchoolScorecard({ card, onBack }) {
             />
           </div>
 
-          {/* Labor Column */}
           <div>
             <h5>Labor</h5>
             <FinanceRow
@@ -436,8 +434,6 @@ export default function MonthlySchoolScorecard({ card, onBack }) {
               <span>Labor hours</span>
               <strong>{decimal(current.laborHours)}</strong>
             </div>
-
-            {/* Requirement 7: Budgeted Labor Hours */}
             {current.budgetedLaborHours != null && (
               <div>
                 <span>Budgeted Labor Hours</span>
@@ -446,7 +442,6 @@ export default function MonthlySchoolScorecard({ card, onBack }) {
             )}
           </div>
 
-          {/* Revenue Column */}
           <div>
             <h5>Meal Revenue</h5>
             <FinanceRow
