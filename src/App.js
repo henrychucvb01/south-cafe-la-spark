@@ -16,8 +16,8 @@ import ManagerResourcesPage from "./pages/ManagerResourcesPage";
 import AskSparkPage from "./pages/AskSparkPage";
 import LocationInformationPage from "./pages/LocationInformationPage";
 import OperationsHelpPage from "./pages/OperationsHelpPage";
+import HowToEarnPointsPage from "./pages/HowToEarnPointsPage"; // <--- Added
 import ManagerFeedback from "./feedback/ManagerFeedback";
-import HowToEarnPointsPage from "./pages/HowToEarnPointsPage";
 
 function App() {
   const [screen, setScreen] = useState("login");
@@ -53,7 +53,8 @@ function App() {
   if (screen === "employeeSelect") return <EmployeeSelectPage location={selectedLocation} onEmployeeSelected={(employee) => { setSelectedEmployee(employee); setEditingCheck(null); setScreen("managerPin"); }} onBack={resetToLogin} />;
   if (screen === "managerPin") return <ManagerPinPage location={selectedLocation} employee={selectedEmployee} onSuccess={() => setScreen("homeBase")} onBack={() => { setSelectedEmployee(null); setScreen("employeeSelect"); }} />;
   if (screen === "homeBase") return managerPage(<HomeBase location={selectedLocation} employee={selectedEmployee} onSchoolHub={() => setScreen("schoolHub")} onIncidentHelper={() => setScreen("incidentHelper")} onDailyBites={() => setScreen("dailyBites")} onManagerResources={() => setScreen("managerResources")} onExit={resetToLogin} />);
-  if (screen === "managerResources") return managerPage(<ManagerResourcesPage onAskSpark={() => setScreen("askSpark")} onOperationsHelp={() => setScreen("operationsHelp")} onLocationInformation={() => setScreen("locationInformation")} onBack={() => setScreen("homeBase")} />);
+  if (screen === "managerResources") return managerPage(<ManagerResourcesPage onAskSpark={() => setScreen("askSpark")} onOperationsHelp={() => setScreen("operationsHelp")} onLocationInformation={() => setScreen("locationInformation")} onHowToEarnPoints={() => setScreen("howToEarnPoints")} onBack={() => setScreen("homeBase")} />);
+  if (screen === "howToEarnPoints") return managerPage(<HowToEarnPointsPage onBack={() => setScreen("managerResources")} />);
   if (screen === "operationsHelp") return managerPage(<OperationsHelpPage location={selectedLocation} onBack={() => setScreen("managerResources")} />);
   if (screen === "askSpark") return managerPage(<AskSparkPage location={selectedLocation} onBack={() => setScreen("managerResources")} />);
   if (screen === "locationInformation") return managerPage(<LocationInformationPage location={selectedLocation} onBack={() => setScreen("managerResources")} />);
