@@ -141,45 +141,55 @@ function parseGeneratedOutput(outputText) {
 }
 
 async function createEmbedding(question, apiKey) {
-  // We try embedding-001 on v1beta first (supported natively on v1beta)
-  // If not found, try text-embedding-004 on v1
-  const endpoints = [
-    `https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key=${apiKey}`,
-    `https://generativelanguage.googleapis.com/v1/models/text-embedding-004:embedContent?key=${apiKey}`,
-  ];
+  // 1. Ask Google what models are actually available for this API key
+  const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+  const listRes = await fetch(listUrl);
 
-  let lastError = null;
-
-  for (const url of endpoints) {
-    const isEmbedding001 = url.includes("embedding-001");
-    const modelName = isEmbedding001 ? "models/embedding-001" : "models/text-embedding-004";
-
-    const options = {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: modelName,
-        content: { parts: [{ text: question }] },
-        taskType: "RETRIEVAL_QUERY",
-      }),
-    };
-
-    try {
-      const result = await fetchWith429Retry(url, options, "Embedding service");
-      if (result.ok) {
-        const body = await result.json();
-        if (Array.isArray(body?.embedding?.values)) {
-          return body.embedding.values;
-        }
-      }
-      lastError = await result.text();
-      console.warn(`Embedding failed on ${url}:`, result.status, lastError);
-    } catch (err) {
-      lastError = err.message;
-    }
+  if (!listRes.ok) {
+    const errText = await listRes.text();
+    throw new Error(`Google API Key check failed (${listRes.status}): ${errText}`);
   }
 
-  throw new Error(`Embedding service could not generate vector: ${lastError}`);
+  const listData = await listRes.json();
+  const availableModels = listData.models || [];
+
+  // 2. Find any model that supports embedContent
+  const embedModels = availableModels
+    .filter((m) => m.supportedGenerationMethods && m.supportedGenerationMethods.includes("embedContent"))
+    .map((m) => m.name); // e.g. "models/text-embedding-004" or "models/embedding-001"
+
+  if (embedModels.length === 0) {
+    const sampleAvailable = availableModels.map((m) => m.name.replace("models/", "")).slice(0, 6).join(", ");
+    throw new Error(
+      `Your Google API key does not have an embedding model enabled. Available models for your key are: [${sampleAvailable || "none found"}].`
+    );
+  }
+
+  // Pick text-embedding-004 if available, otherwise take the first available embed model
+  const chosenModelFull = embedModels.find((m) => m.includes("text-embedding-004")) || embedModels[0];
+  const cleanModel = chosenModelFull.replace(/^models\//, "");
+
+  // 3. Generate embedding using Google's confirmed available model
+  const embedUrl = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:embedContent?key=${apiKey}`;
+  const options = {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: `models/${cleanModel}`,
+      content: { parts: [{ text: question }] },
+      taskType: "RETRIEVAL_QUERY",
+    }),
+  };
+
+  const result = await fetchWith429Retry(embedUrl, options, "Embedding service");
+  if (!result.ok) {
+    const errorDetails = await result.text();
+    throw new Error(`Embedding request failed on model '${cleanModel}': ${errorDetails}`);
+  }
+
+  const body = await result.json();
+  if (!Array.isArray(body?.embedding?.values)) throw new Error("Embedding service returned no vector.");
+  return body.embedding.values;
 }
 
 async function retrieveChunks({ question, embedding, categories, supabaseUrl, serviceKey }) {
