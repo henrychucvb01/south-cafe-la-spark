@@ -76,67 +76,61 @@ export default async function handler(request, response) {
 
     const prompt = `
 You are SPARK, an expert documentation assistant for school cafeteria managers.
-Your job is to translate stressed, emotional, or fragmented manager reports into objective, bulletproof HR documentation.
+Your job is to translate emotional or fragmented manager notes into objective, professional HR documentation.
 
 Allowed Incident Types:
 ${INCIDENT_TYPES.join(", ")}
 
-### CORE RULES:
-1. ONLY use supplied facts. Do NOT invent dates, names, or motives.
-2. Separate FACTS from OPINIONS. Convert subjective terms ("lazy", "bad attitude") into factual observations or flag them.
-3. For the "writingCoach", ALWAYS provide a direct, professional alternative phrasing the manager can use.
-4. "attentionLevel" criteria:
-   - "low": Routine disputes, minor lateness, uniform slips.
-   - "moderate": Direct refusal/insubordination, repeated disruption.
-   - "high": Physical violence, theft, intoxication, severe safety risk.
+RULES:
+1. ONLY use facts supplied by the manager. Never invent details.
+2. Separate FACTS from OPINIONS. Turn subjective phrases ("bad attitude", "lazy") into observable behaviors.
+3. For "writingCoach", provide the exact phrase and a professional replacement.
+4. "attentionLevel": "low" (minor/routine), "moderate" (refusal/disruption), "high" (violence, theft, intoxication, serious safety hazard).
 
-### EXAMPLE CONVERSION:
-Manager: "Brenda gave me huge attitude today during lunch rush around 11:30 and refused to wash pans, slamming the sink door."
+EXAMPLE:
+Manager: "Brenda gave me huge attitude today during lunch around 11:30 and refused to wash pans, slamming the sink door."
 Output:
 - incidentType: "Insubordination"
 - observedFacts: "At approximately 11:30 AM during lunch service, Brenda was directed to wash pans. Brenda refused the directive and shut the sink cabinet door with force."
 - writingCoach: [{
-    "originalPhrase": "gave me huge attitude",
-    "whyProblematic": "Attitude is subjective and unprovable to HR.",
-    "suggestedReplacement": "refused direct instructions and slammed cabinet doors"
+    "original": "gave me huge attitude",
+    "coaching": "Attitude is subjective to HR. Consider writing: 'refused direct instructions and slammed cabinet doors'"
 }]
 
-Manager's Actual Report:
+Manager's Description:
 "${description}"
 
-Return ONLY valid JSON matching this schema:
+Return ONLY valid JSON with this exact structure:
 {
-  "employeeName": string (subject of report, not manager),
-  "incidentType": string (from allowed list),
-  "incidentDate": string (YYYY-MM-DD or empty),
-  "incidentTime": string (HH:MM 24-hr or empty),
-  "incidentWhere": string,
-  "involvedPeople": string,
-  "observedFacts": string (strictly objective timeline of events),
-  "exactWords": string (only words in direct quotes),
-  "managerAction": string (what the manager did/said),
-  "employeeResponse": string (what employee did/said after manager acted),
-  "witnesses": string,
-  "operationalImpact": string (e.g. food delay, line stopped),
-  "followUpQuestions": string[] (critical missing facts needed for an official HR record),
-  "attentionLevel": "low" | "moderate" | "high",
-  "attentionReason": string,
+  "employeeName": "",
+  "incidentType": "",
+  "incidentDate": "",
+  "incidentTime": "",
+  "incidentWhere": "",
+  "involvedPeople": "",
+  "observedFacts": "",
+  "exactWords": "",
+  "managerAction": "",
+  "employeeResponse": "",
+  "witnesses": "",
+  "impact": "",
+  "followUpQuestions": [],
+  "attentionLevel": "low",
+  "attentionReason": "",
   "writingCoach": [
     {
-      "originalPhrase": string,
-      "whyProblematic": string,
-      "suggestedReplacement": string
+      "original": "",
+      "coaching": ""
     }
   ],
-  "professionalSummary": string (clean, neutral, third-person narrative ready for HR submission)
+  "professionalSummary": ""
 }
 `;
 
- // Try gemini-2.0-flash first (Google's current default)
-    let modelName = "gemini-2.0-flash";
-    let url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+    // Connects directly to Google's verified gemini-2.5-flash model
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
-    let geminiResponse = await fetch(url, {
+    const geminiResponse = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -148,28 +142,10 @@ Return ONLY valid JSON matching this schema:
       }),
     });
 
-    // If that model fails, ask Google what models this key IS allowed to use
     if (!geminiResponse.ok) {
-      try {
-        const listResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
-        );
-        const listData = await listResponse.json();
-        
-        // Extract the valid model names for your key
-        const availableModels = (listData.models || [])
-          .map((m) => m.name.replace("models/", ""))
-          .filter((name) => name.includes("flash") || name.includes("gemini"))
-          .slice(0, 5)
-          .join(", ");
-
-        return response.status(500).json({
-          error: `Google rejected '${modelName}'. Your key only has access to: [ ${availableModels || "NO MODELS ENABLED - Check Google Cloud Console"} ]`,
-        });
-      } catch (err) {
-        const errorText = await geminiResponse.text();
-        return response.status(500).json({ error: errorText });
-      }
+      const errorText = await geminiResponse.text();
+      console.error("Gemini API error:", errorText);
+      return response.status(500).json({ error: "Gemini could not analyze the incident." });
     }
 
     const result = await geminiResponse.json();
@@ -187,20 +163,11 @@ Return ONLY valid JSON matching this schema:
       return response.status(500).json({ error: "Failed to parse incident response." });
     }
 
-    // Apply regex fallbacks if AI missed date/time
+    // Apply regex date/time fallbacks if AI missed them
     incident.incidentDate = normalizeDate(incident.incidentDate) || extractDateFromDescription(description);
     incident.incidentTime = normalizeTime(incident.incidentTime) || extractTimeFromDescription(description);
     incident.employeeName = String(incident.employeeName || "").trim();
     incident.followUpQuestions = Array.isArray(incident.followUpQuestions) ? incident.followUpQuestions : [];
-    
-    // Clean writing coach items
-    incident.writingCoach = Array.isArray(incident.writingCoach)
-      ? incident.writingCoach.map(item => ({
-          originalPhrase: String(item.originalPhrase || "").trim(),
-          whyProblematic: String(item.whyProblematic || "").trim(),
-          suggestedReplacement: String(item.suggestedReplacement || "").trim(),
-        })).filter(item => item.originalPhrase && item.suggestedReplacement)
-      : [];
 
     const allowedAttentionLevels = ["low", "moderate", "high"];
     incident.attentionLevel = allowedAttentionLevels.includes(String(incident.attentionLevel || "").toLowerCase())
