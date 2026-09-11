@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { Component, useCallback, useEffect, useMemo, useState } from "react";
 import { parseMonthlyReport, REPORT_TYPES } from "./monthlyImportParser";
 import {
   checksumText,
@@ -14,6 +14,40 @@ import {
 } from "./scorecardPdfGenerator";
 import MonthlySchoolScorecard from "./MonthlySchoolScorecard";
 import "./monthlyScorecards.css";
+
+// Error boundary to prevent any blank screen crashes
+class ScorecardErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error("Scorecard render error:", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: "24px", background: "#fff5f5", border: "1px solid #fed7d7", borderRadius: "8px" }}>
+          <h3 style={{ color: "#c53030", margin: "0 0 8px" }}>Scorecard Display Error</h3>
+          <p style={{ color: "#4a5568", fontSize: "14px", margin: "0 0 16px" }}>
+            {this.state.error?.message || "An unexpected error occurred while rendering the scorecards."}
+          </p>
+          <button
+            type="button"
+            className="command-small-button"
+            onClick={() => this.setState({ hasError: false, error: null })}
+          >
+            Retry Loading
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const REPORT_ORDER = ["production", "cost"];
 const todayString = () => new Date().toISOString().slice(0, 10);
@@ -34,7 +68,7 @@ const schoolYearFor = (value) => {
   return `${start}-${String(start + 1).slice(-2)}`;
 };
 
-export default function MonthlyScorecardsPage({ supervisorPin }) {
+function MonthlyScorecardsPageContent({ supervisorPin }) {
   const defaults = useMemo(() => getDefaultDates(), []);
   const [startDate, setStartDate] = useState(defaults.start);
   const [endDate, setEndDate] = useState(defaults.end);
@@ -71,8 +105,8 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
         loadMonthlyImports(supervisorPin, schoolYear, reportingMonth),
         loadMonthlyScorecardDataset(supervisorPin, schoolYear, reportingMonth),
       ]);
-      setImports(nextImports);
-      setDataset(nextDataset);
+      setImports(nextImports || []);
+      setDataset(nextDataset || {});
     } catch (err) {
       setError(err.message || "Scorecard data could not be loaded.");
     } finally {
@@ -90,6 +124,8 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
     const curr = new Date(`${appliedRange.startDate}T12:00:00`);
     const end = new Date(`${appliedRange.endDate}T12:00:00`);
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+    if (isNaN(curr.getTime()) || isNaN(end.getTime())) return list;
 
     while (curr <= end) {
       const dayOfWeek = curr.getDay();
@@ -165,7 +201,8 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
   }
 
   const cards = useMemo(() => {
-    return (dataset?.schools || [])
+    if (!dataset || !dataset.schools) return [];
+    return (dataset.schools || [])
       .filter((school) => !isExcludedSchool(school))
       .map((school) =>
         buildSchoolScorecard(school, dataset, appliedRange, excludedDates)
@@ -174,9 +211,9 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
 
   async function handleExportSingle(card) {
     if (
-      !card.current.hasMeals &&
-      !card.current.hasProduction &&
-      !card.current.hasCost
+      !card?.current?.hasMeals &&
+      !card?.current?.hasProduction &&
+      !card?.current?.hasCost
     ) {
       setError(
         `No valid scorecard data exists for ${card.school.school_name} in this date range.`
@@ -231,7 +268,7 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
   }
 
   const selectedCard = cards.find(
-    (card) => String(card.school.directory_id) === String(selectedSchoolId)
+    (card) => String(card?.school?.directory_id) === String(selectedSchoolId)
   );
   if (selectedCard) {
     return (
@@ -338,7 +375,7 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
             onClick={() => setShowDaysPanel((prev) => !prev)}
             style={{ background: "#f0f4f8", border: "1px solid #ccd6e0", fontWeight: "700" }}
           >
-            📅 Operating Days ({weekdaysInRange.length - excludedDates.length} of {weekdaysInRange.length} days active) {showDaysPanel ? "▲" : "▼"}
+            📅 Operating Days ({Math.max(0, weekdaysInRange.length - excludedDates.length)} of {weekdaysInRange.length} days active) {showDaysPanel ? "▲" : "▼"}
           </button>
           <span style={{ fontSize: "11px", color: "#667482" }}>
             Uncheck holidays, pupil-free days, or unassigned dates
@@ -491,21 +528,21 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
               </tr>
             </thead>
             <tbody>
-              {cards.map((card) => {
+              {cards.map((card, idx) => {
+                const schoolId = card?.school?.directory_id || card?.school?.id || idx;
                 const hasData =
-                  card.current.hasMeals ||
-                  card.current.hasProduction ||
-                  card.current.hasCost;
-                const isSingleExporting =
-                  exportingSingleId === card.school.directory_id;
+                  card?.current?.hasMeals ||
+                  card?.current?.hasProduction ||
+                  card?.current?.hasCost;
+                const isSingleExporting = exportingSingleId === schoolId;
 
                 return (
-                  <tr key={card.school.directory_id}>
+                  <tr key={schoolId}>
                     <td>
-                      <strong>{card.school.school_name}</strong>
+                      <strong>{card?.school?.school_name || "Unknown School"}</strong>
                     </td>
-                    <td>{card.school.location_code || "—"}</td>
-                    <td>{card.school.site_type || card.school.labor_type || "—"}</td>
+                    <td>{card?.school?.location_code || "—"}</td>
+                    <td>{card?.school?.site_type || card?.school?.labor_type || "—"}</td>
                     <td>
                       <span
                         className={`monthly-data-dot ${hasData ? "ready" : "missing"}`}
@@ -525,9 +562,7 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
                         <button
                           type="button"
                           className="command-small-button"
-                          onClick={() =>
-                            setSelectedSchoolId(card.school.directory_id)
-                          }
+                          onClick={() => setSelectedSchoolId(schoolId)}
                         >
                           View Scorecard
                         </button>
@@ -549,5 +584,13 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
         </div>
       )}
     </section>
+  );
+}
+
+export default function MonthlyScorecardsPage(props) {
+  return (
+    <ScorecardErrorBoundary>
+      <MonthlyScorecardsPageContent {...props} />
+    </ScorecardErrorBoundary>
   );
 }
