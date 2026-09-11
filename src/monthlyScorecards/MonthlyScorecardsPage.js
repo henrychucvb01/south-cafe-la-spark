@@ -43,6 +43,9 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
     endDate: defaults.end,
   });
 
+  const [excludedDates, setExcludedDates] = useState([]);
+  const [showDaysPanel, setShowDaysPanel] = useState(false);
+
   const [schoolYear, setSchoolYear] = useState(schoolYearFor(defaults.start));
   const [imports, setImports] = useState([]);
   const [dataset, setDataset] = useState(null);
@@ -81,6 +84,33 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
     refresh();
   }, [refresh]);
 
+  const weekdaysInRange = useMemo(() => {
+    const list = [];
+    if (!appliedRange.startDate || !appliedRange.endDate) return list;
+    const curr = new Date(`${appliedRange.startDate}T12:00:00`);
+    const end = new Date(`${appliedRange.endDate}T12:00:00`);
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+    while (curr <= end) {
+      const dayOfWeek = curr.getDay();
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        const dStr = curr.toISOString().slice(0, 10);
+        list.push({
+          date: dStr,
+          label: `${dayNames[dayOfWeek]}, ${dStr.slice(5).replace("-", "/")}`,
+        });
+      }
+      curr.setDate(curr.getDate() + 1);
+    }
+    return list;
+  }, [appliedRange]);
+
+  function toggleDateExcluded(dStr) {
+    setExcludedDates((prev) =>
+      prev.includes(dStr) ? prev.filter((d) => d !== dStr) : [...prev, dStr]
+    );
+  }
+
   function handleApplyRange() {
     setError("");
     setMessage("");
@@ -100,19 +130,7 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
 
     setAppliedRange({ startDate, endDate });
     setSchoolYear(schoolYearFor(startDate));
-  }
-
-  // Quick preset for completed month
-  function selectCompletedMonth(yearMonth) {
-    const y = Number(yearMonth.slice(0, 4));
-    const m = Number(yearMonth.slice(5, 7));
-    const start = `${yearMonth}-01`;
-    const lastDay = new Date(y, m, 0).getDate();
-    const end = `${yearMonth}-${String(lastDay).padStart(2, "0")}`;
-    setStartDate(start);
-    setEndDate(end);
-    setAppliedRange({ startDate: start, endDate: end });
-    setSchoolYear(schoolYearFor(start));
+    setExcludedDates([]);
   }
 
   async function upload(reportType, file) {
@@ -149,8 +167,10 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
   const cards = useMemo(() => {
     return (dataset?.schools || [])
       .filter((school) => !isExcludedSchool(school))
-      .map((school) => buildSchoolScorecard(school, dataset, appliedRange));
-  }, [dataset, appliedRange]);
+      .map((school) =>
+        buildSchoolScorecard(school, dataset, appliedRange, excludedDates)
+      );
+  }, [dataset, appliedRange, excludedDates]);
 
   async function handleExportSingle(card) {
     if (
@@ -244,63 +264,130 @@ export default function MonthlyScorecardsPage({ supervisorPin }) {
         </button>
       </div>
 
-      {/* Date Range Selector & Export All Controls */}
+      {/* Date Range Selector & Export Controls */}
       <div
         className="monthly-period-card"
         style={{
           display: "flex",
-          flexWrap: "wrap",
-          justifyContent: "space-between",
-          alignItems: "flex-end",
+          flexDirection: "column",
           gap: "14px",
         }}
       >
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: "12px" }}>
-          <label style={{ display: "flex", flexDirection: "column", fontSize: "11px", fontWeight: "800" }}>
-            Start Date
-            <input
-              type="date"
-              value={startDate}
-              max={todayString()}
-              onChange={(e) => setStartDate(e.target.value)}
-              style={{ padding: "8px 10px", borderRadius: "6px", border: "1px solid #d4dde5", marginTop: "4px" }}
-            />
-          </label>
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            justifyContent: "space-between",
+            alignItems: "flex-end",
+            gap: "14px",
+          }}
+        >
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: "12px" }}>
+            <label style={{ display: "flex", flexDirection: "column", fontSize: "11px", fontWeight: "800" }}>
+              Start Date
+              <input
+                type="date"
+                value={startDate}
+                max={todayString()}
+                onChange={(e) => setStartDate(e.target.value)}
+                style={{ padding: "8px 10px", borderRadius: "6px", border: "1px solid #d4dde5", marginTop: "4px" }}
+              />
+            </label>
 
-          <label style={{ display: "flex", flexDirection: "column", fontSize: "11px", fontWeight: "800" }}>
-            End Date
-            <input
-              type="date"
-              value={endDate}
-              max={todayString()}
-              onChange={(e) => setEndDate(e.target.value)}
-              style={{ padding: "8px 10px", borderRadius: "6px", border: "1px solid #d4dde5", marginTop: "4px" }}
-            />
-          </label>
+            <label style={{ display: "flex", flexDirection: "column", fontSize: "11px", fontWeight: "800" }}>
+              End Date
+              <input
+                type="date"
+                value={endDate}
+                max={todayString()}
+                onChange={(e) => setEndDate(e.target.value)}
+                style={{ padding: "8px 10px", borderRadius: "6px", border: "1px solid #d4dde5", marginTop: "4px" }}
+              />
+            </label>
 
+            <button
+              type="button"
+              className="command-small-button"
+              onClick={handleApplyRange}
+              style={{ padding: "9px 18px", fontWeight: "800", height: "38px" }}
+            >
+              Apply
+            </button>
+          </div>
+
+          <div>
+            <button
+              type="button"
+              className="finish-line-submit finish-line-ready"
+              onClick={handleExportAll}
+              disabled={exportingAll || loading || cards.length === 0}
+              style={{ padding: "9px 18px", fontWeight: "800", height: "38px" }}
+            >
+              {exportingAll
+                ? exportStatus || "Generating scorecards..."
+                : "Export All Schools to PDF"}
+            </button>
+          </div>
+        </div>
+
+        {/* Operating Days Checklist Toggle */}
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", borderTop: "1px solid #e7edf3", paddingTop: "10px" }}>
           <button
             type="button"
             className="command-small-button"
-            onClick={handleApplyRange}
-            style={{ padding: "9px 18px", fontWeight: "800", height: "38px" }}
+            onClick={() => setShowDaysPanel((prev) => !prev)}
+            style={{ background: "#f0f4f8", border: "1px solid #ccd6e0", fontWeight: "700" }}
           >
-            Apply
+            📅 Operating Days ({weekdaysInRange.length - excludedDates.length} of {weekdaysInRange.length} days active) {showDaysPanel ? "▲" : "▼"}
           </button>
+          <span style={{ fontSize: "11px", color: "#667482" }}>
+            Uncheck holidays, pupil-free days, or unassigned dates
+          </span>
         </div>
 
-        <div>
-          <button
-            type="button"
-            className="finish-line-submit finish-line-ready"
-            onClick={handleExportAll}
-            disabled={exportingAll || loading || cards.length === 0}
-            style={{ padding: "9px 18px", fontWeight: "800", height: "38px" }}
+        {showDaysPanel && (
+          <div
+            style={{
+              padding: "14px",
+              background: "#f9fbfe",
+              border: "1px solid #d9e3ed",
+              borderRadius: "8px",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))",
+              gap: "8px",
+            }}
           >
-            {exportingAll
-              ? exportStatus || "Generating scorecards..."
-              : "Export All Schools to PDF"}
-          </button>
-        </div>
+            {weekdaysInRange.map((item) => {
+              const isChecked = !excludedDates.includes(item.date);
+              return (
+                <label
+                  key={item.date}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontSize: "12px",
+                    padding: "5px 8px",
+                    background: isChecked ? "#ffffff" : "#f1f3f5",
+                    borderRadius: "4px",
+                    border: isChecked ? "1px solid #c5d4e2" : "1px dashed #ced4da",
+                    color: isChecked ? "#1a2530" : "#868e96",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => toggleDateExcluded(item.date)}
+                  />
+                  <span style={{ textDecoration: isChecked ? "none" : "line-through" }}>
+                    {item.label}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {exportStatus && (
