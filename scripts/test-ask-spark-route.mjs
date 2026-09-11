@@ -16,6 +16,7 @@ try {
   const cases = [
     {
       question: "How do I complete a production record?",
+      retrievalNeedle: "How do I complete a production record?",
       chunkId: "ASKP1-C000168",
       title: "Counting and Claiming Module 2026-27",
       category: "Counting and Claiming",
@@ -26,6 +27,7 @@ try {
     },
     {
       question: "What do I do for a field trip?",
+      retrievalNeedle: "What do I do for a field trip?",
       chunkId: "ASKP1-C000420",
       title: "Field Trip Meal Procedures",
       category: "Field Trips / Offsite Meals",
@@ -33,9 +35,11 @@ try {
       locatorNumber: 2,
       content: "Submit the field trip meal request in advance and retain the completed meal count documentation.",
       answer: "Submit the field trip meal request in advance and retain the completed meal count documentation.",
+      relaxedJson: true,
     },
     {
       question: "What are the BIC procedures?",
+      retrievalNeedle: "What are the Breakfast in the Classroom (BIC) procedures?",
       chunkId: "ASKP1-C000731",
       title: "Breakfast in the Classroom Procedures",
       category: "BIC / Breakfast",
@@ -56,7 +60,7 @@ try {
     }
     if (url.includes("/rest/v1/rpc/ask_spark_hybrid_search")) {
       const query = JSON.parse(options.body).query_text;
-      currentCase = cases.find((item) => item.question === query);
+      currentCase = cases.find((item) => query.startsWith(item.retrievalNeedle));
       assert.ok(currentCase, `Unexpected test question: ${query}`);
       return new Response(JSON.stringify([{
         chunk_id: currentCase.chunkId,
@@ -81,8 +85,11 @@ try {
         answer: currentCase.answer,
         citation_ids: [currentCase.chunkId],
       };
+      const generatedText = currentCase.relaxedJson
+        ? `{supported: true, answer: '${currentCase.answer}', citation_ids: ['${currentCase.chunkId}']}`
+        : JSON.stringify(grounded);
       return new Response(JSON.stringify({
-        candidates: [{ content: { parts: [{ text: JSON.stringify(grounded) }] } }],
+        candidates: [{ content: { parts: [{ text: generatedText }] } }],
       }), { status: 200, headers: { "Content-Type": "application/json" } });
     }
     throw new Error(`Unexpected outbound request: ${url}`);

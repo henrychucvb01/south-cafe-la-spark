@@ -3,6 +3,10 @@ const NO_ANSWER =
   "I couldn't find enough approved guidance to answer that confidently. Try describing what happened or what you need to do, and I'll search again.";
 const BUSY_MESSAGE =
   "Ask SPARK is busy right now. Please try your question again in a moment.";
+// This is the same public project URL used by the SPARK client. Keeping a
+// server-side fallback prevents Ask SPARK from failing when a deployment has
+// the private credentials but omits the non-secret SUPABASE_URL variable.
+const DEFAULT_SUPABASE_URL = "https://kkrcxqhfzepifhkryodd.supabase.co";
 const requestWindows = new Map();
 
 function sleep(ms) {
@@ -98,16 +102,45 @@ async function fetchWith429Retry(url, options, label) {
   const waits = [700, 1600];
   let result = await fetch(url, options);
   for (const wait of waits) {
-    if (result.status !== 429) return result;
+    if (![429, 502, 503, 504].includes(result.status)) return result;
     await sleep(wait);
     result = await fetch(url, options);
   }
-  if (result.status === 429) {
-    const error = new Error(`${label} is temporarily rate limited.`);
+  if ([429, 502, 503, 504].includes(result.status)) {
+    const error = new Error(`${label} is temporarily unavailable.`);
     error.code = "RATE_LIMITED";
     throw error;
   }
   return result;
+}
+
+function parseGeneratedOutput(outputText) {
+  const normalized = outputText.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+  const objectStart = normalized.indexOf("{");
+  const objectEnd = normalized.lastIndexOf("}");
+  const objectText = objectStart >= 0 && objectEnd > objectStart
+    ? normalized.slice(objectStart, objectEnd + 1)
+    : normalized;
+
+  try {
+    return JSON.parse(objectText);
+  } catch (jsonError) {
+    // Gemini can occasionally emit a JavaScript/Python-style object even when
+    // JSON output is requested. Parse only the three fields in our fixed
+    // response contract; never evaluate model-produced text as code.
+    const supportedMatch = objectText.match(/["']?supported["']?\s*:\s*(true|false)/i);
+    const answerMatch = objectText.match(/["']?answer["']?\s*:\s*(["'])([\s\S]*?)\1\s*,\s*["']?citation_ids["']?\s*:/i);
+    const citationSection = objectText.match(/["']?citation_ids["']?\s*:\s*\[([\s\S]*?)\]/i);
+    const citationIds = citationSection?.[1]?.match(/ASKP1-C\d{6}/g) || [];
+    if (!supportedMatch || !answerMatch || (!citationSection && supportedMatch[1].toLowerCase() === "true")) {
+      throw jsonError;
+    }
+    return {
+      supported: supportedMatch[1].toLowerCase() === "true",
+      answer: answerMatch[2].replace(/\\n/g, "\n").replace(/\\(["'\\])/g, "$1").trim(),
+      citation_ids: citationIds,
+    };
+  }
 }
 
 async function createEmbedding(question, apiKey) {
@@ -149,6 +182,33 @@ function buildContext(chunks) {
   return chunks.map((chunk) => `[${chunk.chunk_id}] ${chunk.citation_label}\nCategory: ${chunk.topic_category}\n${chunk.content}`).join("\n\n---\n\n");
 }
 
+function citationFromChunk(chunk) {
+  return { chunkId: chunk.chunk_id, title: chunk.title, sourceFilename: chunk.source_filename, category: chunk.topic_category, year: chunk.document_year || null, sourceType: chunk.source_type, locatorType: chunk.locator_type, locatorNumber: chunk.locator_number, citationLabel: chunk.citation_label };
+}
+
+function extractiveFallback(question, chunks) {
+  const ignored = new Set(["about", "approved", "cafeteria", "could", "manager", "procedure", "should", "spark", "training", "what", "when", "where", "which", "with"]);
+  const questionTerms = new Set(String(question || "").toLowerCase().match(/[a-z0-9]+/g)?.filter((term) => term.length >= 4 && !ignored.has(term)) || []);
+  const cited = chunks
+    .filter((chunk) => {
+      const contentTerms = new Set(String(chunk.content || "").toLowerCase().match(/[a-z0-9]+/g) || []);
+      const overlap = [...questionTerms].filter((term) => contentTerms.has(term)).length;
+      return overlap >= 2 || (overlap >= 1 && Number(chunk.semantic_similarity) >= 0.42);
+    })
+    .slice(0, 3);
+  if (!cited.length) return { supported: false, answer: NO_ANSWER, citations: [] };
+  const excerpts = cited.map((chunk) => {
+    const content = String(chunk.content || "").replace(/\s+/g, " ").trim();
+    const shortened = content.length > 450 ? `${content.slice(0, 447).trimEnd()}…` : content;
+    return `• ${shortened}`;
+  });
+  return {
+    supported: true,
+    answer: `Ask SPARK found this confirmed guidance in the approved training library:\n\n${excerpts.join("\n\n")}`,
+    citations: cited.map(citationFromChunk),
+  };
+}
+
 async function generateAnswer({ question, retrievalQuestion, chunks, apiKey }) {
   const model = process.env.ASK_SPARK_ANSWER_MODEL || "gemini-3.6-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
@@ -160,9 +220,12 @@ async function generateAnswer({ question, retrievalQuestion, chunks, apiKey }) {
       contents: [{ role: "user", parts: [{ text: `Manager's original question:\n${question}\n\nSearch wording (not a source):\n${retrievalQuestion}\n\nApproved retrieved excerpts:\n${buildContext(chunks)}` }] }],
       generationConfig: {
         temperature: 0.1,
-        maxOutputTokens: 450,
+        thinkingConfig: { thinkingLevel: "minimal" },
+        // Gemini's output budget also covers model thinking. Small caps ended
+        // partway through the JSON response even though generation succeeded.
+        maxOutputTokens: 4096,
         responseMimeType: "application/json",
-        responseSchema: { type: "object", properties: { supported: { type: "boolean" }, answer: { type: "string" }, citation_ids: { type: "array", items: { type: "string" } } }, required: ["supported", "answer", "citation_ids"] },
+        responseJsonSchema: { type: "object", properties: { supported: { type: "boolean" }, answer: { type: "string" }, citation_ids: { type: "array", items: { type: "string" } } }, required: ["supported", "answer", "citation_ids"], additionalProperties: false },
       },
     }),
   };
@@ -171,7 +234,7 @@ async function generateAnswer({ question, retrievalQuestion, chunks, apiKey }) {
   const payload = await result.json();
   const outputText = payload?.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("");
   if (!outputText) throw new Error("Answer service returned no text.");
-  return JSON.parse(outputText);
+  return parseGeneratedOutput(outputText);
 }
 
 function validatedResult(generated, chunks) {
@@ -187,7 +250,7 @@ function validatedResult(generated, chunks) {
     seenSources.add(key);
     return true;
   });
-  return { supported: true, answer: String(generated.answer).trim(), citations: uniqueCited.map((chunk) => ({ chunkId: chunk.chunk_id, title: chunk.title, sourceFilename: chunk.source_filename, category: chunk.topic_category, year: chunk.document_year || null, sourceType: chunk.source_type, locatorType: chunk.locator_type, locatorNumber: chunk.locator_number, citationLabel: chunk.citation_label })) };
+  return { supported: true, answer: String(generated.answer).trim(), citations: uniqueCited.map(citationFromChunk) };
 }
 
 export default async function handler(request, response) {
@@ -202,7 +265,7 @@ export default async function handler(request, response) {
   const conversational = conversationalResponse(question);
   if (conversational) return send(response, 200, { supported: true, conversational: true, answer: conversational, citations: [] });
 
-  const supabaseUrl = String(process.env.SUPABASE_URL || "").trim().replace(/\/+$/, "");
+  const supabaseUrl = String(process.env.SUPABASE_URL || DEFAULT_SUPABASE_URL).trim().replace(/\/+$/, "");
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const geminiKey = process.env.GEMINI_API_KEY;
   if (!supabaseUrl || !serviceKey || !geminiKey) {
@@ -243,7 +306,7 @@ export default async function handler(request, response) {
     generated = await generateAnswer({ question, retrievalQuestion, chunks: credible.slice(0, 12), apiKey: geminiKey });
   } catch (error) {
     console.error("Ask SPARK answer error:", error);
-    if (error.code === "RATE_LIMITED") return send(response, 503, { error: BUSY_MESSAGE });
+    if (error.code === "RATE_LIMITED") return send(response, 200, extractiveFallback(question, credible));
     return send(response, 500, { error: `Ask SPARK answer step failed: ${error.message}` });
   }
   return send(response, 200, validatedResult(generated, credible));
