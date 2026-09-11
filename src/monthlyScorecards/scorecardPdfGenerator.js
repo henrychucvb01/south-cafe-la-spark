@@ -1,5 +1,3 @@
-import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
-
 export function sanitizeFilename(name) {
   return String(name || "School")
     .trim()
@@ -13,8 +11,7 @@ export function isExcludedSchool(school) {
     name.includes("test") ||
     name.includes("demo") ||
     name.includes("sample") ||
-    school?.is_test === true ||
-    school?.active === false
+    school?.is_test === true
   );
 }
 
@@ -31,7 +28,8 @@ const formatMoney = (v) =>
         maximumFractionDigits: 2,
       });
 
-export async function appendSchoolScorecardPages(pdfDoc, card, dateRange) {
+export async function appendSchoolScorecardPages(pdfDoc, card, dateRange, pdfLib) {
+  const { rgb, StandardFonts } = pdfLib;
   const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
@@ -117,24 +115,24 @@ export async function appendSchoolScorecardPages(pdfDoc, card, dateRange) {
   const meals = [
     {
       name: "Breakfast",
-      total: current.totals.breakfast,
-      avg: current.averages.breakfast,
-      part: current.participation.breakfast,
-      delta: changes.breakfastParticipation,
+      total: current.totals?.breakfast,
+      avg: current.averages?.breakfast,
+      part: current.participation?.breakfast,
+      delta: changes?.breakfastParticipation,
     },
     {
       name: "Lunch",
-      total: current.totals.lunch,
-      avg: current.averages.lunch,
-      part: current.participation.lunch,
-      delta: changes.lunchParticipation,
+      total: current.totals?.lunch,
+      avg: current.averages?.lunch,
+      part: current.participation?.lunch,
+      delta: changes?.lunchParticipation,
     },
     {
       name: "Supper",
-      total: current.totals.supper,
-      avg: current.averages.supper,
-      part: current.participation.supper,
-      delta: changes.supperParticipation,
+      total: current.totals?.supper,
+      avg: current.averages?.supper,
+      part: current.participation?.supper,
+      delta: changes?.supperParticipation,
     },
   ];
 
@@ -188,7 +186,7 @@ export async function appendSchoolScorecardPages(pdfDoc, card, dateRange) {
     }
   });
 
-  // Participation Trend Vector Chart (Breakfast & Lunch)
+  // Participation Trend Vector Chart
   y -= 88;
   page1.drawText(
     "PARTICIPATION TREND (Orange = Breakfast % | Green = Lunch %)",
@@ -243,7 +241,7 @@ export async function appendSchoolScorecardPages(pdfDoc, card, dateRange) {
       const px = 60 + i * stepX;
 
       if (i % Math.max(1, Math.floor(trend.length / 8)) === 0) {
-        page1.drawText(currPt.date.slice(5), {
+        page1.drawText(String(currPt.date || "").slice(5), {
           x: px - 8,
           y: chartBoxY + 6,
           size: 6.5,
@@ -322,7 +320,9 @@ export async function appendSchoolScorecardPages(pdfDoc, card, dateRange) {
 
   page1.drawText(
     `Average MPLH: ${formatDec(current.averageMplh)}  (Target: ${
-      current.target?.min !== null ? `${current.target.min}–${current.target.max}` : "N/A"
+      current.target?.min !== null && current.target?.min !== undefined
+        ? `${current.target.min}–${current.target.max}`
+        : "N/A"
     })`,
     {
       x: 48,
@@ -335,7 +335,9 @@ export async function appendSchoolScorecardPages(pdfDoc, card, dateRange) {
 
   page1.drawText(
     `Total Labor Hours: ${formatDec(current.laborHours)}  |  Budgeted Labor Hours: ${
-      current.budgetedLaborHours !== null ? `${formatDec(current.budgetedLaborHours)} hrs/day` : "N/A"
+      current.budgetedLaborHours !== null && current.budgetedLaborHours !== undefined
+        ? `${formatDec(current.budgetedLaborHours)} hrs/day`
+        : "N/A"
     }  |  Estimated Wages: ${formatMoney(current.laborCost)}`,
     {
       x: 48,
@@ -475,7 +477,7 @@ export async function appendSchoolScorecardPages(pdfDoc, card, dateRange) {
   } else {
     bTop.slice(0, 2).forEach((it, idx) => {
       page2.drawText(
-        `${it.rank}. ${it.name.slice(0, 28)} (${formatInt(it.served)} served)`,
+        `${it.rank}. ${String(it.name || "").slice(0, 28)} (${formatInt(it.served)} served)`,
         {
           x: 44,
           y: y2 - 28 - idx * 13,
@@ -514,7 +516,7 @@ export async function appendSchoolScorecardPages(pdfDoc, card, dateRange) {
   } else {
     lTop.slice(0, 2).forEach((it, idx) => {
       page2.drawText(
-        `${it.rank}. ${it.name.slice(0, 28)} (${formatInt(it.served)} served)`,
+        `${it.rank}. ${String(it.name || "").slice(0, 28)} (${formatInt(it.served)} served)`,
         {
           x: 44 + halfW + 12,
           y: y2 - 28 - idx * 13,
@@ -646,8 +648,10 @@ export function triggerPdfDownload(pdfBytes, filename) {
 }
 
 export async function exportSingleSchoolPdf(card, dateRange) {
+  const pdfLib = await import("pdf-lib");
+  const { PDFDocument } = pdfLib;
   const pdfDoc = await PDFDocument.create();
-  await appendSchoolScorecardPages(pdfDoc, card, dateRange);
+  await appendSchoolScorecardPages(pdfDoc, card, dateRange, pdfLib);
   const pdfBytes = await pdfDoc.save();
 
   const safeSchool = sanitizeFilename(card.school.school_name);
@@ -656,11 +660,14 @@ export async function exportSingleSchoolPdf(card, dateRange) {
 }
 
 export async function exportAllSchoolsPdf(cards, dateRange, onProgress) {
+  const pdfLib = await import("pdf-lib");
+  const { PDFDocument } = pdfLib;
   const pdfDoc = await PDFDocument.create();
+
   const eligibleCards = cards.filter(
     (card) =>
       !isExcludedSchool(card.school) &&
-      (card.current.hasMeals || card.current.hasProduction || card.current.hasCost)
+      (card.current?.hasMeals || card.current?.hasProduction || card.current?.hasCost)
   );
 
   if (eligibleCards.length === 0) {
@@ -674,7 +681,7 @@ export async function exportAllSchoolsPdf(cards, dateRange, onProgress) {
     if (onProgress) {
       onProgress(i + 1, eligibleCards.length, card.school.school_name);
     }
-    await appendSchoolScorecardPages(pdfDoc, card, dateRange);
+    await appendSchoolScorecardPages(pdfDoc, card, dateRange, pdfLib);
   }
 
   const pdfBytes = await pdfDoc.save();
