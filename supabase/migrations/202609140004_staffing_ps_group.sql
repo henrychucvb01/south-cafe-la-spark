@@ -3,18 +3,6 @@ begin;
 alter table public.staffing_positions
   add column if not exists ps_group text;
 
-update public.staffing_positions as staffing
-set ps_group = source.ps_group, updated_at = now()
-from (values
-  ('30356814','4296'),
-  ('30356815','4395'),
-  ('30356818','4391'),
-  ('30356819','4391'),
-  ('30356823','4391')
-) as source(pwi_position_id,ps_group)
-where staffing.school_year = '2026-27'
-  and staffing.pwi_position_id = source.pwi_position_id;
-
 create or replace function public.get_staff_management_dataset(p_supervisor_pin text)
 returns jsonb language plpgsql security definer set search_path=public as $$
 begin
