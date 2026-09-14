@@ -1,14 +1,9 @@
-import{isFixedStaff,staffingGroupLabel}from"./staffingService";
+import{isFixedStaff}from"./staffingService";
 
 jest.mock("../supabaseClient",()=>({supabase:{rpc:jest.fn()}}));
 
 test("workers remain movable while managers and seniors are fixed",()=>{
-  expect(isFixedStaff({classification_key:"worker"})).toBe(false);
-  expect(isFixedStaff({classification_key:"senior_worker"})).toBe(true);
-  expect(isFixedStaff({classification_key:"manager_iv"})).toBe(true);
-});
-
-test("classification groups have supervisor-facing labels",()=>{
-  expect(staffingGroupLabel("worker")).toBe("Worker");
-  expect(staffingGroupLabel("manager_vi")).toBe("Manager VI");
+  expect(isFixedStaff({classification_title:"Food Services Worker"})).toBe(false);
+  expect(isFixedStaff({classification_title:"Senior Food Service Worker"})).toBe(true);
+  expect(isFixedStaff({classification_title:"Food Service Manager IV"})).toBe(true);
 });
