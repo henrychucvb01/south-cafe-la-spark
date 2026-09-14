@@ -542,16 +542,16 @@ export async function appendSchoolScorecardPages(pdfDoc, card, dateRange, pdfLib
   const prod = current.productionTotals || {};
   page2.drawRectangle({
     x: 36,
-    y: y2 - 56,
+    y: y2 - 66,
     width: width - 72,
-    height: 56,
+    height: 66,
     color: rgb(0.97, 0.98, 0.99),
     borderColor: rgb(0.85, 0.88, 0.92),
     borderWidth: 1,
   });
 
   page2.drawText(
-    `Planned: ${formatInt(prod.planned)}   |   Prepared: ${formatInt(prod.prepared)}   |   Served: ${formatInt(prod.served)}   |   Leftover: ${formatInt(prod.leftover)} (${formatDec(prod.leftoverPercentage)}%)`,
+    `Planned: ${formatInt(prod.planned)} | Prepared: ${formatInt(prod.prepared)} | Served: ${formatInt(prod.served)} | Carryover: ${formatInt(prod.leftover)} | Wasted: ${formatInt(prod.wasted)} (${formatDec(prod.wastePercentage)}%)`,
     {
       x: 46,
       y: y2 - 18,
@@ -562,19 +562,23 @@ export async function appendSchoolScorecardPages(pdfDoc, card, dateRange, pdfLib
   );
 
   const worst = current.worstItems || [];
+  const weeklyText=(current.weekly||[]).map((week)=>`${week.label}: ${formatDec(week.carryoverPercentage)}% carryover / ${formatDec(week.wastePercentage)}% waste`).join("; ");
+  page2.drawText((weeklyText||"No weekly production trend available.").slice(0,125),{
+    x:46,y:y2-36,size:7,font:fontRegular,color:rgb(.3,.4,.45),
+  });
   const worstText = worst.length
-    ? `Highest leftover items: ${worst.map((w) => `${w.name} (${formatDec(w.leftoverPercentage)}%)`).join(", ")}`
-    : "No items exceeded the threshold.";
+    ? `Worst food waste: ${worst.map((w) => `${w.name} (${formatDec(w.wastePercentage)}%)`).join(", ")}`
+    : "No recorded food waste for this reporting period.";
   page2.drawText(worstText.slice(0, 110), {
     x: 46,
-    y: y2 - 38,
+    y: y2 - 53,
     size: 7.5,
     font: fontRegular,
     color: rgb(0.4, 0.45, 0.5),
   });
 
   // 6. Management Focus
-  y2 -= 76;
+  y2 -= 86;
   page2.drawText("06  MANAGEMENT FOCUS", {
     x: 36,
     y: y2,

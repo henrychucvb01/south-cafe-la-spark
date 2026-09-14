@@ -16,6 +16,11 @@ test("parses repeated production report sections", () => {
   expect(result.normalizedRows[0]).toMatchObject({ source_site_id:"1195701", menu_name:"Willenberg Lunch Menu",meals_served:98,item_name:"Bean Bowl",served:98 });
 });
 
+test("keeps carryover separate from overall portions wasted",()=>{
+  const csv="LAUSD DAILY MEAL PRODUCTION REPORT\nMenu Plan Date:,,,8/12/2026,,,,Site:,(1195701) WILLENBERG SP ED,,,,,,,,,,,,,,,,,,Meal:,Lunch\nItemID / Recipe Number,,Menu Item,,,Servings Planned,,Number of Portions Prepared,,Portions Served,,Number of Portions Leftover,,Overall Number of Portions Wasted\nR10,,Bean Bowl,,,100,,105,,98,,7,,2";
+  expect(parseMonthlyReport(csv,"production","2026-08-01").normalizedRows[0]).toEqual(expect.objectContaining({leftover:7,wasted:2}));
+});
+
 test("excludes Hawthorne Academy as out of area",()=>{
   const csv="LAUSD DAILY MEAL PRODUCTION REPORT\nMenu Plan Date:,,,8/12/2026,,,,Site:,(1913101) HAWTHORNE ACADEMY,,,,,,,,,,,,,,,,,,Meal:,Lunch\nItemID / Recipe Number,,Menu Item,,,,,,,,,,,,Servings Planned,,,,,,Number of Portions Prepared,,,Portions Served,,,Number of Portions Leftover\nR10,,Bean Bowl,,,,,,,,,,,,100,,,,,,100,,,95,,,5\nLAUSD DAILY MEAL PRODUCTION REPORT\nMenu Plan Date:,,,8/12/2026,,,,Site:,(1195701) WILLENBERG SP ED,,,,,,,,,,,,,,,,,,Meal:,Lunch\nItemID / Recipe Number,,Menu Item,,,,,,,,,,,,Servings Planned,,,,,,Number of Portions Prepared,,,Portions Served,,,Number of Portions Leftover\nR11,,Chicken Sandwich,,,,,,,,,,,,100,,,,,,100,,,95,,,5";
   const result=parseMonthlyReport(csv,"production","2026-08-01");

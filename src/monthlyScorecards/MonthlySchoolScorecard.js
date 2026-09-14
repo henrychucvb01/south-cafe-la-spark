@@ -124,7 +124,7 @@ function WeekSummary({ label, week }) {
           <strong>{week.label}</strong>
           <small>
             {decimal(week.lunchParticipation)}% lunch · {decimal(week.mplh)}{" "}
-            MPLH · {decimal(week.leftoverPercentage)}% leftover
+            MPLH · {decimal(week.carryoverPercentage)}% carryover · {decimal(week.wastePercentage)}% waste
           </small>
         </>
       ) : (
@@ -497,7 +497,7 @@ export default function MonthlySchoolScorecard({ card, onBack }) {
             <span>05</span>
             <h4>Forecasting & Leftovers</h4>
           </div>
-          <small>Prepared minus served</small>
+          <small>Carryover and recorded waste are tracked separately</small>
         </div>
         <div className="scorecard-forecast-grid">
           <div className="scorecard-production-strip">
@@ -514,45 +514,53 @@ export default function MonthlySchoolScorecard({ card, onBack }) {
               value={integer(current.productionTotals.served)}
             />
             <CompactMetric
-              label="Leftover"
+              label="Leftover / Carryover"
               value={integer(current.productionTotals.leftover)}
             />
             <CompactMetric
-              label="Leftover %"
-              value={`${decimal(current.productionTotals.leftoverPercentage)}%`}
+              label="Wasted"
+              value={integer(current.productionTotals.wasted)}
+            />
+            <CompactMetric
+              label="Waste %"
+              value={`${decimal(current.productionTotals.wastePercentage)}%`}
             />
           </div>
           <div className="scorecard-weekly-list">
-            <h5>Weekly Leftover Breakdown</h5>
+            <h5>Weekly Carryover & Waste</h5>
             {current.weekly.map((week) => (
               <div key={week.weekStart}>
                 <span>{week.label}</span>
-                <b>{decimal(week.leftoverPercentage)}%</b>
+                <b>{decimal(week.carryoverPercentage)}% carryover · {decimal(week.wastePercentage)}% waste</b>
                 <small>
                   {integer(week.prepared)} prepared · {integer(week.served)}{" "}
-                  served · {integer(week.leftover)} leftover
+                  served · {integer(week.leftover)} carryover · {integer(week.wasted)} wasted
                 </small>
               </div>
             ))}
           </div>
         </div>
         <div className="scorecard-leftover-items">
-          <h5>Worst Meaningful Leftover Items</h5>
+          <h5>Worst Food Waste Items</h5>
           {current.worstItems.length ? (
             current.worstItems.map((item) => (
               <div key={item.name}>
                 <span>{item.name}</span>
                 <small>
                   {integer(item.prepared)} prepared · {integer(item.served)}{" "}
-                  served · {integer(item.leftover)} leftover · {item.serviceDays}{" "}
+                  served · {integer(item.leftover)} carryover · {integer(item.wasted)} wasted · {item.serviceDays}{" "}
                   days
                 </small>
-                <strong>{decimal(item.leftoverPercentage)}%</strong>
+                <strong>{decimal(item.wastePercentage)}%</strong>
               </div>
             ))
           ) : (
-            <p>No items met the volume and service-day threshold.</p>
+            <p>No recorded food waste for this reporting period.</p>
           )}
+        </div>
+        <div className="scorecard-leftover-items scorecard-carryover-items">
+          <h5>High Carryover Items</h5>
+          {current.highCarryoverItems.length ? current.highCarryoverItems.map((item)=><div key={item.name}><span>{item.name}</span><small>{integer(item.prepared)} prepared · {integer(item.served)} served · {integer(item.leftover)} carryover · no recorded waste · {item.serviceDays} days</small><strong>{decimal(item.carryoverPercentage)}%</strong></div>):<p>No high-carryover items met the reporting threshold.</p>}
         </div>
         {current.forecastObservation && (
           <p className="scorecard-forecast-note">

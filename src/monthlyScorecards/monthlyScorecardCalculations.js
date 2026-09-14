@@ -67,9 +67,8 @@ export function isMeaningfulLeftoverItem(itemName) {
   return true;
 }
 
-const leftoverFor = (prepared, served) => n(prepared) - n(served);
-const leftoverPercent = (prepared, served) =>
-  n(prepared) > 0 ? (leftoverFor(prepared, served) / n(prepared)) * 100 : null;
+const portionPercent = (portions, prepared) =>
+  n(prepared) > 0 ? (n(portions) / n(prepared)) * 100 : null;
 
 function deduplicateRowsByKey(rows, getKey) {
   const map = new Map();
@@ -238,43 +237,57 @@ function rankEntrees(production, meal) {
     });
 }
 
-function worstLeftovers(production, totalPrepared) {
+function aggregateForecastItems(production) {
   const items = new Map();
   (production || [])
     .filter(
       (row) =>
         row?.item_name &&
         row?.prepared !== null &&
-        row?.served !== null &&
-        isMeaningfulLeftoverItem(row.item_name)
+        row?.served !== null
     )
     .forEach((row) => {
       const item = items.get(row.item_name) || {
         name: row.item_name,
         prepared: 0,
         served: 0,
+        leftover: 0,
+        wasted: 0,
         dates: new Set(),
       };
       item.prepared += n(row.prepared);
       item.served += n(row.served);
+      item.leftover += n(row.leftover);
+      item.wasted += n(row.wasted);
       item.dates.add(row.production_date);
       items.set(row.item_name, item);
     });
 
-  const minimumPrepared = Math.max(10, Math.round(n(totalPrepared) * 0.002));
-  return [...items.values()]
-    .filter((item) => item.dates.size >= 2 && item.prepared >= minimumPrepared)
-    .map((item) => ({
+  return [...items.values()].map((item) => ({
       name: item.name,
       prepared: item.prepared,
       served: item.served,
-      leftover: leftoverFor(item.prepared, item.served),
-      leftoverPercentage: leftoverPercent(item.prepared, item.served),
+      leftover: item.leftover,
+      wasted: item.wasted,
+      carryoverPercentage: portionPercent(item.leftover,item.prepared),
+      wastePercentage: portionPercent(item.wasted,item.prepared),
       serviceDays: item.dates.size,
-    }))
-    .filter((item) => item.leftover > 0)
-    .sort((a, b) => b.leftoverPercentage - a.leftoverPercentage || b.leftover - a.leftover)
-    .slice(0, 3);
+    }));
+}
+
+function worstFoodWasteItems(production) {
+  return aggregateForecastItems(production)
+    .filter((item)=>item.wasted>0&&item.prepared>0)
+    .sort((a,b)=>b.wastePercentage-a.wastePercentage||b.wasted-a.wasted)
+    .slice(0,3);
+}
+
+function highCarryoverItems(production,totalPrepared) {
+  const minimumPrepared=Math.max(10,Math.round(n(totalPrepared)*.002));
+  return aggregateForecastItems(production)
+    .filter((item)=>item.leftover>0&&item.prepared>=minimumPrepared&&item.wasted===0&&isMeaningfulLeftoverItem(item.name))
+    .sort((a,b)=>b.carryoverPercentage-a.carryoverPercentage||b.leftover-a.leftover)
+    .slice(0,3);
 }
 
 function normalize(value, values, higherIsBetter = true) {
@@ -303,6 +316,8 @@ function weeklyPerformance({ dates, services, production, dailyMplh, enrollment,
       );
       const prepared = rows.reduce((sum, row) => sum + n(row?.prepared), 0);
       const served = rows.reduce((sum, row) => sum + n(row?.served), 0);
+      const leftover = rows.reduce((sum,row)=>sum+n(row?.leftover),0);
+      const wasted = rows.reduce((sum,row)=>sum+n(row?.wasted),0);
       const lunch = (services || [])
         .filter((row) => week.dates.includes(row.date) && row.meal === "lunch")
         .reduce((sum, row) => sum + row.count, 0);
@@ -319,8 +334,10 @@ function weeklyPerformance({ dates, services, production, dailyMplh, enrollment,
         operatingDays: week.dates.length,
         prepared,
         served,
-        leftover: leftoverFor(prepared, served),
-        leftoverPercentage: leftoverPercent(prepared, served),
+        leftover,
+        wasted,
+        carryoverPercentage: portionPercent(leftover,prepared),
+        wastePercentage: portionPercent(wasted,prepared),
         lunchParticipation:
           enrollment && week.dates.length
             ? (lunch / (enrollment * week.dates.length)) * 100
@@ -332,18 +349,18 @@ function weeklyPerformance({ dates, services, production, dailyMplh, enrollment,
     eligible = weeks.filter(
       (week) =>
         week.operatingDays >= (maxDays >= 3 ? 3 : 1) &&
-        week.leftoverPercentage !== null &&
+        week.wastePercentage !== null &&
         week.lunchParticipation !== null &&
         week.mplh !== null
     ),
     participations = eligible.map((week) => week.lunchParticipation),
-    leftovers = eligible.map((week) => week.leftoverPercentage);
+    wastePercentages = eligible.map((week) => week.wastePercentage);
 
   eligible.forEach((week) => {
     const participationScore = normalize(week.lunchParticipation, participations),
-      leftoverScore = normalize(week.leftoverPercentage, leftovers, false),
+      wasteScore = normalize(week.wastePercentage, wastePercentages, false),
       mplhScore = target?.min === null || target?.min === undefined ? null : Math.min(1, week.mplh / target.min),
-      parts = [participationScore, mplhScore, leftoverScore].filter(
+      parts = [participationScore, mplhScore, wasteScore].filter(
         (value) => value !== null
       );
     week.performanceScore = parts.length ? mean(parts) : null;
@@ -556,25 +573,24 @@ export function calculateDateRange(school, dataset, startDate, endDate, excluded
       planned: acc.planned + n(row?.planned),
       prepared: acc.prepared + n(row?.prepared),
       served: acc.served + n(row?.served),
+      leftover: acc.leftover + n(row?.leftover),
+      wasted: acc.wasted + n(row?.wasted),
     }),
-    { planned: 0, prepared: 0, served: 0 }
+    { planned: 0, prepared: 0, served: 0, leftover: 0, wasted: 0 }
   );
-  productionTotals.leftover = leftoverFor(
-    productionTotals.prepared,
-    productionTotals.served
-  );
-  productionTotals.leftoverPercentage = leftoverPercent(
-    productionTotals.prepared,
-    productionTotals.served
-  );
+  productionTotals.carryoverPercentage = portionPercent(productionTotals.leftover,productionTotals.prepared);
+  productionTotals.wastePercentage = portionPercent(productionTotals.wasted,productionTotals.prepared);
 
   const menuRankings = {
     breakfast: rankEntrees(production, "breakfast"),
     lunch: rankEntrees(production, "lunch"),
   };
-  const worstItems = worstLeftovers(production, productionTotals.prepared);
+  const worstItems = worstFoodWasteItems(production);
+  const highCarryoverItemsList = highCarryoverItems(production,productionTotals.prepared);
   const forecastObservation = worstItems[0]
-    ? `${worstItems[0].name} averaged ${round(worstItems[0].leftoverPercentage)}% leftover across ${worstItems[0].serviceDays} service days. Review its planned quantity before the next service.`
+    ? `${worstItems[0].name} had ${round(worstItems[0].wastePercentage)}% waste across ${worstItems[0].serviceDays} service days. Review planned/prepared quantity before the next service.`
+    : highCarryoverItemsList[0]
+    ? `${highCarryoverItemsList[0].name} had ${round(highCarryoverItemsList[0].carryoverPercentage)}% carryover but no recorded waste. Review planned quantity if this pattern continues.`
     : null;
 
   const weekly = weeklyPerformance({
@@ -630,6 +646,7 @@ export function calculateDateRange(school, dataset, startDate, endDate, excluded
     productionTotals,
     menuRankings,
     worstItems,
+    highCarryoverItems:highCarryoverItemsList,
     forecastObservation,
     weekly: weekly.weeks || [],
     bestWeek: weekly.bestWeek,
@@ -652,8 +669,8 @@ function managerSummary(current, previous) {
       ? `${current.bestWeek.label} was the strongest balanced operating week.`
       : "Operating data is available for review.";
   const watch =
-    current?.watchWeek && current?.watchWeek?.leftoverPercentage !== null
-      ? `${current.watchWeek.label} needs attention: ${round(current.watchWeek.leftoverPercentage)}% leftover and ${round(current.watchWeek.lunchParticipation)}% lunch participation.`
+    current?.watchWeek && current?.watchWeek?.wastePercentage > 0
+      ? `${current.watchWeek.label} needs attention: ${round(current.watchWeek.wastePercentage)}% waste and ${round(current.watchWeek.lunchParticipation)}% lunch participation.`
       : current?.daysBelowTarget > 0
       ? `${current.daysBelowTarget} operating days were below the MPLH target.`
       : "Continue monitoring participation, MPLH, and production.";
@@ -741,11 +758,11 @@ export function buildSchoolScorecard(school, dataset, dateRangeOrMonth, excluded
         current.totalCost !== null && previous.totalCost !== null
           ? current.totalCost - previous.totalCost
           : null,
-      leftoverPercentage:
-        current.productionTotals?.leftoverPercentage !== null &&
-        previous.productionTotals?.leftoverPercentage !== null
-          ? current.productionTotals.leftoverPercentage -
-            previous.productionTotals.leftoverPercentage
+      wastePercentage:
+        current.productionTotals?.wastePercentage !== null &&
+        previous.productionTotals?.wastePercentage !== null
+          ? current.productionTotals.wastePercentage -
+            previous.productionTotals.wastePercentage
           : null,
       revenue: previous.hasMeals ? current.revenue - previous.revenue : null,
     };
@@ -773,8 +790,10 @@ export function buildSchoolScorecard(school, dataset, dateRangeOrMonth, excluded
         target: { label: "N/A", min: null, max: null },
         costs: { breakfast: 0, lunch: 0, supper: 0 },
         costAvailable: { breakfast: false, lunch: false, supper: false },
+        productionTotals: { planned: 0, prepared: 0, served: 0, leftover: 0, wasted: 0, carryoverPercentage: null, wastePercentage: null },
         menuRankings: { breakfast: [], lunch: [] },
         worstItems: [],
+        highCarryoverItems: [],
         weekly: [],
       },
       previous: null,
