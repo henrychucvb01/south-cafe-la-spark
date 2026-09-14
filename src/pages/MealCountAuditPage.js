@@ -4,74 +4,19 @@ import { supabase } from "../supabaseClient";
 export default function MealCountAuditPage({ onBack, locations: propLocations, schools: propSchools, dataset }) {
   const [locations, setLocations] = useState([]);
   const [selectedLocationId, setSelectedLocationId] = useState("");
-  const [selectedMonth, setSelectedMonth] = useState(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-  });
+  const [selectedMonth, setSelectedMonth] = useState("2026-08");
 
   const [loading, setLoading] = useState(true);
   const [savingDate, setSavingDate] = useState(null);
-  const [districtData, setDistrictData] = useState([]);
-  const [finishLineData, setFinishLineData] = useState([]);
-  const [filterMode, setFilterMode] = useState("all");
+  const [allDistrictData, setAllDistrictData] = useState([]);
+  const [allFinishLineData, setAllFinishLineData] = useState([]);
+  const [schoolFilter, setSchoolFilter] = useState("needs_review"); // 'needs_review' | 'all' | 'clean'
+
   const [editingRow, setEditingRow] = useState(null);
   const [editValues, setEditValues] = useState({ breakfast: 0, lunch: 0, supper: 0 });
   const [feedback, setFeedback] = useState("");
 
-  // 1. Load Locations (check Props first, then Supabase)
-  useEffect(() => {
-    async function loadLocations() {
-      // Check if CommandCenter already passed schools in props
-      const existing = propLocations || propSchools || dataset?.schools;
-      if (existing && existing.length > 0) {
-        const mapped = existing.map((loc) => ({
-          id: loc.id || loc.location_id || loc.source_site_id,
-          school_name: loc.school_name || loc.name || loc.site_name || "Unknown School",
-          source_site_id: loc.source_site_id || loc.location_id || loc.id,
-        }));
-        setLocations(mapped);
-        setSelectedLocationId(mapped[0].id);
-        setLoading(false);
-        return;
-      }
-
-      // Otherwise fetch from Supabase: try 'locations', then fallback to 'schools'
-      try {
-        let { data, error } = await supabase.from("locations").select("*");
-        if (error || !data || data.length === 0) {
-          const res = await supabase.from("schools").select("*");
-          data = res.data;
-          error = res.error;
-        }
-
-        if (error) {
-          console.error("Supabase school load error:", error);
-          setFeedback(`Could not load schools: ${error.message}`);
-        } else if (data) {
-          const mapped = data
-            .map((loc) => ({
-              id: loc.id || loc.location_id || loc.source_site_id,
-              school_name: loc.school_name || loc.name || loc.site_name || `School ${loc.id}`,
-              source_site_id: loc.source_site_id || loc.location_id || loc.id,
-            }))
-            .sort((a, b) => a.school_name.localeCompare(b.school_name));
-
-          setLocations(mapped);
-          if (mapped.length > 0) {
-            setSelectedLocationId(mapped[0].id);
-          }
-        }
-      } catch (err) {
-        console.error("Failed to load schools:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadLocations();
-  }, [propLocations, propSchools, dataset]);
-
-  // Compute month start & end
+  // 1. Calculate month dates
   const { startDate, endDate, operatingDates } = useMemo(() => {
     const [y, m] = selectedMonth.split("-").map(Number);
     const lastDay = new Date(y, m, 0).getDate();
@@ -82,96 +27,193 @@ export default function MealCountAuditPage({ onBack, locations: propLocations, s
     const curr = new Date(`${start}T12:00:00`);
     const final = new Date(`${end}T12:00:00`);
     while (curr <= final) {
-      const dayOfWeek = curr.getDay();
-      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      const day = curr.getDay();
+      if (day !== 0 && day !== 6) {
         dates.push(curr.toISOString().split("T")[0]);
       }
       curr.setDate(curr.getDate() + 1);
     }
-
     return { startDate: start, endDate: end, operatingDates: dates };
   }, [selectedMonth]);
 
-  // 2. Load District & Finish Line data
+  // 2. Load Schools
   useEffect(() => {
-    if (!selectedLocationId) return;
-
-    async function loadAuditData() {
-      setLoading(true);
-      setFeedback("");
-      setEditingRow(null);
-
-      const selectedLoc = locations.find((l) => String(l.id) === String(selectedLocationId));
-      const locId = selectedLoc?.id;
-      const siteId = selectedLoc?.source_site_id;
+    async function loadSchools() {
+      const existing = propLocations || propSchools || dataset?.schools;
+      if (existing && existing.length > 0) {
+        const mapped = existing.map((loc) => ({
+          id: String(loc.id || loc.location_id || loc.source_site_id),
+          school_name: loc.school_name || loc.name || loc.site_name || "Unknown School",
+          source_site_id: String(loc.source_site_id || loc.location_id || loc.id),
+        }));
+        setLocations(mapped);
+        return;
+      }
 
       try {
-        // District Uploads
-        let distRows = [];
-        const { data: dData } = await supabase
+        let { data, error } = await supabase.from("locations").select("*");
+        if (error || !data || data.length === 0) {
+          const res = await supabase.from("schools").select("*");
+          data = res.data;
+        }
+        if (data) {
+          const mapped = data.map((loc) => ({
+            id: String(loc.id || loc.location_id || loc.source_site_id),
+            school_name: loc.school_name || loc.name || loc.site_name || `School ${loc.id}`,
+            source_site_id: String(loc.source_site_id || loc.location_id || loc.id),
+          }));
+          setLocations(mapped);
+        }
+      } catch (err) {
+        console.error("Error loading schools:", err);
+      }
+    }
+    loadSchools();
+  }, [propLocations, propSchools, dataset]);
+
+  // 3. Load District-Wide Month Data in One Query
+  useEffect(() => {
+    async function loadMonthData() {
+      setLoading(true);
+      try {
+        // Fetch uploaded district counts
+        let { data: dData } = await supabase
           .from("daily_meal_counts")
           .select("*")
-          .or(`source_site_id.eq.${siteId},location_id.eq.${locId}`)
           .gte("date", startDate)
           .lte("date", endDate);
 
-        if (dData && dData.length > 0) {
-          distRows = dData;
-        } else {
-          // fallback to meal_counts if district upload is stored there
-          const { data: mData } = await supabase
-            .from("meal_counts")
-            .select("*")
-            .eq("location_id", locId)
-            .gte("service_date", startDate)
-            .lte("service_date", endDate);
-          distRows = mData || [];
-        }
-
-        // Finish Line Checklist
-        const { data: fData } = await supabase
+        // Fetch manager Finish Line counts
+        let { data: fData } = await supabase
           .from("meal_counts")
           .select("*")
-          .eq("location_id", locId)
           .gte("service_date", startDate)
           .lte("service_date", endDate);
 
-        setDistrictData(distRows || []);
-        setFinishLineData(fData || []);
+        setAllDistrictData(dData || []);
+        setAllFinishLineData(fData || []);
       } catch (err) {
-        console.error("Audit data load error:", err);
+        console.error("Failed to load district audit data:", err);
       } finally {
         setLoading(false);
       }
     }
+    loadMonthData();
+  }, [startDate, endDate]);
 
-    loadAuditData();
-  }, [selectedLocationId, startDate, endDate, locations]);
+  // 4. Evaluate Health Status for Every School
+  const schoolAuditSummaries = useMemo(() => {
+    return locations.map((school) => {
+      const siteId = String(school.source_site_id);
+      const locId = String(school.id);
 
-  // 3. Build Daily Comparison
-  const comparisonRows = useMemo(() => {
-    const distMap = new Map();
-    districtData.forEach((row) => {
-      const d = String(row.date || row.service_date).slice(0, 10);
-      distMap.set(d, {
-        breakfast: Number(row.breakfast ?? row.breakfast_count ?? 0),
-        lunch: Number(row.lunch ?? row.lunch_count ?? 0),
-        supper: Number(row.supper ?? row.supper_count ?? 0),
-        raw: row,
+      // District records for this school
+      const schoolDist = allDistrictData.filter(
+        (r) => String(r.source_site_id) === siteId || String(r.location_id) === locId
+      );
+      const distMap = new Map();
+      schoolDist.forEach((r) => {
+        const d = String(r.date || r.service_date).slice(0, 10);
+        distMap.set(d, {
+          lunch: Number(r.lunch ?? r.lunch_count ?? 0),
+          breakfast: Number(r.breakfast ?? r.breakfast_count ?? 0),
+        });
       });
+
+      // Finish Line records for this school
+      const schoolFL = allFinishLineData.filter(
+        (r) => String(r.location_id) === locId || String(r.source_site_id) === siteId
+      );
+      const flMap = new Map();
+      schoolFL.forEach((r) => {
+        const d = String(r.service_date || r.date).slice(0, 10);
+        flMap.set(d, {
+          lunch: Number(r.lunch_count ?? r.lunch ?? 0),
+          breakfast: Number(r.breakfast_count ?? r.breakfast ?? 0),
+        });
+      });
+
+      let mismatches = 0;
+      let missingDistrict = 0;
+      let matched = 0;
+
+      operatingDates.forEach((date) => {
+        const d = distMap.get(date);
+        const f = flMap.get(date);
+
+        if (!d && !f) {
+          missingDistrict++;
+        } else if (!d && f) {
+          missingDistrict++;
+        } else if (d && f) {
+          if (Math.abs(d.lunch - f.lunch) >= 5 || Math.abs(d.breakfast - f.breakfast) >= 5) {
+            mismatches++;
+          } else {
+            matched++;
+          }
+        } else if (d && !f) {
+          // Has district but no Finish Line checklist
+          matched++;
+        }
+      });
+
+      const needsAttention = mismatches > 0 || missingDistrict > 0;
+
+      return {
+        ...school,
+        mismatches,
+        missingDistrict,
+        matched,
+        needsAttention,
+      };
+    }).sort((a, b) => {
+      // Sort: Schools with problems ALWAYS float to the top
+      if (a.needsAttention && !b.needsAttention) return -1;
+      if (!a.needsAttention && b.needsAttention) return 1;
+      return (b.mismatches + b.missingDistrict) - (a.mismatches + a.missingDistrict);
     });
+  }, [locations, allDistrictData, allFinishLineData, operatingDates]);
+
+  // Set initial selected school to the first one with issues
+  useEffect(() => {
+    if (!selectedLocationId && schoolAuditSummaries.length > 0) {
+      setSelectedLocationId(schoolAuditSummaries[0].id);
+    }
+  }, [schoolAuditSummaries, selectedLocationId]);
+
+  // Selected school's detailed daily rows
+  const currentSchool = schoolAuditSummaries.find((s) => String(s.id) === String(selectedLocationId));
+
+  const comparisonRows = useMemo(() => {
+    if (!currentSchool) return [];
+
+    const siteId = String(currentSchool.source_site_id);
+    const locId = String(currentSchool.id);
+
+    const distMap = new Map();
+    allDistrictData
+      .filter((r) => String(r.source_site_id) === siteId || String(r.location_id) === locId)
+      .forEach((r) => {
+        const d = String(r.date || r.service_date).slice(0, 10);
+        distMap.set(d, {
+          breakfast: Number(r.breakfast ?? r.breakfast_count ?? 0),
+          lunch: Number(r.lunch ?? r.lunch_count ?? 0),
+          supper: Number(r.supper ?? r.supper_count ?? 0),
+        });
+      });
 
     const flMap = new Map();
-    finishLineData.forEach((row) => {
-      const d = String(row.service_date || row.date).slice(0, 10);
-      flMap.set(d, {
-        breakfast: Number(row.breakfast_count ?? row.breakfast ?? 0),
-        lunch: Number(row.lunch_count ?? row.lunch ?? 0),
-        supper: Number(row.supper_count ?? row.supper ?? 0),
-        entered_by: row.entered_by,
-        raw: row,
+    allFinishLineData
+      .filter((r) => String(r.location_id) === locId || String(r.source_site_id) === siteId)
+      .forEach((r) => {
+        const d = String(r.service_date || r.date).slice(0, 10);
+        flMap.set(d, {
+          breakfast: Number(r.breakfast_count ?? r.breakfast ?? 0),
+          lunch: Number(r.lunch_count ?? r.lunch ?? 0),
+          supper: Number(r.supper_count ?? r.supper ?? 0),
+          entered_by: r.entered_by,
+        });
       });
-    });
 
     return operatingDates.map((date) => {
       const dist = distMap.get(date) || null;
@@ -180,26 +222,25 @@ export default function MealCountAuditPage({ onBack, locations: propLocations, s
       const diffLunch = (dist?.lunch || 0) - (fl?.lunch || 0);
       const diffBreakfast = (dist?.breakfast || 0) - (fl?.breakfast || 0);
 
-      const hasMismatch =
-        dist && fl && (Math.abs(diffLunch) >= 5 || Math.abs(diffBreakfast) >= 5);
-      const isMissingDistrict = !dist && fl;
+      const hasMismatch = dist && fl && (Math.abs(diffLunch) >= 5 || Math.abs(diffBreakfast) >= 5);
+      const isMissingDistrict = !dist;
       const isMissingFinishLine = dist && !fl;
-      const isMissingBoth = !dist && !fl;
 
       let status = "clean";
       let statusLabel = "Match";
-      if (isMissingBoth) {
+
+      if (isMissingDistrict && !fl) {
         status = "missing";
-        statusLabel = "No Counts Recorded";
+        statusLabel = "No Data";
       } else if (isMissingDistrict) {
         status = "missing_dist";
-        statusLabel = "Missing District Upload";
-      } else if (isMissingFinishLine) {
-        status = "missing_fl";
-        statusLabel = "No Finish Line Check";
+        statusLabel = "Missing District";
       } else if (hasMismatch) {
         status = "mismatch";
         statusLabel = `Diff: ${diffLunch >= 0 ? "+" : ""}${diffLunch} lunch`;
+      } else if (isMissingFinishLine) {
+        status = "clean";
+        statusLabel = "District Only";
       }
 
       return {
@@ -211,45 +252,20 @@ export default function MealCountAuditPage({ onBack, locations: propLocations, s
         }),
         dist,
         fl,
-        diffLunch,
-        diffBreakfast,
         status,
         statusLabel,
       };
     });
-  }, [operatingDates, districtData, finishLineData]);
+  }, [currentSchool, allDistrictData, allFinishLineData, operatingDates]);
 
-  const summary = useMemo(() => {
-    let mismatches = 0;
-    let missingDistrict = 0;
-    let matched = 0;
-
-    comparisonRows.forEach((r) => {
-      if (r.status === "mismatch") mismatches++;
-      else if (r.status === "missing_dist" || r.status === "missing") missingDistrict++;
-      else if (r.status === "clean") matched++;
-    });
-
-    return { mismatches, missingDistrict, matched, total: comparisonRows.length };
-  }, [comparisonRows]);
-
-  function handleStartEdit(row) {
-    setEditingRow(row.date);
-    setEditValues({
-      breakfast: row.dist?.breakfast ?? row.fl?.breakfast ?? 0,
-      lunch: row.dist?.lunch ?? row.fl?.lunch ?? 0,
-      supper: row.dist?.supper ?? row.fl?.supper ?? 0,
-    });
-    setFeedback("");
-  }
-
+  // Action: Copy District to Finish Line
   async function handleCopyDistrict(row) {
     if (!row.dist) return;
     setSavingDate(row.date);
     try {
-      const { error } = await supabase.from("meal_counts").upsert(
+      await supabase.from("meal_counts").upsert(
         {
-          location_id: selectedLocationId,
+          location_id: currentSchool.id,
           service_date: row.date,
           breakfast_count: row.dist.breakfast,
           lunch_count: row.dist.lunch,
@@ -261,35 +277,33 @@ export default function MealCountAuditPage({ onBack, locations: propLocations, s
         { onConflict: "location_id,service_date" }
       );
 
-      if (error) throw error;
-
-      setFinishLineData((prev) => [
-        ...prev.filter((r) => r.service_date !== row.date),
+      // update local
+      setAllFinishLineData((prev) => [
+        ...prev.filter((r) => !(r.service_date === row.date && String(r.location_id) === currentSchool.id)),
         {
-          location_id: selectedLocationId,
+          location_id: currentSchool.id,
           service_date: row.date,
           breakfast_count: row.dist.breakfast,
           lunch_count: row.dist.lunch,
           supper_count: row.dist.supper,
         },
       ]);
-      setFeedback(`Updated ${row.date} to match District count.`);
+      setFeedback(`Synced ${row.date} with District count.`);
     } catch (err) {
-      setFeedback(`Error saving: ${err.message}`);
+      setFeedback(`Error: ${err.message}`);
     } finally {
       setSavingDate(null);
     }
   }
 
+  // Action: Manual Edit Save
   async function handleSaveEdit(date) {
     setSavingDate(date);
     try {
-      const selectedLoc = locations.find((l) => String(l.id) === String(selectedLocationId));
-
       await supabase.from("daily_meal_counts").upsert(
         {
-          source_site_id: selectedLoc?.source_site_id,
-          location_id: selectedLoc?.id,
+          source_site_id: currentSchool.source_site_id,
+          location_id: currentSchool.id,
           date,
           breakfast: Number(editValues.breakfast),
           lunch: Number(editValues.lunch),
@@ -300,7 +314,7 @@ export default function MealCountAuditPage({ onBack, locations: propLocations, s
 
       await supabase.from("meal_counts").upsert(
         {
-          location_id: selectedLoc?.id,
+          location_id: currentSchool.id,
           service_date: date,
           breakfast_count: Number(editValues.breakfast),
           lunch_count: Number(editValues.lunch),
@@ -312,34 +326,38 @@ export default function MealCountAuditPage({ onBack, locations: propLocations, s
         { onConflict: "location_id,service_date" }
       );
 
-      setDistrictData((prev) => [
-        ...prev.filter((r) => (r.date || r.service_date) !== date),
-        { date, breakfast: editValues.breakfast, lunch: editValues.lunch, supper: editValues.supper },
+      setAllDistrictData((prev) => [
+        ...prev.filter((r) => !(r.date === date && String(r.source_site_id) === currentSchool.source_site_id)),
+        { date, source_site_id: currentSchool.source_site_id, breakfast: editValues.breakfast, lunch: editValues.lunch, supper: editValues.supper },
       ]);
-      setFinishLineData((prev) => [
-        ...prev.filter((r) => (r.service_date || r.date) !== date),
-        { service_date: date, breakfast_count: editValues.breakfast, lunch_count: editValues.lunch, supper_count: editValues.supper },
+
+      setAllFinishLineData((prev) => [
+        ...prev.filter((r) => !(r.service_date === date && String(r.location_id) === currentSchool.id)),
+        { service_date: date, location_id: currentSchool.id, breakfast_count: editValues.breakfast, lunch_count: editValues.lunch, supper_count: editValues.supper },
       ]);
 
       setEditingRow(null);
       setFeedback(`Saved verified count for ${date}!`);
     } catch (err) {
-      setFeedback(`Failed to save: ${err.message}`);
+      setFeedback(`Save failed: ${err.message}`);
     } finally {
       setSavingDate(null);
     }
   }
 
-  const filteredRows = comparisonRows.filter((r) => {
-    if (filterMode === "needs_review") return r.status !== "clean";
-    if (filterMode === "clean") return r.status === "clean";
+  // Filtered Schools in Sidebar
+  const filteredSchools = schoolAuditSummaries.filter((s) => {
+    if (schoolFilter === "needs_review") return s.needsAttention;
+    if (schoolFilter === "clean") return !s.needsAttention;
     return true;
   });
 
+  const totalProblemSchools = schoolAuditSummaries.filter((s) => s.needsAttention).length;
+
   return (
-    <div style={{ padding: "24px", maxWidth: "1250px", margin: "0 auto", fontFamily: "sans-serif" }}>
+    <div style={{ padding: "20px", maxWidth: "1400px", margin: "0 auto", fontFamily: "sans-serif" }}>
       {/* TOP HEADER */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
         <div>
           {onBack && (
             <button
@@ -350,70 +368,43 @@ export default function MealCountAuditPage({ onBack, locations: propLocations, s
                 color: "#1b4332",
                 fontWeight: "700",
                 cursor: "pointer",
-                marginBottom: "8px",
+                marginBottom: "6px",
                 display: "block",
               }}
             >
               ← Back to Scorecards
             </button>
           )}
-          <h1 style={{ margin: 0, fontSize: "24px", fontWeight: "800", color: "#111827" }}>
-            Meal Count Audit & Reconciliation
+          <h1 style={{ margin: 0, fontSize: "22px", fontWeight: "800", color: "#111827" }}>
+            District Meal Count Audit & Reconciliation
           </h1>
-          <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "#6b7280" }}>
-            Compare uploaded district claims against Finish Line checklist counts. Fix discrepancies in real time.
+          <p style={{ margin: "3px 0 0 0", fontSize: "13px", color: "#6b7280" }}>
+            Identify problem schools instantly. Review discrepancies and approve numbers with one click.
           </p>
         </div>
 
-        {/* SELECTORS */}
-        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-          <div>
-            <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#374151", marginBottom: "4px" }}>
-              MONTH
-            </label>
-            <input
-              type="month"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              style={{ padding: "8px 12px", borderRadius: "8px", border: "1px solid #d1d5db", fontWeight: "600" }}
-            />
-          </div>
-
-          <div>
-            <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#374151", marginBottom: "4px" }}>
-              SCHOOL ({locations.length})
-            </label>
-            <select
-              value={selectedLocationId}
-              onChange={(e) => setSelectedLocationId(e.target.value)}
-              style={{
-                padding: "8px 12px",
-                borderRadius: "8px",
-                border: "1px solid #d1d5db",
-                fontWeight: "700",
-                minWidth: "260px",
-                backgroundColor: "#fff",
-              }}
-            >
-              {locations.map((loc) => (
-                <option key={loc.id} value={loc.id}>
-                  {loc.school_name}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div>
+          <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#374151", marginBottom: "4px" }}>
+            REPORTING MONTH
+          </label>
+          <input
+            type="month"
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            style={{ padding: "6px 10px", borderRadius: "6px", border: "1px solid #d1d5db", fontWeight: "700" }}
+          />
         </div>
       </div>
 
       {feedback && (
         <div
           style={{
-            padding: "10px 16px",
-            background: feedback.includes("Failed") || feedback.includes("Could not") ? "#fee2e2" : "#dcfce7",
-            color: feedback.includes("Failed") || feedback.includes("Could not") ? "#991b1b" : "#166534",
-            borderRadius: "8px",
-            marginBottom: "16px",
-            fontSize: "13px",
+            padding: "8px 14px",
+            background: feedback.includes("failed") ? "#fee2e2" : "#dcfce7",
+            color: feedback.includes("failed") ? "#991b1b" : "#166534",
+            borderRadius: "6px",
+            marginBottom: "14px",
+            fontSize: "12px",
             fontWeight: "700",
           }}
         >
@@ -421,288 +412,263 @@ export default function MealCountAuditPage({ onBack, locations: propLocations, s
         </div>
       )}
 
-      {/* SUMMARY BANNER */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "14px", marginBottom: "20px" }}>
-        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", padding: "14px" }}>
-          <div style={{ fontSize: "11px", fontWeight: "700", color: "#6b7280" }}>TOTAL SERVICE DAYS</div>
-          <div style={{ fontSize: "22px", fontWeight: "800", color: "#111827", marginTop: "4px" }}>{summary.total}</div>
-        </div>
+      {/* TWO COLUMN MASTER-DETAIL LAYOUT */}
+      <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: "18px", alignItems: "start" }}>
+        {/* LEFT COLUMN: TRIAGE SCHOOL LIST */}
+        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", overflow: "hidden" }}>
+          {/* TABS */}
+          <div style={{ display: "flex", borderBottom: "1px solid #e5e7eb", background: "#f9fafb" }}>
+            <button
+              onClick={() => setSchoolFilter("needs_review")}
+              style={{
+                flex: 1,
+                padding: "10px 6px",
+                border: "none",
+                background: schoolFilter === "needs_review" ? "#fff" : "transparent",
+                borderBottom: schoolFilter === "needs_review" ? "2px solid #ef4444" : "none",
+                fontWeight: "700",
+                fontSize: "11px",
+                color: schoolFilter === "needs_review" ? "#b91c1c" : "#6b7280",
+                cursor: "pointer",
+              }}
+            >
+              ⚠️ Needs Review ({totalProblemSchools})
+            </button>
+            <button
+              onClick={() => setSchoolFilter("all")}
+              style={{
+                flex: 1,
+                padding: "10px 6px",
+                border: "none",
+                background: schoolFilter === "all" ? "#fff" : "transparent",
+                borderBottom: schoolFilter === "all" ? "2px solid #1b4332" : "none",
+                fontWeight: "700",
+                fontSize: "11px",
+                color: schoolFilter === "all" ? "#1b4332" : "#6b7280",
+                cursor: "pointer",
+              }}
+            >
+              All Schools ({schoolAuditSummaries.length})
+            </button>
+          </div>
 
-        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", padding: "14px" }}>
-          <div style={{ fontSize: "11px", fontWeight: "700", color: "#059669" }}>VERIFIED & MATCHED</div>
-          <div style={{ fontSize: "22px", fontWeight: "800", color: "#059669", marginTop: "4px" }}>{summary.matched}</div>
-        </div>
-
-        <div
-          style={{
-            background: summary.mismatches > 0 ? "#fef3c7" : "#fff",
-            border: summary.mismatches > 0 ? "1px solid #f59e0b" : "1px solid #e5e7eb",
-            borderRadius: "10px",
-            padding: "14px",
-          }}
-        >
-          <div style={{ fontSize: "11px", fontWeight: "700", color: "#b45309" }}>COUNT MISMATCHES</div>
-          <div style={{ fontSize: "22px", fontWeight: "800", color: "#b45309", marginTop: "4px" }}>{summary.mismatches}</div>
-        </div>
-
-        <div
-          style={{
-            background: summary.missingDistrict > 0 ? "#fee2e2" : "#fff",
-            border: summary.missingDistrict > 0 ? "1px solid #ef4444" : "1px solid #e5e7eb",
-            borderRadius: "10px",
-            padding: "14px",
-          }}
-        >
-          <div style={{ fontSize: "11px", fontWeight: "700", color: "#b91c1c" }}>MISSING DISTRICT DAYS</div>
-          <div style={{ fontSize: "22px", fontWeight: "800", color: "#b91c1c", marginTop: "4px" }}>{summary.missingDistrict}</div>
-        </div>
-      </div>
-
-      {/* FILTER BUTTONS */}
-      <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
-        <button
-          onClick={() => setFilterMode("all")}
-          style={{
-            padding: "6px 14px",
-            borderRadius: "6px",
-            border: "1px solid #d1d5db",
-            background: filterMode === "all" ? "#1b4332" : "#fff",
-            color: filterMode === "all" ? "#fff" : "#374151",
-            fontWeight: "700",
-            cursor: "pointer",
-            fontSize: "12px",
-          }}
-        >
-          All Days ({comparisonRows.length})
-        </button>
-
-        <button
-          onClick={() => setFilterMode("needs_review")}
-          style={{
-            padding: "6px 14px",
-            borderRadius: "6px",
-            border: "1px solid #f59e0b",
-            background: filterMode === "needs_review" ? "#f59e0b" : "#fff",
-            color: filterMode === "needs_review" ? "#fff" : "#b45309",
-            fontWeight: "700",
-            cursor: "pointer",
-            fontSize: "12px",
-          }}
-        >
-          ⚠️ Needs Review ({summary.mismatches + summary.missingDistrict})
-        </button>
-
-        <button
-          onClick={() => setFilterMode("clean")}
-          style={{
-            padding: "6px 14px",
-            borderRadius: "6px",
-            border: "1px solid #10b981",
-            background: filterMode === "clean" ? "#10b981" : "#fff",
-            color: filterMode === "clean" ? "#fff" : "#065f46",
-            fontWeight: "700",
-            cursor: "pointer",
-            fontSize: "12px",
-          }}
-        >
-          🟢 Clean Only ({summary.matched})
-        </button>
-      </div>
-
-      {/* RECONCILIATION TABLE */}
-      <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "13px" }}>
-          <thead>
-            <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb", color: "#4b5563", fontSize: "11px" }}>
-              <th style={{ padding: "12px 16px" }}>DATE</th>
-              <th style={{ padding: "12px 16px" }}>DISTRICT (UPLOADED)</th>
-              <th style={{ padding: "12px 16px" }}>FINISH LINE (MANAGER)</th>
-              <th style={{ padding: "12px 16px" }}>STATUS</th>
-              <th style={{ padding: "12px 16px", textAlign: "right" }}>ACTIONS</th>
-            </tr>
-          </thead>
-          <tbody>
+          {/* LIST */}
+          <div style={{ maxHeight: "650px", overflowY: "auto" }}>
             {loading ? (
-              <tr>
-                <td colSpan="5" style={{ padding: "30px", textAlign: "center", color: "#6b7280" }}>
-                  Loading reconciliation data...
-                </td>
-              </tr>
-            ) : filteredRows.length === 0 ? (
-              <tr>
-                <td colSpan="5" style={{ padding: "30px", textAlign: "center", color: "#6b7280" }}>
-                  No dates matching this filter.
-                </td>
-              </tr>
+              <div style={{ padding: "20px", textAlign: "center", color: "#6b7280", fontSize: "12px" }}>
+                Scanning all schools...
+              </div>
+            ) : filteredSchools.length === 0 ? (
+              <div style={{ padding: "20px", textAlign: "center", color: "#059669", fontSize: "12px", fontWeight: "700" }}>
+                🎉 No schools need review! All counts match.
+              </div>
             ) : (
-              filteredRows.map((row) => {
-                const isEditingThis = editingRow === row.date;
-                const rowBg =
-                  row.status === "mismatch"
-                    ? "#fffbeb"
-                    : row.status === "missing_dist" || row.status === "missing"
-                    ? "#fef2f2"
-                    : "#fff";
-
+              filteredSchools.map((school) => {
+                const isSelected = String(school.id) === String(selectedLocationId);
                 return (
-                  <tr key={row.date} style={{ borderBottom: "1px solid #f3f4f6", background: rowBg }}>
-                    {/* DATE */}
-                    <td style={{ padding: "12px 16px", fontWeight: "700", color: "#1f2937" }}>
-                      {row.dayLabel}
-                    </td>
+                  <div
+                    key={school.id}
+                    onClick={() => setSelectedLocationId(school.id)}
+                    style={{
+                      padding: "12px 14px",
+                      borderBottom: "1px solid #f3f4f6",
+                      cursor: "pointer",
+                      background: isSelected ? "#eef6ff" : school.needsAttention ? "#fffcf5" : "#fff",
+                      borderLeft: isSelected ? "4px solid #2563eb" : school.needsAttention ? "4px solid #f59e0b" : "4px solid transparent",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <strong style={{ fontSize: "13px", color: isSelected ? "#1d4ed8" : "#111827" }}>
+                        {school.school_name}
+                      </strong>
+                    </div>
 
-                    {/* DISTRICT UPLOAD */}
-                    <td style={{ padding: "12px 16px" }}>
-                      {isEditingThis ? (
-                        <div style={{ display: "flex", gap: "6px" }}>
-                          <input
-                            type="number"
-                            value={editValues.breakfast}
-                            placeholder="Brk"
-                            onChange={(e) => setEditValues({ ...editValues, breakfast: e.target.value })}
-                            style={{ width: "65px", padding: "4px", fontSize: "12px", borderRadius: "4px", border: "1px solid #ccc" }}
-                          />
-                          <input
-                            type="number"
-                            value={editValues.lunch}
-                            placeholder="Lun"
-                            onChange={(e) => setEditValues({ ...editValues, lunch: e.target.value })}
-                            style={{ width: "65px", padding: "4px", fontSize: "12px", borderRadius: "4px", border: "1px solid #ccc" }}
-                          />
-                        </div>
-                      ) : row.dist ? (
-                        <div>
-                          <strong>{row.dist.lunch}</strong> <span style={{ color: "#6b7280" }}>Lunch</span> &bull;{" "}
-                          <strong>{row.dist.breakfast}</strong> <span style={{ color: "#6b7280" }}>Brk</span>
-                        </div>
-                      ) : (
-                        <span style={{ color: "#dc2626", fontStyle: "italic", fontSize: "12px" }}>Missing Upload</span>
+                    <div style={{ marginTop: "4px", display: "flex", gap: "6px" }}>
+                      {school.mismatches > 0 && (
+                        <span style={{ fontSize: "10px", fontWeight: "800", background: "#fef3c7", color: "#92400e", padding: "2px 6px", borderRadius: "4px" }}>
+                          {school.mismatches} Mismatch{school.mismatches === 1 ? "" : "es"}
+                        </span>
                       )}
-                    </td>
-
-                    {/* FINISH LINE CHECKLIST */}
-                    <td style={{ padding: "12px 16px" }}>
-                      {row.fl ? (
-                        <div>
-                          <strong>{row.fl.lunch}</strong> <span style={{ color: "#6b7280" }}>Lunch</span> &bull;{" "}
-                          <strong>{row.fl.breakfast}</strong> <span style={{ color: "#6b7280" }}>Brk</span>
-                          {row.fl.entered_by && (
-                            <small style={{ display: "block", color: "#9ca3af", fontSize: "10px" }}>
-                              by {row.fl.entered_by}
-                            </small>
-                          )}
-                        </div>
-                      ) : (
-                        <span style={{ color: "#d97706", fontStyle: "italic", fontSize: "12px" }}>Not Entered</span>
+                      {school.missingDistrict > 0 && (
+                        <span style={{ fontSize: "10px", fontWeight: "800", background: "#fee2e2", color: "#991b1b", padding: "2px 6px", borderRadius: "4px" }}>
+                          {school.missingDistrict} Missing Days
+                        </span>
                       )}
-                    </td>
-
-                    {/* STATUS BADGE */}
-                    <td style={{ padding: "12px 16px" }}>
-                      <span
-                        style={{
-                          display: "inline-block",
-                          padding: "3px 8px",
-                          borderRadius: "6px",
-                          fontSize: "11px",
-                          fontWeight: "800",
-                          backgroundColor:
-                            row.status === "clean"
-                              ? "#d1fae5"
-                              : row.status === "mismatch"
-                              ? "#fef3c7"
-                              : "#fee2e2",
-                          color:
-                            row.status === "clean"
-                              ? "#065f46"
-                              : row.status === "mismatch"
-                              ? "#92400e"
-                              : "#991b1b",
-                        }}
-                      >
-                        {row.statusLabel}
-                      </span>
-                    </td>
-
-                    {/* ACTIONS */}
-                    <td style={{ padding: "12px 16px", textAlign: "right" }}>
-                      {isEditingThis ? (
-                        <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
-                          <button
-                            onClick={() => handleSaveEdit(row.date)}
-                            disabled={savingDate === row.date}
-                            style={{
-                              padding: "4px 10px",
-                              borderRadius: "6px",
-                              background: "#059669",
-                              color: "#fff",
-                              border: "none",
-                              fontWeight: "700",
-                              cursor: "pointer",
-                              fontSize: "11px",
-                            }}
-                          >
-                            {savingDate === row.date ? "Saving..." : "Save"}
-                          </button>
-                          <button
-                            onClick={() => setEditingRow(null)}
-                            style={{
-                              padding: "4px 8px",
-                              borderRadius: "6px",
-                              background: "#e5e7eb",
-                              border: "none",
-                              cursor: "pointer",
-                              fontSize: "11px",
-                            }}
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      ) : (
-                        <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
-                          {row.status === "mismatch" && (
-                            <button
-                              onClick={() => handleCopyDistrict(row)}
-                              disabled={savingDate === row.date}
-                              title="Sync Finish Line count to match District upload"
-                              style={{
-                                padding: "4px 9px",
-                                borderRadius: "6px",
-                                background: "#fef3c7",
-                                border: "1px solid #f59e0b",
-                                color: "#92400e",
-                                fontWeight: "700",
-                                cursor: "pointer",
-                                fontSize: "11px",
-                              }}
-                            >
-                              Use District
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleStartEdit(row)}
-                            style={{
-                              padding: "4px 9px",
-                              borderRadius: "6px",
-                              background: "#f3f4f6",
-                              border: "1px solid #d1d5db",
-                              color: "#374151",
-                              fontWeight: "700",
-                              cursor: "pointer",
-                              fontSize: "11px",
-                            }}
-                          >
-                            Edit
-                          </button>
-                        </div>
+                      {!school.needsAttention && (
+                        <span style={{ fontSize: "10px", fontWeight: "700", background: "#d1fae5", color: "#065f46", padding: "2px 6px", borderRadius: "4px" }}>
+                          ✓ Clean
+                        </span>
                       )}
-                    </td>
-                  </tr>
+                    </div>
+                  </div>
                 );
               })
             )}
-          </tbody>
-        </table>
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: CALENDAR BREAKDOWN FOR SELECTED SCHOOL */}
+        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", overflow: "hidden" }}>
+          {currentSchool ? (
+            <div>
+              {/* SCHOOL TITLE BANNER */}
+              <div style={{ padding: "14px 18px", borderBottom: "1px solid #e5e7eb", background: "#f9fafb", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: "17px", fontWeight: "800", color: "#111827" }}>
+                    {currentSchool.school_name}
+                  </h2>
+                  <small style={{ color: "#6b7280" }}>Location ID: {currentSchool.source_site_id}</small>
+                </div>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  {currentSchool.mismatches > 0 && (
+                    <span style={{ background: "#fef3c7", color: "#92400e", fontSize: "11px", fontWeight: "800", padding: "4px 8px", borderRadius: "6px" }}>
+                      ⚠️ {currentSchool.mismatches} Mismatches Found
+                    </span>
+                  )}
+                  {currentSchool.missingDistrict > 0 && (
+                    <span style={{ background: "#fee2e2", color: "#991b1b", fontSize: "11px", fontWeight: "800", padding: "4px 8px", borderRadius: "6px" }}>
+                      ❌ {currentSchool.missingDistrict} Missing Days
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* TABLE */}
+              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "13px" }}>
+                <thead>
+                  <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb", color: "#4b5563", fontSize: "11px" }}>
+                    <th style={{ padding: "10px 14px" }}>DATE</th>
+                    <th style={{ padding: "10px 14px" }}>DISTRICT (UPLOADED)</th>
+                    <th style={{ padding: "10px 14px" }}>FINISH LINE (MANAGER)</th>
+                    <th style={{ padding: "10px 14px" }}>STATUS</th>
+                    <th style={{ padding: "10px 14px", textAlign: "right" }}>ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {comparisonRows.map((row) => {
+                    const isEditingThis = editingRow === row.date;
+                    const rowBg = row.status === "mismatch" ? "#fffbeb" : row.status.includes("missing") ? "#fef2f2" : "#fff";
+
+                    return (
+                      <tr key={row.date} style={{ borderBottom: "1px solid #f3f4f6", background: rowBg }}>
+                        <td style={{ padding: "10px 14px", fontWeight: "700" }}>{row.dayLabel}</td>
+
+                        {/* DISTRICT */}
+                        <td style={{ padding: "10px 14px" }}>
+                          {isEditingThis ? (
+                            <div style={{ display: "flex", gap: "6px" }}>
+                              <input
+                                type="number"
+                                placeholder="Brk"
+                                value={editValues.breakfast}
+                                onChange={(e) => setEditValues({ ...editValues, breakfast: e.target.value })}
+                                style={{ width: "60px", padding: "3px", fontSize: "12px", border: "1px solid #ccc", borderRadius: "4px" }}
+                              />
+                              <input
+                                type="number"
+                                placeholder="Lun"
+                                value={editValues.lunch}
+                                onChange={(e) => setEditValues({ ...editValues, lunch: e.target.value })}
+                                style={{ width: "60px", padding: "3px", fontSize: "12px", border: "1px solid #ccc", borderRadius: "4px" }}
+                              />
+                            </div>
+                          ) : row.dist ? (
+                            <div>
+                              <strong>{row.dist.lunch}</strong> Lunch &bull; <strong>{row.dist.breakfast}</strong> Brk
+                            </div>
+                          ) : (
+                            <span style={{ color: "#dc2626", fontStyle: "italic", fontSize: "12px" }}>Missing Upload</span>
+                          )}
+                        </td>
+
+                        {/* FINISH LINE */}
+                        <td style={{ padding: "10px 14px" }}>
+                          {row.fl ? (
+                            <div>
+                              <strong>{row.fl.lunch}</strong> Lunch &bull; <strong>{row.fl.breakfast}</strong> Brk
+                            </div>
+                          ) : (
+                            <span style={{ color: "#d97706", fontStyle: "italic", fontSize: "12px" }}>Not Entered</span>
+                          )}
+                        </td>
+
+                        {/* STATUS BADGE */}
+                        <td style={{ padding: "10px 14px" }}>
+                          <span
+                            style={{
+                              display: "inline-block",
+                              padding: "2px 7px",
+                              borderRadius: "4px",
+                              fontSize: "10px",
+                              fontWeight: "800",
+                              backgroundColor:
+                                row.status === "clean" ? "#d1fae5" : row.status === "mismatch" ? "#fef3c7" : "#fee2e2",
+                              color:
+                                row.status === "clean" ? "#065f46" : row.status === "mismatch" ? "#92400e" : "#991b1b",
+                            }}
+                          >
+                            {row.statusLabel}
+                          </span>
+                        </td>
+
+                        {/* ACTIONS */}
+                        <td style={{ padding: "10px 14px", textAlign: "right" }}>
+                          {isEditingThis ? (
+                            <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
+                              <button
+                                onClick={() => handleSaveEdit(row.date)}
+                                disabled={savingDate === row.date}
+                                style={{ padding: "4px 8px", borderRadius: "4px", background: "#059669", color: "#fff", border: "none", fontWeight: "700", cursor: "pointer", fontSize: "11px" }}
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={() => setEditingRow(null)}
+                                style={{ padding: "4px 6px", borderRadius: "4px", background: "#e5e7eb", border: "none", cursor: "pointer", fontSize: "11px" }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
+                              {row.status === "mismatch" && (
+                                <button
+                                  onClick={() => handleCopyDistrict(row)}
+                                  disabled={savingDate === row.date}
+                                  title="Sync Finish Line count to match District upload"
+                                  style={{ padding: "3px 8px", borderRadius: "4px", background: "#fef3c7", border: "1px solid #f59e0b", color: "#92400e", fontWeight: "700", cursor: "pointer", fontSize: "11px" }}
+                                >
+                                  Use District
+                                </button>
+                              )}
+                              <button
+                                onClick={() => {
+                                  setEditingRow(row.date);
+                                  setEditValues({
+                                    breakfast: row.dist?.breakfast ?? row.fl?.breakfast ?? 0,
+                                    lunch: row.dist?.lunch ?? row.fl?.lunch ?? 0,
+                                    supper: row.dist?.supper ?? row.fl?.supper ?? 0,
+                                  });
+                                }}
+                                style={{ padding: "3px 8px", borderRadius: "4px", background: "#f3f4f6", border: "1px solid #d1d5db", color: "#374151", fontWeight: "700", cursor: "pointer", fontSize: "11px" }}
+                              >
+                                Edit
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={{ padding: "40px", textAlign: "center", color: "#6b7280" }}>
+              Select a school from the left to view its meal counts.
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
