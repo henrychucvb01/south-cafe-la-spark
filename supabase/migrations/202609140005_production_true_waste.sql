@@ -9,7 +9,7 @@ create or replace function public.import_monthly_scorecard_report(
   p_source_row_count integer,p_rejected_row_count integer,p_ignored_row_count integer,
   p_out_of_area_row_count integer,p_raw_rows jsonb,p_normalized_rows jsonb,
   p_warnings jsonb default '[]'::jsonb
-) returns uuid language plpgsql security definer set search_path=public as $$
+) returns uuid language plpgsql security definer set search_path=public set statement_timeout='120s' as $$
 declare
   v_batch_id uuid;
   v_month date:=date_trunc('month',p_reporting_month)::date;
