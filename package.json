@@ -16,6 +16,7 @@
   "devDependencies": {
     "@types/react": "19.0.0",
     "@types/react-dom": "19.0.0",
+    "exceljs": "^4.4.0",
     "loader-utils": "3.2.1",
     "typescript": "4.9.5"
   },
@@ -23,6 +24,7 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "ask-spark:load": "node scripts/load-ask-spark-corpus.mjs",
+    "staffing:import-pwi": "node scripts/import-pwi-staffing.mjs",
     "test:ask-spark-route": "node scripts/test-ask-spark-route.mjs",
     "test:ar-training-bank": "node scripts/validate-ar-training-bank.mjs",
     "test": "react-scripts test --env=jsdom",

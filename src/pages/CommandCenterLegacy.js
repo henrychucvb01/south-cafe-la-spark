@@ -18,6 +18,7 @@ function isDemoSchool(school) {
 }
 import MonthlyScorecardsPage from "../monthlyScorecards/MonthlyScorecardsPage";
 import LaborOptimizationPage from "../monthlyScorecards/LaborOptimizationPage";
+import StaffManagementPage from "../staffing/StaffManagementPage";
 
 function isFinishLineCommentItem(item) {
   return String(item?.item_key || "").endsWith("_comment");
@@ -1262,6 +1263,14 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
           </button>
 
           <button
+            className={`command-nav-button ${view === "staff-management" ? "active" : ""}`}
+            onClick={() => setView("staff-management")}
+          >
+            <span>👥</span>
+            Staffing
+          </button>
+
+          <button
             className={`command-nav-button ${
               view === "spark-points" ? "active" : ""
             }`}
@@ -1351,6 +1360,8 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
                 ? "South Café LA Monthly Scorecards"
                 : view === "labor-optimization"
                 ? "South Café LA Labor Optimization"
+                : view === "staff-management"
+                ? "South Café LA Staff Management"
                 : "South Café LA Command Center"}
             </h2>
 
@@ -1379,6 +1390,8 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
                 ? "Import and verify recurring LAUSD monthly reports."
                 : view === "labor-optimization"
                 ? "Review staffing balance and recommended worker transfers."
+                : view === "staff-management"
+                ? "View and manage employee assignments across area schools."
                 : `Area operations overview for ${formatDate(
                     dashboardDate
                   )}.`}
@@ -1416,7 +1429,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
               </>
             )}
 
-            {view !== "pin-reset" && view !== "location-directory" && view !== "feedback" && view !== "leaderboard" && view !== "monthly-scorecards" && view !== "labor-optimization" && (
+            {view !== "pin-reset" && view !== "location-directory" && view !== "feedback" && view !== "leaderboard" && view !== "monthly-scorecards" && view !== "labor-optimization" && view !== "staff-management" && (
               <button
                 className="command-refresh"
                 onClick={
@@ -1515,6 +1528,8 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
             <MonthlyScorecardsPage supervisorPin={supervisorPin} />
           ) : view === "labor-optimization" ? (
             <LaborOptimizationPage supervisorPin={supervisorPin} />
+          ) : view === "staff-management" ? (
+            <StaffManagementPage supervisorPin={supervisorPin} />
           ) : view === "location-directory" ? (
             <SupervisorLocationDirectory supervisorPin={supervisorPin} />
           ) : view === "meal-trends" ? (
