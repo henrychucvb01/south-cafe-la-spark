@@ -144,44 +144,66 @@ function laborCostForMonth(school, dataset, operatingDays, laborRows) {
   };
 }
 
+// PRIMARY SOURCE OF TRUTH RESOLUTION:
+// 1. Prioritize uploaded district meal counts
+// 2. Fall back to manager production rows only if date is missing
 function serviceCounts(school, rawProductionRows, rawMealRows, startDate, endDate) {
-  const prodRows = deduplicateRowsByKey(
-    rawProductionRows,
-    (r) => `${r.location_id}|${r.production_date}|${r.meal_type}|${r.item_name}`
-  );
-  const mealRows = deduplicateRowsByKey(
-    rawMealRows,
-    (r) => `${r.location_id}|${r.service_date}`
-  );
+  const schoolMatches = (row) => {
+    const loc = String(row?.location_id || row?.source_site_id || "");
+    return (
+      loc === String(school?.location_id) ||
+      loc === String(school?.source_site_id) ||
+      loc === String(school?.directory_id)
+    );
+  };
 
   const byDay = new Map();
-  prodRows
-    .filter(
-      (row) =>
-        String(row?.location_id) === String(school?.directory_id) &&
-        inRange(row?.production_date, startDate, endDate) &&
-        row?.meals_served !== null &&
-        row?.meals_served !== undefined
-    )
+
+  // 1. Load Uploaded District Meal Counts (PRIMARY)
+  const mealRows = deduplicateRowsByKey(
+    rawMealRows,
+    (r) => `${r.location_id || r.source_site_id}|${r.service_date || r.date}`
+  );
+
+  mealRows
+    .filter((row) => schoolMatches(row) && inRange(row?.service_date || row?.date, startDate, endDate))
     .forEach((row) => {
-      const k = `${row.production_date}|${row.meal_type}`;
-      if (!byDay.has(k)) byDay.set(k, n(row.meals_served));
+      const d = String(row?.service_date || row?.date).slice(0, 10);
+      const b = row.breakfast_count !== undefined ? row.breakfast_count : row.breakfast;
+      const l = row.lunch_count !== undefined ? row.lunch_count : row.lunch;
+      const s = row.supper_count !== undefined ? row.supper_count : row.supper;
+
+      if (b !== null && b !== undefined) byDay.set(`${d}|breakfast`, n(b));
+      if (l !== null && l !== undefined) byDay.set(`${d}|lunch`, n(l));
+      if (row.supper_status !== "pending" && s !== null && s !== undefined) {
+        byDay.set(`${d}|supper`, n(s));
+      }
     });
 
-  if (!byDay.size && school?.location_id) {
-    mealRows
-      .filter(
-        (row) =>
-          String(row?.location_id) === String(school?.location_id) &&
-          inRange(row?.service_date, startDate, endDate)
-      )
-      .forEach((row) => {
-        byDay.set(`${row.service_date}|breakfast`, n(row.breakfast_count));
-        byDay.set(`${row.service_date}|lunch`, n(row.lunch_count));
-        if (row.supper_status !== "pending")
-          byDay.set(`${row.service_date}|supper`, n(row.supper_count));
-      });
-  }
+  // 2. Fall back to manager checklist / production ONLY if date/meal is missing from district upload
+  const prodRows = deduplicateRowsByKey(
+    rawProductionRows,
+    (r) => `${r.location_id || r.source_site_id}|${r.production_date || r.date}|${r.meal_type}|${r.item_name}`
+  );
+
+  const prodByDayMeal = new Map();
+  prodRows
+    .filter((row) => schoolMatches(row) && inRange(row?.production_date || row?.date, startDate, endDate))
+    .forEach((row) => {
+      const d = String(row?.production_date || row?.date).slice(0, 10);
+      const meal = String(row?.meal_type || "").toLowerCase();
+      if (!MEALS.includes(meal)) return;
+      const k = `${d}|${meal}`;
+      const served = n(row?.meals_served ?? row?.served);
+      const curr = prodByDayMeal.get(k) || 0;
+      if (served > curr) prodByDayMeal.set(k, served);
+    });
+
+  prodByDayMeal.forEach((count, k) => {
+    if (!byDay.has(k) && count > 0) {
+      byDay.set(k, count);
+    }
+  });
 
   return [...byDay].map(([key, count]) => {
     const [date, meal] = key.split("|");
@@ -269,25 +291,25 @@ function aggregateForecastItems(production) {
       served: item.served,
       leftover: item.leftover,
       wasted: item.wasted,
-      carryoverPercentage: portionPercent(item.leftover,item.prepared),
-      wastePercentage: portionPercent(item.wasted,item.prepared),
+      carryoverPercentage: portionPercent(item.leftover, item.prepared),
+      wastePercentage: portionPercent(item.wasted, item.prepared),
       serviceDays: item.dates.size,
     }));
 }
 
 function worstFoodWasteItems(production) {
   return aggregateForecastItems(production)
-    .filter((item)=>item.wasted>0&&item.prepared>0)
-    .sort((a,b)=>b.wastePercentage-a.wastePercentage||b.wasted-a.wasted)
-    .slice(0,3);
+    .filter((item) => item.wasted > 0 && item.prepared > 0)
+    .sort((a, b) => b.wastePercentage - a.wastePercentage || b.wasted - a.wasted)
+    .slice(0, 3);
 }
 
-function highCarryoverItems(production,totalPrepared) {
-  const minimumPrepared=Math.max(10,Math.round(n(totalPrepared)*.002));
+function highCarryoverItems(production, totalPrepared) {
+  const minimumPrepared = Math.max(10, Math.round(n(totalPrepared) * 0.002));
   return aggregateForecastItems(production)
-    .filter((item)=>item.leftover>0&&item.prepared>=minimumPrepared&&item.wasted===0&&isMeaningfulLeftoverItem(item.name))
-    .sort((a,b)=>b.carryoverPercentage-a.carryoverPercentage||b.leftover-a.leftover)
-    .slice(0,3);
+    .filter((item) => item.leftover > 0 && item.prepared >= minimumPrepared && item.wasted === 0 && isMeaningfulLeftoverItem(item.name))
+    .sort((a, b) => b.carryoverPercentage - a.carryoverPercentage || b.leftover - a.leftover)
+    .slice(0, 3);
 }
 
 function normalize(value, values, higherIsBetter = true) {
@@ -316,8 +338,8 @@ function weeklyPerformance({ dates, services, production, dailyMplh, enrollment,
       );
       const prepared = rows.reduce((sum, row) => sum + n(row?.prepared), 0);
       const served = rows.reduce((sum, row) => sum + n(row?.served), 0);
-      const leftover = rows.reduce((sum,row)=>sum+n(row?.leftover),0);
-      const wasted = rows.reduce((sum,row)=>sum+n(row?.wasted),0);
+      const leftover = rows.reduce((sum, row) => sum + n(row?.leftover), 0);
+      const wasted = rows.reduce((sum, row) => sum + n(row?.wasted), 0);
       const lunch = (services || [])
         .filter((row) => week.dates.includes(row.date) && row.meal === "lunch")
         .reduce((sum, row) => sum + row.count, 0);
@@ -336,8 +358,8 @@ function weeklyPerformance({ dates, services, production, dailyMplh, enrollment,
         served,
         leftover,
         wasted,
-        carryoverPercentage: portionPercent(leftover,prepared),
-        wastePercentage: portionPercent(wasted,prepared),
+        carryoverPercentage: portionPercent(leftover, prepared),
+        wastePercentage: portionPercent(wasted, prepared),
         lunchParticipation:
           enrollment && week.dates.length
             ? (lunch / (enrollment * week.dates.length)) * 100
@@ -578,15 +600,15 @@ export function calculateDateRange(school, dataset, startDate, endDate, excluded
     }),
     { planned: 0, prepared: 0, served: 0, leftover: 0, wasted: 0 }
   );
-  productionTotals.carryoverPercentage = portionPercent(productionTotals.leftover,productionTotals.prepared);
-  productionTotals.wastePercentage = portionPercent(productionTotals.wasted,productionTotals.prepared);
+  productionTotals.carryoverPercentage = portionPercent(productionTotals.leftover, productionTotals.prepared);
+  productionTotals.wastePercentage = portionPercent(productionTotals.wasted, productionTotals.prepared);
 
   const menuRankings = {
     breakfast: rankEntrees(production, "breakfast"),
     lunch: rankEntrees(production, "lunch"),
   };
   const worstItems = worstFoodWasteItems(production);
-  const highCarryoverItemsList = highCarryoverItems(production,productionTotals.prepared);
+  const highCarryoverItemsList = highCarryoverItems(production, productionTotals.prepared);
   const forecastObservation = worstItems[0]
     ? `${worstItems[0].name} had ${round(worstItems[0].wastePercentage)}% waste across ${worstItems[0].serviceDays} service days. Review planned/prepared quantity before the next service.`
     : highCarryoverItemsList[0]
@@ -646,7 +668,7 @@ export function calculateDateRange(school, dataset, startDate, endDate, excluded
     productionTotals,
     menuRankings,
     worstItems,
-    highCarryoverItems:highCarryoverItemsList,
+    highCarryoverItems: highCarryoverItemsList,
     forecastObservation,
     weekly: weekly.weeks || [],
     bestWeek: weekly.bestWeek,
