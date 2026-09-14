@@ -1,43 +1,69 @@
 import {buildSchoolScorecard,getMplhTarget} from "./monthlyScorecardCalculations";
 
 const n=(value)=>Number(value)||0;
+const isVacant=(position)=>String(position?.employee_name||"").trim().toUpperCase()==="VACANT";
+const isManager=(position)=>/food service manager/i.test(String(position?.classification_title||""));
+const isSenior=(position)=>/senior food service worker/i.test(String(position?.classification_title||""));
+const isMovableWorker=(position)=>!isVacant(position)&&!isManager(position)&&!isSenior(position)&&/food services? worker/i.test(String(position?.classification_title||""));
+const distanceToRange=(value,target)=>value<target.min?target.min-value:value>target.max?value-target.max:0;
+const mplhFor=(equivalents,hours)=>hours>0?equivalents/hours:null;
 
-function workerHoursFor(staffingRow){
-  const count=n(staffingRow?.filled_count),total=n(staffingRow?.filled_daily_hours);
-  if(!count||total<=0)return [];
-  const sixPointFive=Math.max(0,Math.min(count,Math.round((total-count*6)/.5)));
-  return [...Array(sixPointFive).fill(6.5),...Array(count-sixPointFive).fill(6)];
+function makeSchoolState(school,dataset,startDate,endDate){
+  const target=getMplhTarget(school),card=buildSchoolScorecard(school,dataset,{startDate,endDate});
+  const positions=(dataset.staffing_positions||[]).filter((position)=>String(position.source_site_id)===String(school.source_site_id)&&position.active!==false&&!isVacant(position));
+  const fixedPositions=positions.filter((position)=>isManager(position)||isSenior(position));
+  const movableWorkers=positions.filter(isMovableWorker);
+  const assignedHours=positions.reduce((sum,position)=>sum+n(position.assigned_daily_hours),0);
+  const fixedHours=fixedPositions.reduce((sum,position)=>sum+n(position.assigned_daily_hours),0);
+  const movableHours=movableWorkers.reduce((sum,position)=>sum+n(position.assigned_daily_hours),0);
+  const days=card.current.operatingDays;
+  const averageEquivalents=days?(card.current.totals.breakfast*.66+card.current.totals.lunch+card.current.totals.supper)/days:null;
+  const currentMplh=averageEquivalents!==null?mplhFor(averageEquivalents,assignedHours):null;
+  return{school,card,target,positions,fixedPositions,movableWorkers,assignedHours,fixedHours,movableHours,averageEquivalents,currentMplh,projectedHours:assignedHours,projectedMplh:currentMplh,incoming:[],outgoing:[]};
 }
 
-function bestRemoval(hours,minimumWorkerHours){
-  let best=[];
-  const combinations=1<<hours.length;
-  for(let mask=1;mask<combinations;mask+=1){
-    const chosen=hours.filter((_,index)=>mask&(1<<index)),remaining=hours.reduce((a,b)=>a+b,0)-chosen.reduce((a,b)=>a+b,0);
-    if(remaining+1e-6<minimumWorkerHours)continue;
-    if(chosen.length>best.length||(chosen.length===best.length&&chosen.reduce((a,b)=>a+b,0)>best.reduce((a,b)=>a+b,0)))best=chosen;
+const validState=(state)=>state.target.min!==null&&state.averageEquivalents!==null&&state.assignedHours>0;
+
+function findBestMove(states,usedEmployees){
+  let best=null;
+  const senders=states.filter((state)=>validState(state)&&state.projectedMplh<state.target.min);
+  const receivers=states.filter((state)=>validState(state)&&state.projectedMplh>state.target.max);
+  for(const sender of senders)for(const employee of sender.movableWorkers){
+    if(usedEmployees.has(String(employee.id)))continue;
+    const hours=n(employee.assigned_daily_hours);
+    if(hours<=0||sender.projectedHours-hours<=0)continue;
+    const sendingProjectedMplh=mplhFor(sender.averageEquivalents,sender.projectedHours-hours);
+    if(sendingProjectedMplh>sender.target.max+1e-6)continue;
+    for(const receiver of receivers){
+      if(receiver===sender)continue;
+      const receivingProjectedMplh=mplhFor(receiver.averageEquivalents,receiver.projectedHours+hours);
+      if(receivingProjectedMplh<receiver.target.min-1e-6)continue;
+      const before=distanceToRange(sender.projectedMplh,sender.target)+distanceToRange(receiver.projectedMplh,receiver.target);
+      const after=distanceToRange(sendingProjectedMplh,sender.target)+distanceToRange(receivingProjectedMplh,receiver.target);
+      const improvement=before-after;
+      if(improvement<=1e-6)continue;
+      const bothImprove=distanceToRange(sendingProjectedMplh,sender.target)<distanceToRange(sender.projectedMplh,sender.target)&&distanceToRange(receivingProjectedMplh,receiver.target)<distanceToRange(receiver.projectedMplh,receiver.target);
+      const candidate={employee,hours,sender,receiver,sendingCurrentMplh:sender.projectedMplh,sendingProjectedMplh,receivingCurrentMplh:receiver.projectedMplh,receivingProjectedMplh,improvement,bothImprove};
+      if(!best||Number(candidate.bothImprove)>Number(best.bothImprove)||(candidate.bothImprove===best.bothImprove&&candidate.improvement>best.improvement))best=candidate;
+    }
   }
   return best;
 }
 
-function bestAddition(current,minimum,maximum){
-  const candidates=[];
-  for(let count=1;count<=10;count+=1)for(let half=0;half<=count;half+=1){const hours=[...Array(half).fill(6.5),...Array(count-half).fill(6)],total=current+hours.reduce((a,b)=>a+b,0);if(total>=minimum-1e-6)candidates.push({hours,total,inRange:total<=maximum+1e-6});}
-  return candidates.sort((a,b)=>Number(b.inRange)-Number(a.inRange)||a.hours.length-b.hours.length||Math.abs(a.total-(minimum+maximum)/2)-Math.abs(b.total-(minimum+maximum)/2))[0]?.hours||[];
+export function buildLaborOptimization(dataset,month,startDate,endDate){
+  const states=(dataset?.schools||[]).map((school)=>makeSchoolState(school,dataset,startDate,endDate));
+  const transfers=[],usedEmployees=new Set();
+  while(true){
+    const move=findBestMove(states,usedEmployees);
+    if(!move)break;
+    usedEmployees.add(String(move.employee.id));
+    move.sender.projectedHours-=move.hours;move.receiver.projectedHours+=move.hours;
+    move.sender.projectedMplh=move.sendingProjectedMplh;move.receiver.projectedMplh=move.receivingProjectedMplh;
+    move.sender.outgoing.push(move);move.receiver.incoming.push(move);
+    transfers.push({employee:move.employee,employeeName:move.employee.employee_name,classification:move.employee.classification_title,hours:move.hours,from:move.sender.school,to:move.receiver.school,sendingCurrentMplh:move.sendingCurrentMplh,sendingProjectedMplh:move.sendingProjectedMplh,receivingCurrentMplh:move.receivingCurrentMplh,receivingProjectedMplh:move.receivingProjectedMplh});
+  }
+  const recommendations=states.map((state)=>{const insufficient=!validState(state),status=insufficient?"insufficient":state.outgoing.length?"move-out":state.incoming.length?"add":"keep";return{...state,status,action:insufficient?"Insufficient data":status==="move-out"?`SEND ${state.outgoing.length} WORKER${state.outgoing.length===1?"":"S"}`:status==="add"?`RECEIVE ${state.incoming.length} WORKER${state.incoming.length===1?"":"S"}`:"KEEP STAFFING UNCHANGED",workerCount:state.movableWorkers.length,currentWorkerHours:state.movableHours,recommendedWorkerHours:state.movableHours-state.outgoing.reduce((sum,item)=>sum+item.hours,0)+state.incoming.reduce((sum,item)=>sum+item.hours,0),mplh:state.currentMplh};});
+  return{recommendations,transfers};
 }
 
-export function buildLaborOptimization(dataset,month,startDate,endDate){
-  const recommendations=(dataset?.schools||[]).map((school)=>{
-    const target=getMplhTarget(school),card=buildSchoolScorecard(school,dataset,{startDate,endDate}),staffing=(dataset.staffing||[]).filter((row)=>String(row.source_site_id)===String(school.source_site_id)),worker=staffing.find((row)=>row.classification_key==="worker"),senior=staffing.find((row)=>row.classification_key==="senior_worker"),workerHours=workerHoursFor(worker),currentWorkerHours=workerHours.reduce((a,b)=>a+b,0),fixedHours=8+n(senior?.filled_daily_hours),days=card.current.operatingDays,averageEquivalents=days?(card.current.totals.breakfast*.66+card.current.totals.lunch+card.current.totals.supper)/days:null;
-    if(target.min===null||!staffing.length||!days||averageEquivalents===null)return{school,card,target,status:"insufficient",action:"Insufficient data",workerCount:workerHours.length,currentWorkerHours,fixedHours,add:[],remove:[]};
-    const optimizationMplh=fixedHours+currentWorkerHours>0?averageEquivalents/(fixedHours+currentWorkerHours):null,minimumWorkerHours=Math.max(0,averageEquivalents/target.max-fixedHours),maximumWorkerHours=Math.max(0,averageEquivalents/target.min-fixedHours);
-    let add=[],remove=[],status="keep";
-    if(currentWorkerHours>maximumWorkerHours+.01){remove=bestRemoval(workerHours,minimumWorkerHours);if(remove.length)status="move-out";}
-    else if(currentWorkerHours<minimumWorkerHours-.01){add=bestAddition(currentWorkerHours,minimumWorkerHours,maximumWorkerHours);if(add.length)status="add";}
-    const recommendedWorkerHours=currentWorkerHours+add.reduce((a,b)=>a+b,0)-remove.reduce((a,b)=>a+b,0),format=(values,verb)=>{const groups=[6,6.5].map((hours)=>({hours,count:values.filter((value)=>value===hours).length})).filter((item)=>item.count);return groups.length?`${verb} ${groups.map((item)=>`${item.count} × ${item.hours.toFixed(1)} hr worker${item.count>1?"s":""}`).join(" + ")}`:"KEEP CURRENT STAFFING";};
-    return{school,card,target,status,action:status==="add"?format(add,"ADD"):status==="move-out"?format(remove,"MOVE OUT"):"KEEP CURRENT STAFFING",workerCount:workerHours.length,currentWorkerHours,recommendedWorkerHours,fixedHours,minimumWorkerHours,maximumWorkerHours,add,remove,mplh:optimizationMplh};
-  });
-  const surplus=[],needs=[];recommendations.forEach((row)=>{row.remove.forEach((hours)=>surplus.push({school:row.school,hours}));row.add.forEach((hours)=>needs.push({school:row.school,hours}));});
-  const transfers=[];for(const need of needs){const index=surplus.findIndex((item)=>item.hours===need.hours);if(index>=0){const [from]=surplus.splice(index,1);transfers.push({from:from.school,to:need.school,hours:need.hours});need.matched=true;}}
-  return{recommendations,transfers,unmatchedSurplus:surplus,unmatchedNeeds:needs.filter((item)=>!item.matched)};
-}
+export{isMovableWorker};
