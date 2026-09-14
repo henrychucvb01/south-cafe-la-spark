@@ -19,6 +19,7 @@ function isDemoSchool(school) {
 import MonthlyScorecardsPage from "../monthlyScorecards/MonthlyScorecardsPage";
 import LaborOptimizationPage from "../monthlyScorecards/LaborOptimizationPage";
 import StaffManagementPage from "../staffing/StaffManagementPage";
+import MealCountAuditPage from "./MealCountAuditPage";
 
 function isFinishLineCommentItem(item) {
   return String(item?.item_key || "").endsWith("_comment");
@@ -696,6 +697,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
       setPointsSaving(false);
     }
   }
+  
 
   function getMonitoringCycleStart() {
     const now = new Date();
@@ -773,6 +775,8 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
       const now = new Date();
       const cycleStart = getMonitoringCycleStart();
 
+ 
+  
       // The sequence number makes each required monitoring unique.
       // Breakfast/Lunch will only ever be #1. Supper can be #1, #2, or #3.
       const sequence = currentCount + 1;
@@ -1254,6 +1258,13 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
             Monthly Scorecards
           </button>
 
+              <button
+  className={`command-nav-button ${view === "meal-audit" ? "active" : ""}`}
+  onClick={() => setView("meal-audit")}
+>
+  <span>🔍</span>
+  Meal Audit
+</button>
           <button
             className={`command-nav-button ${view === "labor-optimization" ? "active" : ""}`}
             onClick={() => setView("labor-optimization")}
@@ -1524,8 +1535,12 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
             <SupervisorFeedbackPanel supervisorPin={supervisorPin} />
           ) : view === "leaderboard" ? (
             <SupervisorLeaderboard embedded />
-          ) : view === "monthly-scorecards" ? (
-            <MonthlyScorecardsPage supervisorPin={supervisorPin} />
+        
+           ) : view === "monthly-scorecards" ? (
+  <MonthlyScorecardsPage supervisorPin={supervisorPin} />
+) : view === "meal-audit" ? (
+  <MealCountAuditPage supervisorPin={supervisorPin} />
+
           ) : view === "labor-optimization" ? (
             <LaborOptimizationPage supervisorPin={supervisorPin} />
           ) : view === "staff-management" ? (
