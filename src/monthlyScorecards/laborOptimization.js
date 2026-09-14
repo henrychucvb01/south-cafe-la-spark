@@ -19,6 +19,9 @@ const isMovableWorker = (position) =>
 
 const mplhFor = (equivalents, hours) => (hours > 0 ? equivalents / hours : null);
 
+const distanceToRange = (value, target) =>
+  value < target.min ? target.min - value : value > target.max ? value - target.max : 0;
+
 const getEmployeeKey = (emp) =>
   String(
     emp?.id ||
@@ -26,19 +29,6 @@ const getEmployeeKey = (emp) =>
     emp?.employee_id ||
     `${emp?.source_site_id}_${emp?.employee_name}_${emp?.classification_title}_${emp?.assigned_daily_hours}`
   );
-
-function getHourDistanceToRange(hours, equivalents, target) {
-  if (!equivalents || !target || target.min === null || target.max === null) return 0;
-  const minHoursNeeded = equivalents / target.max;
-  const maxHoursAllowed = equivalents / target.min;
-
-  if (hours < minHoursNeeded) {
-    return minHoursNeeded - hours;
-  } else if (hours > maxHoursAllowed) {
-    return hours - maxHoursAllowed;
-  }
-  return 0;
-}
 
 function makeSchoolState(school, dataset, startDate, endDate) {
   const target = getMplhTarget(school);
@@ -98,17 +88,16 @@ const validState = (state) =>
 function findBestMove(states, usedEmployees) {
   let best = null;
 
+  // Senders MUST be below target.min (overstaffed)
   const senders = states.filter(
     (state) => validState(state) && state.projectedMplh < state.target.min
   );
 
-  // Allow receivers that are above max or running above midpoint with capacity
-  const receivers = states.filter((state) => {
-    if (!validState(state)) return false;
-    const targetMid = (state.target.min + state.target.max) / 2;
-    const targetMinHours = state.averageEquivalents / state.target.min;
-    return state.projectedMplh >= targetMid || state.projectedHours < targetMinHours;
-  });
+  // Receivers MUST be strictly ABOVE target.max (understaffed)
+  // Schools already within [target.min, target.max] are NEVER receivers
+  const receivers = states.filter(
+    (state) => validState(state) && state.projectedMplh > state.target.max
+  );
 
   for (const sender of senders) {
     for (const employee of sender.movableWorkers) {
@@ -121,8 +110,8 @@ function findBestMove(states, usedEmployees) {
       const sendingProjectedHours = sender.projectedHours - hours;
       const sendingProjectedMplh = mplhFor(sender.averageEquivalents, sendingProjectedHours);
 
-      // Do not over-strip sender
-      if (sendingProjectedMplh > sender.target.max + 2.0) continue;
+      // Sender cannot be stripped past its target max
+      if (sendingProjectedMplh > sender.target.max) continue;
 
       for (const receiver of receivers) {
         if (receiver === sender) continue;
@@ -130,21 +119,20 @@ function findBestMove(states, usedEmployees) {
         const receivingProjectedHours = receiver.projectedHours + hours;
         const receivingProjectedMplh = mplhFor(receiver.averageEquivalents, receivingProjectedHours);
 
-        const senderDistBefore = getHourDistanceToRange(sender.projectedHours, sender.averageEquivalents, sender.target);
-        const senderDistAfter = getHourDistanceToRange(sendingProjectedHours, sender.averageEquivalents, sender.target);
+        // HARD PROTECTION: Do not dump workers on a receiver if it crashes below target.min
+        // Allow at most 0.5 MPLH buffer below min so discrete shifts don't block good moves
+        if (receivingProjectedMplh < receiver.target.min - 0.5) continue;
 
-        const receiverDistBefore = getHourDistanceToRange(receiver.projectedHours, receiver.averageEquivalents, receiver.target);
-        const receiverDistAfter = getHourDistanceToRange(receivingProjectedHours, receiver.averageEquivalents, receiver.target);
+        const senderDistBefore = distanceToRange(sender.projectedMplh, sender.target);
+        const senderDistAfter = distanceToRange(sendingProjectedMplh, sender.target);
 
-        const senderImprovement = senderDistBefore - senderDistAfter;
-        const receiverImprovement = receiverDistBefore - receiverDistAfter;
-        const totalImprovement = senderImprovement + receiverImprovement;
+        const receiverDistBefore = distanceToRange(receiver.projectedMplh, receiver.target);
+        const receiverDistAfter = distanceToRange(receivingProjectedMplh, receiver.target);
 
-        if (totalImprovement <= 0.05) continue;
+        // The receiver MUST actually benefit (distance to target must decrease)
+        if (receiverDistAfter >= receiverDistBefore) continue;
 
-        // Prevent overloading receiver beyond 1 shift buffer
-        const maxHoursAllowed = receiver.averageEquivalents / receiver.target.min;
-        if (receivingProjectedHours > maxHoursAllowed + hours) continue;
+        const totalImprovement = (senderDistBefore - senderDistAfter) + (receiverDistBefore - receiverDistAfter);
 
         const candidate = {
           employee,
@@ -157,9 +145,15 @@ function findBestMove(states, usedEmployees) {
           receivingCurrentMplh: receiver.projectedMplh,
           receivingProjectedMplh,
           improvement: totalImprovement,
+          receiverGap: receiver.projectedMplh - receiver.target.max,
         };
 
-        if (!best || candidate.improvement > best.improvement) {
+        // Prioritize schools with the largest understaffing gaps
+        if (
+          !best ||
+          candidate.receiverGap > best.receiverGap ||
+          (Math.abs(candidate.receiverGap - best.receiverGap) < 0.1 && candidate.improvement > best.improvement)
+        ) {
           best = candidate;
         }
       }
