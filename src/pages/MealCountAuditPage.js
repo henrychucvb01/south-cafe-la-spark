@@ -1,11 +1,13 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { supabase } from "../supabaseClient";
+import { loadMonthlyScorecardDatasetWithRetry } from "../monthlyScorecards/monthlyScorecardService";
 
-export default function MealCountAuditPage({ onBack, locations: propLocations, schools: propSchools, dataset }) {
+export default function MealCountAuditPage({ supervisorPin }) {
   const [locations, setLocations] = useState([]);
   const [selectedLocationId, setSelectedLocationId] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("2026-08");
 
+  const [dataset, setDataset] = useState(null);
   const [loading, setLoading] = useState(true);
   const [savingDate, setSavingDate] = useState(null);
   const [supabaseMealCounts, setSupabaseMealCounts] = useState([]);
@@ -16,12 +18,14 @@ export default function MealCountAuditPage({ onBack, locations: propLocations, s
   const [editValues, setEditValues] = useState({ breakfast: 0, lunch: 0, supper: 0 });
   const [feedback, setFeedback] = useState("");
 
-  // 1. Month Date Range
-  const { startDate, endDate, allMonthWeekdays } = useMemo(() => {
+  // 1. Month Weekdays & School Year
+  const { startDate, endDate, allMonthWeekdays, schoolYear } = useMemo(() => {
     const [y, m] = selectedMonth.split("-").map(Number);
     const lastDay = new Date(y, m, 0).getDate();
     const start = `${y}-${String(m).padStart(2, "0")}-01`;
     const end = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+
+    const yr = m >= 7 ? `${y}-${y + 1}` : `${y - 1}-${y}`;
 
     const dates = [];
     const curr = new Date(`${start}T12:00:00`);
@@ -33,30 +37,55 @@ export default function MealCountAuditPage({ onBack, locations: propLocations, s
       }
       curr.setDate(curr.getDate() + 1);
     }
-    return { startDate: start, endDate: end, allMonthWeekdays: dates };
+    return { startDate: start, endDate: end, allMonthWeekdays: dates, schoolYear: yr };
   }, [selectedMonth]);
 
-  // 2. Load Schools
+  // 2. Load the 29 Schools Directly from locations Table
   useEffect(() => {
-    const existing = propLocations || propSchools || dataset?.schools;
-    if (existing && existing.length > 0) {
-      const mapped = existing.map((loc) => ({
-        id: String(loc.id || loc.location_id || loc.source_site_id),
-        school_name: loc.school_name || loc.name || loc.site_name || "Unknown School",
-        source_site_id: String(loc.source_site_id || loc.location_id || loc.id),
-        directory_id: String(loc.directory_id || loc.location_id || loc.id),
-      }));
-      setLocations(mapped);
-      if (mapped.length > 0 && !selectedLocationId) {
-        setSelectedLocationId(mapped[0].id);
-      }
-      setLoading(false);
-    }
-  }, [propLocations, propSchools, dataset, selectedLocationId]);
+    async function loadSchools() {
+      try {
+        let { data } = await supabase.from("locations").select("*").order("school_name");
+        if (!data || data.length === 0) {
+          const res = await supabase.from("schools").select("*").order("school_name");
+          data = res.data;
+        }
 
-  // 3. Load Finish Line Submissions from Supabase
+        if (data && data.length > 0) {
+          const mapped = data.map((loc) => ({
+            id: String(loc.id || loc.location_id || loc.source_site_id),
+            school_name: loc.school_name || loc.name || loc.site_name || `School ${loc.id}`,
+            source_site_id: String(loc.source_site_id || loc.location_id || loc.id),
+          }));
+          setLocations(mapped);
+          setSelectedLocationId((prev) => prev || mapped[0].id);
+        }
+      } catch (err) {
+        console.error("Error loading schools:", err);
+      }
+    }
+    loadSchools();
+  }, []);
+
+  // 3. Load District Upload Dataset using supervisorPin
   useEffect(() => {
-    async function loadSupabaseData() {
+    async function loadDistrictData() {
+      setLoading(true);
+      try {
+        const pin = supervisorPin || "";
+        const data = await loadMonthlyScorecardDatasetWithRetry(pin, schoolYear, selectedMonth);
+        setDataset(data);
+      } catch (err) {
+        console.warn("Could not load RPC dataset:", err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadDistrictData();
+  }, [supervisorPin, schoolYear, selectedMonth]);
+
+  // 4. Load Finish Line Entries from Supabase
+  useEffect(() => {
+    async function loadFinishLine() {
       try {
         const { data, error } = await supabase
           .from("meal_counts")
@@ -68,30 +97,29 @@ export default function MealCountAuditPage({ onBack, locations: propLocations, s
           setSupabaseMealCounts(data);
         }
       } catch (err) {
-        console.error("Failed to load Supabase meal_counts:", err);
+        console.error("Failed to load Finish Line meal counts:", err);
       }
     }
-    loadSupabaseData();
+    loadFinishLine();
   }, [startDate, endDate]);
 
   const currentSchool = locations.find((s) => String(s.id) === String(selectedLocationId));
 
-  // 4. Match Uploaded District counts (from dataset) & Finish Line (from Supabase)
+  // 5. Match Uploaded District vs Finish Line
   const comparisonRows = useMemo(() => {
     if (!currentSchool) return [];
 
     const locId = String(currentSchool.id);
     const siteId = String(currentSchool.source_site_id);
-    const dirId = String(currentSchool.directory_id);
 
-    // Official District Uploaded Rows from dataset.meal_counts
-    const uploadedRows = (dataset?.meal_counts || []).filter((r) => {
-      const id = String(r.location_id || r.source_site_id || "");
-      return id === locId || id === siteId || id === dirId;
+    // District rows from uploaded dataset
+    const distRows = (dataset?.meal_counts || []).filter((r) => {
+      const rowId = String(r.location_id || r.source_site_id || "");
+      return rowId === locId || rowId === siteId;
     });
 
     const distMap = new Map();
-    uploadedRows.forEach((r) => {
+    distRows.forEach((r) => {
       const d = String(r.service_date || r.date).slice(0, 10);
       distMap.set(d, {
         lunch: Number(r.lunch_count ?? r.lunch ?? 0),
@@ -100,14 +128,14 @@ export default function MealCountAuditPage({ onBack, locations: propLocations, s
       });
     });
 
-    // Finish Line rows (from Supabase or dataset fallback)
-    const finishLineRows = supabaseMealCounts.filter((r) => {
-      const id = String(r.location_id || r.source_site_id || "");
-      return id === locId || id === siteId;
+    // Finish Line rows from Supabase
+    const flRows = supabaseMealCounts.filter((r) => {
+      const rowId = String(r.location_id || r.source_site_id || "");
+      return rowId === locId || rowId === siteId;
     });
 
     const flMap = new Map();
-    finishLineRows.forEach((r) => {
+    flRows.forEach((r) => {
       const d = String(r.service_date || r.date).slice(0, 10);
       flMap.set(d, {
         lunch: Number(r.lunch_count ?? r.lunch ?? 0),
@@ -135,7 +163,7 @@ export default function MealCountAuditPage({ onBack, locations: propLocations, s
 
       if (isExcluded) {
         status = "excluded";
-        statusLabel = "Excluded from Report";
+        statusLabel = "Excluded";
       } else if (isNonOperating) {
         status = "non_operating";
         statusLabel = "Non-Operating Day";
@@ -167,7 +195,6 @@ export default function MealCountAuditPage({ onBack, locations: propLocations, s
     });
   }, [currentSchool, dataset, supabaseMealCounts, allMonthWeekdays, excludedDates]);
 
-  // Toggle Exclude / Remove Date
   function toggleExcludeDate(date) {
     setExcludedDates((prev) => {
       const next = new Set(prev);
@@ -182,13 +209,13 @@ export default function MealCountAuditPage({ onBack, locations: propLocations, s
     });
   }
 
-  // Action: Manual Edit Save
   async function handleSaveEdit(date) {
     setSavingDate(date);
     try {
+      const locId = currentSchool.id;
       await supabase.from("meal_counts").upsert(
         {
-          location_id: currentSchool.id,
+          location_id: locId,
           service_date: date,
           breakfast_count: Number(editValues.breakfast),
           lunch_count: Number(editValues.lunch),
@@ -201,10 +228,10 @@ export default function MealCountAuditPage({ onBack, locations: propLocations, s
       );
 
       setSupabaseMealCounts((prev) => [
-        ...prev.filter((r) => !(r.service_date === date && String(r.location_id) === currentSchool.id)),
+        ...prev.filter((r) => !(r.service_date === date && String(r.location_id) === String(locId))),
         {
           service_date: date,
-          location_id: currentSchool.id,
+          location_id: locId,
           breakfast_count: editValues.breakfast,
           lunch_count: editValues.lunch,
           supper_count: editValues.supper,
@@ -212,7 +239,7 @@ export default function MealCountAuditPage({ onBack, locations: propLocations, s
       ]);
 
       setEditingRow(null);
-      setFeedback(`Saved verified count for ${date}!`);
+      setFeedback(`Saved count for ${date}!`);
     } catch (err) {
       setFeedback(`Save failed: ${err.message}`);
     } finally {
@@ -220,7 +247,6 @@ export default function MealCountAuditPage({ onBack, locations: propLocations, s
     }
   }
 
-  // Filter rows based on non-operating toggle
   const visibleRows = comparisonRows.filter((row) => {
     if (showNonOperating) return true;
     return !row.isNonOperating || row.isExcluded;
@@ -233,34 +259,24 @@ export default function MealCountAuditPage({ onBack, locations: propLocations, s
       {/* HEADER */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
         <div>
-          {onBack && (
-            <button
-              onClick={onBack}
-              style={{ background: "none", border: "none", color: "#1b4332", fontWeight: "700", cursor: "pointer", marginBottom: "6px", display: "block" }}
-            >
-              ← Back to Scorecards
-            </button>
-          )}
           <h1 style={{ margin: 0, fontSize: "22px", fontWeight: "800", color: "#111827" }}>
             District Meal Count Audit & Reconciliation
           </h1>
           <p style={{ margin: "3px 0 0 0", fontSize: "13px", color: "#6b7280" }}>
-            Reconcile district uploads with manager entries. Exclude non-school days with one click.
+            Audits district-imported meals against manager checklist entries. Click Exclude to drop non-school days.
           </p>
         </div>
 
-        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-          <div>
-            <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#374151", marginBottom: "4px" }}>
-              MONTH
-            </label>
-            <input
-              type="month"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              style={{ padding: "6px 10px", borderRadius: "6px", border: "1px solid #d1d5db", fontWeight: "700" }}
-            />
-          </div>
+        <div>
+          <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#374151", marginBottom: "4px" }}>
+            MONTH
+          </label>
+          <input
+            type="month"
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            style={{ padding: "6px 10px", borderRadius: "6px", border: "1px solid #d1d5db", fontWeight: "700" }}
+          />
         </div>
       </div>
 
@@ -270,7 +286,7 @@ export default function MealCountAuditPage({ onBack, locations: propLocations, s
         </div>
       )}
 
-      {/* MASTER-DETAIL LAYOUT */}
+      {/* TWO COLUMN MASTER-DETAIL */}
       <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: "18px", alignItems: "start" }}>
         {/* LEFT COLUMN: SCHOOLS */}
         <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", overflow: "hidden" }}>
@@ -279,35 +295,40 @@ export default function MealCountAuditPage({ onBack, locations: propLocations, s
           </div>
 
           <div style={{ maxHeight: "680px", overflowY: "auto" }}>
-            {locations.map((school) => {
-              const isSelected = String(school.id) === String(selectedLocationId);
-              return (
-                <div
-                  key={school.id}
-                  onClick={() => setSelectedLocationId(school.id)}
-                  style={{
-                    padding: "12px 14px",
-                    borderBottom: "1px solid #f3f4f6",
-                    cursor: "pointer",
-                    background: isSelected ? "#eef6ff" : "#fff",
-                    borderLeft: isSelected ? "4px solid #2563eb" : "4px solid transparent",
-                  }}
-                >
-                  <strong style={{ fontSize: "13px", color: isSelected ? "#1d4ed8" : "#111827", display: "block" }}>
-                    {school.school_name}
-                  </strong>
-                  <small style={{ color: "#6b7280" }}>ID: {school.source_site_id}</small>
-                </div>
-              );
-            })}
+            {locations.length === 0 ? (
+              <div style={{ padding: "20px", textAlign: "center", color: "#6b7280", fontSize: "12px" }}>
+                Loading schools...
+              </div>
+            ) : (
+              locations.map((school) => {
+                const isSelected = String(school.id) === String(selectedLocationId);
+                return (
+                  <div
+                    key={school.id}
+                    onClick={() => setSelectedLocationId(school.id)}
+                    style={{
+                      padding: "12px 14px",
+                      borderBottom: "1px solid #f3f4f6",
+                      cursor: "pointer",
+                      background: isSelected ? "#eef6ff" : "#fff",
+                      borderLeft: isSelected ? "4px solid #2563eb" : "4px solid transparent",
+                    }}
+                  >
+                    <strong style={{ fontSize: "13px", color: isSelected ? "#1d4ed8" : "#111827", display: "block" }}>
+                      {school.school_name}
+                    </strong>
+                    <small style={{ color: "#6b7280" }}>Location {school.source_site_id}</small>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
 
-        {/* RIGHT COLUMN: CALENDAR TABLE */}
+        {/* RIGHT COLUMN: CALENDAR BREAKDOWN */}
         <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", overflow: "hidden" }}>
           {currentSchool ? (
             <div>
-              {/* TOP BAR */}
               <div style={{ padding: "14px 18px", borderBottom: "1px solid #e5e7eb", background: "#f9fafb", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
                   <h2 style={{ margin: 0, fontSize: "17px", fontWeight: "800", color: "#111827" }}>
@@ -316,7 +337,7 @@ export default function MealCountAuditPage({ onBack, locations: propLocations, s
                   <small style={{ color: "#6b7280" }}>Location ID: {currentSchool.source_site_id}</small>
                 </div>
 
-                <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
                   {mismatchCount > 0 && (
                     <span style={{ background: "#fef3c7", color: "#92400e", fontSize: "11px", fontWeight: "800", padding: "4px 8px", borderRadius: "6px" }}>
                       ⚠️ {mismatchCount} Mismatches
@@ -333,7 +354,6 @@ export default function MealCountAuditPage({ onBack, locations: propLocations, s
                 </div>
               </div>
 
-              {/* TABLE */}
               <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "13px" }}>
                 <thead>
                   <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb", color: "#4b5563", fontSize: "11px" }}>
@@ -361,7 +381,7 @@ export default function MealCountAuditPage({ onBack, locations: propLocations, s
                         style={{
                           borderBottom: "1px solid #f3f4f6",
                           background: rowBg,
-                          opacity: row.isExcluded ? 0.5 : 1,
+                          opacity: row.isExcluded ? 0.45 : 1,
                         }}
                       >
                         <td style={{ padding: "10px 14px", fontWeight: "700", textDecoration: row.isExcluded ? "line-through" : "none" }}>
