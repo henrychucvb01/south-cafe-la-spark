@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { supabase } from "../supabaseClient";
 
-export default function MealCountAuditPage({ onBack }) {
+export default function MealCountAuditPage({ onBack, locations: propLocations, schools: propSchools, dataset }) {
   const [locations, setLocations] = useState([]);
   const [selectedLocationId, setSelectedLocationId] = useState("");
   const [selectedMonth, setSelectedMonth] = useState(() => {
@@ -13,33 +13,63 @@ export default function MealCountAuditPage({ onBack }) {
   const [savingDate, setSavingDate] = useState(null);
   const [districtData, setDistrictData] = useState([]);
   const [finishLineData, setFinishLineData] = useState([]);
-  const [filterMode, setFilterMode] = useState("all"); // 'all' | 'needs_review' | 'clean'
+  const [filterMode, setFilterMode] = useState("all");
   const [editingRow, setEditingRow] = useState(null);
   const [editValues, setEditValues] = useState({ breakfast: 0, lunch: 0, supper: 0 });
   const [feedback, setFeedback] = useState("");
 
-  // Load Locations on mount
+  // 1. Load Locations (check Props first, then Supabase)
   useEffect(() => {
     async function loadLocations() {
-      try {
-        const { data, error } = await supabase
-          .from("locations")
-          .select("id, school_name, source_site_id, labor_type")
-          .order("school_name", { ascending: true });
+      // Check if CommandCenter already passed schools in props
+      const existing = propLocations || propSchools || dataset?.schools;
+      if (existing && existing.length > 0) {
+        const mapped = existing.map((loc) => ({
+          id: loc.id || loc.location_id || loc.source_site_id,
+          school_name: loc.school_name || loc.name || loc.site_name || "Unknown School",
+          source_site_id: loc.source_site_id || loc.location_id || loc.id,
+        }));
+        setLocations(mapped);
+        setSelectedLocationId(mapped[0].id);
+        setLoading(false);
+        return;
+      }
 
-        if (error) throw error;
-        setLocations(data || []);
-        if (data?.length > 0) {
-          setSelectedLocationId(data[0].id);
+      // Otherwise fetch from Supabase: try 'locations', then fallback to 'schools'
+      try {
+        let { data, error } = await supabase.from("locations").select("*");
+        if (error || !data || data.length === 0) {
+          const res = await supabase.from("schools").select("*");
+          data = res.data;
+          error = res.error;
+        }
+
+        if (error) {
+          console.error("Supabase school load error:", error);
+          setFeedback(`Could not load schools: ${error.message}`);
+        } else if (data) {
+          const mapped = data
+            .map((loc) => ({
+              id: loc.id || loc.location_id || loc.source_site_id,
+              school_name: loc.school_name || loc.name || loc.site_name || `School ${loc.id}`,
+              source_site_id: loc.source_site_id || loc.location_id || loc.id,
+            }))
+            .sort((a, b) => a.school_name.localeCompare(b.school_name));
+
+          setLocations(mapped);
+          if (mapped.length > 0) {
+            setSelectedLocationId(mapped[0].id);
+          }
         }
       } catch (err) {
-        console.error("Error loading locations:", err);
+        console.error("Failed to load schools:", err);
       } finally {
         setLoading(false);
       }
     }
+
     loadLocations();
-  }, []);
+  }, [propLocations, propSchools, dataset]);
 
   // Compute month start & end
   const { startDate, endDate, operatingDates } = useMemo(() => {
@@ -54,7 +84,6 @@ export default function MealCountAuditPage({ onBack }) {
     while (curr <= final) {
       const dayOfWeek = curr.getDay();
       if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-        // Weekdays only
         dates.push(curr.toISOString().split("T")[0]);
       }
       curr.setDate(curr.getDate() + 1);
@@ -63,7 +92,7 @@ export default function MealCountAuditPage({ onBack }) {
     return { startDate: start, endDate: end, operatingDates: dates };
   }, [selectedMonth]);
 
-  // Load District & Finish Line data when location or month changes
+  // 2. Load District & Finish Line data
   useEffect(() => {
     if (!selectedLocationId) return;
 
@@ -77,33 +106,40 @@ export default function MealCountAuditPage({ onBack }) {
       const siteId = selectedLoc?.source_site_id;
 
       try {
-        // 1. Fetch Uploaded District Counts (from daily_meal_counts or meal_counts fallback)
+        // District Uploads
         let distRows = [];
-        const { data: dData, error: dError } = await supabase
+        const { data: dData } = await supabase
           .from("daily_meal_counts")
           .select("*")
           .or(`source_site_id.eq.${siteId},location_id.eq.${locId}`)
           .gte("date", startDate)
           .lte("date", endDate);
 
-        if (!dError && dData) {
+        if (dData && dData.length > 0) {
           distRows = dData;
+        } else {
+          // fallback to meal_counts if district upload is stored there
+          const { data: mData } = await supabase
+            .from("meal_counts")
+            .select("*")
+            .eq("location_id", locId)
+            .gte("service_date", startDate)
+            .lte("service_date", endDate);
+          distRows = mData || [];
         }
 
-        // 2. Fetch Finish Line Checklist Meal Counts (from meal_counts)
-        const { data: fData, error: fError } = await supabase
+        // Finish Line Checklist
+        const { data: fData } = await supabase
           .from("meal_counts")
           .select("*")
           .eq("location_id", locId)
           .gte("service_date", startDate)
           .lte("service_date", endDate);
 
-        if (fError) throw fError;
-
         setDistrictData(distRows || []);
         setFinishLineData(fData || []);
       } catch (err) {
-        console.error("Audit load error:", err);
+        console.error("Audit data load error:", err);
       } finally {
         setLoading(false);
       }
@@ -112,7 +148,7 @@ export default function MealCountAuditPage({ onBack }) {
     loadAuditData();
   }, [selectedLocationId, startDate, endDate, locations]);
 
-  // Build daily comparison rows
+  // 3. Build Daily Comparison
   const comparisonRows = useMemo(() => {
     const distMap = new Map();
     districtData.forEach((row) => {
@@ -183,7 +219,6 @@ export default function MealCountAuditPage({ onBack }) {
     });
   }, [operatingDates, districtData, finishLineData]);
 
-  // Highlighting: Count issues for the current school
   const summary = useMemo(() => {
     let mismatches = 0;
     let missingDistrict = 0;
@@ -198,7 +233,6 @@ export default function MealCountAuditPage({ onBack }) {
     return { mismatches, missingDistrict, matched, total: comparisonRows.length };
   }, [comparisonRows]);
 
-  // Start inline editing
   function handleStartEdit(row) {
     setEditingRow(row.date);
     setEditValues({
@@ -209,7 +243,6 @@ export default function MealCountAuditPage({ onBack }) {
     setFeedback("");
   }
 
-  // Quick Copy: Set Finish Line count to District count
   async function handleCopyDistrict(row) {
     if (!row.dist) return;
     setSavingDate(row.date);
@@ -230,7 +263,6 @@ export default function MealCountAuditPage({ onBack }) {
 
       if (error) throw error;
 
-      // Update local state
       setFinishLineData((prev) => [
         ...prev.filter((r) => r.service_date !== row.date),
         {
@@ -241,7 +273,7 @@ export default function MealCountAuditPage({ onBack }) {
           supper_count: row.dist.supper,
         },
       ]);
-      setFeedback(`Updated ${row.date} to match District counts.`);
+      setFeedback(`Updated ${row.date} to match District count.`);
     } catch (err) {
       setFeedback(`Error saving: ${err.message}`);
     } finally {
@@ -249,13 +281,11 @@ export default function MealCountAuditPage({ onBack }) {
     }
   }
 
-  // Save manual edit directly to Supabase
   async function handleSaveEdit(date) {
     setSavingDate(date);
     try {
       const selectedLoc = locations.find((l) => String(l.id) === String(selectedLocationId));
 
-      // 1. Update District Table
       await supabase.from("daily_meal_counts").upsert(
         {
           source_site_id: selectedLoc?.source_site_id,
@@ -268,7 +298,6 @@ export default function MealCountAuditPage({ onBack }) {
         { onConflict: "source_site_id,date" }
       );
 
-      // 2. Update Finish Line Table
       await supabase.from("meal_counts").upsert(
         {
           location_id: selectedLoc?.id,
@@ -283,7 +312,6 @@ export default function MealCountAuditPage({ onBack }) {
         { onConflict: "location_id,service_date" }
       );
 
-      // Refresh in-memory row
       setDistrictData((prev) => [
         ...prev.filter((r) => (r.date || r.service_date) !== date),
         { date, breakfast: editValues.breakfast, lunch: editValues.lunch, supper: editValues.supper },
@@ -310,7 +338,7 @@ export default function MealCountAuditPage({ onBack }) {
 
   return (
     <div style={{ padding: "24px", maxWidth: "1250px", margin: "0 auto", fontFamily: "sans-serif" }}>
-      {/* HEADER */}
+      {/* TOP HEADER */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
         <div>
           {onBack && (
@@ -337,7 +365,7 @@ export default function MealCountAuditPage({ onBack }) {
           </p>
         </div>
 
-        {/* CONTROLS */}
+        {/* SELECTORS */}
         <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
           <div>
             <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#374151", marginBottom: "4px" }}>
@@ -353,7 +381,7 @@ export default function MealCountAuditPage({ onBack }) {
 
           <div>
             <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#374151", marginBottom: "4px" }}>
-              SCHOOL
+              SCHOOL ({locations.length})
             </label>
             <select
               value={selectedLocationId}
@@ -363,7 +391,7 @@ export default function MealCountAuditPage({ onBack }) {
                 borderRadius: "8px",
                 border: "1px solid #d1d5db",
                 fontWeight: "700",
-                minWidth: "240px",
+                minWidth: "260px",
                 backgroundColor: "#fff",
               }}
             >
@@ -377,13 +405,12 @@ export default function MealCountAuditPage({ onBack }) {
         </div>
       </div>
 
-      {/* FEEDBACK TOAST */}
       {feedback && (
         <div
           style={{
             padding: "10px 16px",
-            background: feedback.includes("Failed") ? "#fee2e2" : "#dcfce7",
-            color: feedback.includes("Failed") ? "#991b1b" : "#166534",
+            background: feedback.includes("Failed") || feedback.includes("Could not") ? "#fee2e2" : "#dcfce7",
+            color: feedback.includes("Failed") || feedback.includes("Could not") ? "#991b1b" : "#166534",
             borderRadius: "8px",
             marginBottom: "16px",
             fontSize: "13px",
