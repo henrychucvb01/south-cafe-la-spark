@@ -5,13 +5,14 @@ import MealCountAuditPage from "./MealCountAuditPage";
 export default function CommandCenter(props) {
   const [view, setView] = useState("dashboard"); // "dashboard" | "meal-audit"
 
+  // When inside the audit page, pass all props so schools load instantly
   if (view === "meal-audit") {
-    return <MealCountAuditPage onBack={() => setView("dashboard")} />;
+    return <MealCountAuditPage {...props} onBack={() => setView("dashboard")} />;
   }
 
   return (
     <div>
-      {/* Top Banner Button to open the Audit Tool */}
+      {/* Top Banner with Audit Page Button */}
       <div
         style={{
           background: "#1b4332",
@@ -25,7 +26,7 @@ export default function CommandCenter(props) {
           onClick={() => setView("meal-audit")}
           style={{
             background: "#2d6a4f",
-            color: "#fff",
+            color: "#ffffff",
             border: "1px solid #52b788",
             borderRadius: "6px",
             padding: "6px 14px",
@@ -38,6 +39,7 @@ export default function CommandCenter(props) {
         </button>
       </div>
 
+      {/* Main Dashboard */}
       <CommandCenterLegacy {...props} />
     </div>
   );
