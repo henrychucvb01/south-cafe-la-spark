@@ -1,16 +1,15 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { supabase } from "../supabaseClient";
-import { loadMonthlyScorecardDatasetWithRetry } from "../monthlyScorecards/monthlyScorecardService";
 
-export default function MealCountAuditPage({ supervisorPin }) {
+export default function MealCountAuditPage() {
   const [locations, setLocations] = useState([]);
   const [selectedLocationId, setSelectedLocationId] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("2026-08");
 
-  const [dataset, setDataset] = useState(null);
   const [loading, setLoading] = useState(true);
   const [savingDate, setSavingDate] = useState(null);
-  const [supabaseMealCounts, setSupabaseMealCounts] = useState([]);
+  const [districtData, setDistrictData] = useState([]);
+  const [finishLineData, setFinishLineData] = useState([]);
   const [excludedDates, setExcludedDates] = useState(new Set());
   const [showNonOperating, setShowNonOperating] = useState(false);
 
@@ -18,14 +17,12 @@ export default function MealCountAuditPage({ supervisorPin }) {
   const [editValues, setEditValues] = useState({ breakfast: 0, lunch: 0, supper: 0 });
   const [feedback, setFeedback] = useState("");
 
-  // 1. Month Weekdays & School Year
-  const { startDate, endDate, allMonthWeekdays, schoolYear } = useMemo(() => {
+  // 1. Month Weekdays
+  const { startDate, endDate, allMonthWeekdays } = useMemo(() => {
     const [y, m] = selectedMonth.split("-").map(Number);
     const lastDay = new Date(y, m, 0).getDate();
     const start = `${y}-${String(m).padStart(2, "0")}-01`;
     const end = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
-
-    const yr = m >= 7 ? `${y}-${y + 1}` : `${y - 1}-${y}`;
 
     const dates = [];
     const curr = new Date(`${start}T12:00:00`);
@@ -37,111 +34,114 @@ export default function MealCountAuditPage({ supervisorPin }) {
       }
       curr.setDate(curr.getDate() + 1);
     }
-    return { startDate: start, endDate: end, allMonthWeekdays: dates, schoolYear: yr };
+    return { startDate: start, endDate: end, allMonthWeekdays: dates };
   }, [selectedMonth]);
 
-  // 2. Load the 29 Schools Directly from locations Table
+  // 2. Load the 29 Schools on mount
   useEffect(() => {
     async function loadSchools() {
       try {
-        let { data } = await supabase.from("locations").select("*").order("school_name");
-        if (!data || data.length === 0) {
-          const res = await supabase.from("schools").select("*").order("school_name");
-          data = res.data;
-        }
+        const { data, error } = await supabase
+          .from("locations")
+          .select("id, school_name, source_site_id, labor_type")
+          .order("school_name", { ascending: true });
 
-        if (data && data.length > 0) {
-          const mapped = data.map((loc) => ({
-            id: String(loc.id || loc.location_id || loc.source_site_id),
-            school_name: loc.school_name || loc.name || loc.site_name || `School ${loc.id}`,
-            source_site_id: String(loc.source_site_id || loc.location_id || loc.id),
-          }));
-          setLocations(mapped);
-          setSelectedLocationId((prev) => prev || mapped[0].id);
+        if (error) throw error;
+        setLocations(data || []);
+        if (data?.length > 0) {
+          setSelectedLocationId(String(data[0].id));
         }
       } catch (err) {
         console.error("Error loading schools:", err);
+      } finally {
+        setLoading(false);
       }
     }
     loadSchools();
   }, []);
 
-  // 3. Load District Upload Dataset using supervisorPin
+  // 3. Load District Uploads (daily_meal_counts) & Finish Line (meal_counts) for selected school
   useEffect(() => {
-    async function loadDistrictData() {
+    if (!selectedLocationId || locations.length === 0) return;
+
+    async function loadAuditData() {
       setLoading(true);
+      setFeedback("");
+      setEditingRow(null);
+
+      const selectedLoc = locations.find((l) => String(l.id) === String(selectedLocationId));
+      const locId = String(selectedLoc?.id || "");
+      const siteId = String(selectedLoc?.source_site_id || "");
+
       try {
-        const pin = supervisorPin || "";
-        const data = await loadMonthlyScorecardDatasetWithRetry(pin, schoolYear, selectedMonth);
-        setDataset(data);
+        // 1. FETCH UPLOADED DISTRICT COUNTS (daily_meal_counts)
+        let filterOr = [];
+        if (siteId) filterOr.push(`source_site_id.eq.${siteId}`, `location_id.eq.${siteId}`);
+        if (locId) filterOr.push(`location_id.eq.${locId}`, `source_site_id.eq.${locId}`);
+
+        const { data: dData, error: dError } = await supabase
+          .from("daily_meal_counts")
+          .select("*")
+          .or(filterOr.join(","))
+          .gte("date", startDate)
+          .lte("date", endDate);
+
+        if (!dError && dData) {
+          setDistrictData(dData);
+        } else {
+          setDistrictData([]);
+        }
+
+        // 2. FETCH FINISH LINE COUNTS (meal_counts)
+        const { data: fData, error: fError } = await supabase
+          .from("meal_counts")
+          .select("*")
+          .or(filterOr.join(","))
+          .gte("service_date", startDate)
+          .lte("service_date", endDate);
+
+        if (!fError && fData) {
+          setFinishLineData(fData);
+        } else {
+          setFinishLineData([]);
+        }
       } catch (err) {
-        console.warn("Could not load RPC dataset:", err.message);
+        console.error("Audit load error:", err);
+        setFeedback(`Error loading counts: ${err.message}`);
       } finally {
         setLoading(false);
       }
     }
-    loadDistrictData();
-  }, [supervisorPin, schoolYear, selectedMonth]);
 
-  // 4. Load Finish Line Entries from Supabase
-  useEffect(() => {
-    async function loadFinishLine() {
-      try {
-        const { data, error } = await supabase
-          .from("meal_counts")
-          .select("*")
-          .gte("service_date", startDate)
-          .lte("service_date", endDate);
-
-        if (!error && data) {
-          setSupabaseMealCounts(data);
-        }
-      } catch (err) {
-        console.error("Failed to load Finish Line meal counts:", err);
-      }
-    }
-    loadFinishLine();
-  }, [startDate, endDate]);
+    loadAuditData();
+  }, [selectedLocationId, startDate, endDate, locations]);
 
   const currentSchool = locations.find((s) => String(s.id) === String(selectedLocationId));
 
-  // 5. Match Uploaded District vs Finish Line
+  // 4. Build Daily Comparison
   const comparisonRows = useMemo(() => {
     if (!currentSchool) return [];
 
-    const locId = String(currentSchool.id);
-    const siteId = String(currentSchool.source_site_id);
-
-    // District rows from uploaded dataset
-    const distRows = (dataset?.meal_counts || []).filter((r) => {
-      const rowId = String(r.location_id || r.source_site_id || "");
-      return rowId === locId || rowId === siteId;
-    });
-
     const distMap = new Map();
-    distRows.forEach((r) => {
-      const d = String(r.service_date || r.date).slice(0, 10);
+    districtData.forEach((row) => {
+      const d = String(row.date || row.service_date).slice(0, 10);
       distMap.set(d, {
-        lunch: Number(r.lunch_count ?? r.lunch ?? 0),
-        breakfast: Number(r.breakfast_count ?? r.breakfast ?? 0),
-        supper: Number(r.supper_count ?? r.supper ?? 0),
+        breakfast: Number(row.breakfast ?? row.breakfast_count ?? 0),
+        lunch: Number(row.lunch ?? row.lunch_count ?? 0),
+        supper: Number(row.supper ?? row.supper_count ?? 0),
+        raw: row,
       });
     });
 
-    // Finish Line rows from Supabase
-    const flRows = supabaseMealCounts.filter((r) => {
-      const rowId = String(r.location_id || r.source_site_id || "");
-      return rowId === locId || rowId === siteId;
-    });
-
     const flMap = new Map();
-    flRows.forEach((r) => {
-      const d = String(r.service_date || r.date).slice(0, 10);
+    finishLineData.forEach((row) => {
+      const d = String(row.service_date || row.date).slice(0, 10);
       flMap.set(d, {
-        lunch: Number(r.lunch_count ?? r.lunch ?? 0),
-        breakfast: Number(r.breakfast_count ?? r.breakfast ?? 0),
-        supper: Number(r.supper_count ?? r.supper ?? 0),
-        entered_by: r.entered_by,
+        breakfast: Number(row.breakfast_count ?? row.breakfast ?? 0),
+        lunch: Number(row.lunch_count ?? row.lunch ?? 0),
+        supper: Number(row.supper_count ?? row.supper ?? 0),
+        entered_by: row.entered_by,
+        raw: row,
       });
     });
 
@@ -193,8 +193,9 @@ export default function MealCountAuditPage({ supervisorPin }) {
         isNonOperating,
       };
     });
-  }, [currentSchool, dataset, supabaseMealCounts, allMonthWeekdays, excludedDates]);
+  }, [currentSchool, districtData, finishLineData, allMonthWeekdays, excludedDates]);
 
+  // Toggle Exclude Date
   function toggleExcludeDate(date) {
     setExcludedDates((prev) => {
       const next = new Set(prev);
@@ -203,19 +204,71 @@ export default function MealCountAuditPage({ supervisorPin }) {
         setFeedback(`Restored ${date} to report.`);
       } else {
         next.add(date);
-        setFeedback(`Excluded ${date} from calculations.`);
+        setFeedback(`Excluded ${date} from report.`);
       }
       return next;
     });
   }
 
+  // Quick Copy: Sync Finish Line count to District count
+  async function handleCopyDistrict(row) {
+    if (!row.dist || !currentSchool) return;
+    setSavingDate(row.date);
+    try {
+      const { error } = await supabase.from("meal_counts").upsert(
+        {
+          location_id: currentSchool.id,
+          service_date: row.date,
+          breakfast_count: row.dist.breakfast,
+          lunch_count: row.dist.lunch,
+          supper_count: row.dist.supper,
+          supper_status: "complete",
+          entered_by: "Reconciliation Audit",
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "location_id,service_date" }
+      );
+
+      if (error) throw error;
+
+      setFinishLineData((prev) => [
+        ...prev.filter((r) => (r.service_date || r.date) !== row.date),
+        {
+          service_date: row.date,
+          breakfast_count: row.dist.breakfast,
+          lunch_count: row.dist.lunch,
+          supper_count: row.dist.supper,
+        },
+      ]);
+      setFeedback(`Synced ${row.date} with District upload.`);
+    } catch (err) {
+      setFeedback(`Error: ${err.message}`);
+    } finally {
+      setSavingDate(null);
+    }
+  }
+
+  // Save manual edit directly to both tables
   async function handleSaveEdit(date) {
     setSavingDate(date);
     try {
-      const locId = currentSchool.id;
+      // 1. Update District Table (daily_meal_counts)
+      await supabase.from("daily_meal_counts").upsert(
+        {
+          source_site_id: currentSchool.source_site_id,
+          location_id: currentSchool.id,
+          date,
+          breakfast: Number(editValues.breakfast),
+          lunch: Number(editValues.lunch),
+          supper: Number(editValues.supper),
+        },
+        { onConflict: "source_site_id,date" }
+      );
+
+      // 2. Update Finish Line Table (meal_counts)
       await supabase.from("meal_counts").upsert(
         {
-          location_id: locId,
+          location_id: currentSchool.id,
           service_date: date,
           breakfast_count: Number(editValues.breakfast),
           lunch_count: Number(editValues.lunch),
@@ -227,19 +280,17 @@ export default function MealCountAuditPage({ supervisorPin }) {
         { onConflict: "location_id,service_date" }
       );
 
-      setSupabaseMealCounts((prev) => [
-        ...prev.filter((r) => !(r.service_date === date && String(r.location_id) === String(locId))),
-        {
-          service_date: date,
-          location_id: locId,
-          breakfast_count: editValues.breakfast,
-          lunch_count: editValues.lunch,
-          supper_count: editValues.supper,
-        },
+      setDistrictData((prev) => [
+        ...prev.filter((r) => (r.date || r.service_date) !== date),
+        { date, breakfast: editValues.breakfast, lunch: editValues.lunch, supper: editValues.supper },
+      ]);
+      setFinishLineData((prev) => [
+        ...prev.filter((r) => (r.service_date || r.date) !== date),
+        { service_date: date, breakfast_count: editValues.breakfast, lunch_count: editValues.lunch, supper_count: editValues.supper },
       ]);
 
       setEditingRow(null);
-      setFeedback(`Saved count for ${date}!`);
+      setFeedback(`Saved verified count for ${date}!`);
     } catch (err) {
       setFeedback(`Save failed: ${err.message}`);
     } finally {
@@ -263,7 +314,7 @@ export default function MealCountAuditPage({ supervisorPin }) {
             District Meal Count Audit & Reconciliation
           </h1>
           <p style={{ margin: "3px 0 0 0", fontSize: "13px", color: "#6b7280" }}>
-            Audits district-imported meals against manager checklist entries. Click Exclude to drop non-school days.
+            Audits district-imported meals (daily_meal_counts) against Finish Line manager entries.
           </p>
         </div>
 
@@ -281,7 +332,7 @@ export default function MealCountAuditPage({ supervisorPin }) {
       </div>
 
       {feedback && (
-        <div style={{ padding: "8px 14px", background: feedback.includes("failed") ? "#fee2e2" : "#dcfce7", color: feedback.includes("failed") ? "#991b1b" : "#166534", borderRadius: "6px", marginBottom: "14px", fontSize: "12px", fontWeight: "700" }}>
+        <div style={{ padding: "8px 14px", background: feedback.includes("failed") || feedback.includes("Error") ? "#fee2e2" : "#dcfce7", color: feedback.includes("failed") || feedback.includes("Error") ? "#991b1b" : "#166534", borderRadius: "6px", marginBottom: "14px", fontSize: "12px", fontWeight: "700" }}>
           {feedback}
         </div>
       )}
@@ -305,7 +356,7 @@ export default function MealCountAuditPage({ supervisorPin }) {
                 return (
                   <div
                     key={school.id}
-                    onClick={() => setSelectedLocationId(school.id)}
+                    onClick={() => setSelectedLocationId(String(school.id))}
                     style={{
                       padding: "12px 14px",
                       borderBottom: "1px solid #f3f4f6",
@@ -388,7 +439,7 @@ export default function MealCountAuditPage({ supervisorPin }) {
                           {row.dayLabel}
                         </td>
 
-                        {/* DISTRICT */}
+                        {/* DISTRICT UPLOAD */}
                         <td style={{ padding: "10px 14px" }}>
                           {row.dist ? (
                             <div>
@@ -478,6 +529,17 @@ export default function MealCountAuditPage({ supervisorPin }) {
                             </div>
                           ) : (
                             <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
+                              {row.status === "mismatch" && (
+                                <button
+                                  onClick={() => handleCopyDistrict(row)}
+                                  disabled={savingDate === row.date}
+                                  title="Sync Finish Line count to match District upload"
+                                  style={{ padding: "3px 8px", borderRadius: "4px", background: "#fef3c7", border: "1px solid #f59e0b", color: "#92400e", fontWeight: "700", cursor: "pointer", fontSize: "11px" }}
+                                >
+                                  Use District
+                                </button>
+                              )}
+
                               <button
                                 onClick={() => toggleExcludeDate(row.date)}
                                 title={row.isExcluded ? "Restore Date to Report" : "Exclude Date from Report"}
