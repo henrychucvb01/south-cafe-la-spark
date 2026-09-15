@@ -44,12 +44,20 @@ function makeSchoolState(school, dataset, startDate, endDate) {
   const fixedHours = fixedPositions.reduce((sum, position) => sum + n(position.assigned_daily_hours), 0);
   const movableHours = movableWorkers.reduce((sum, position) => sum + n(position.assigned_daily_hours), 0);
 
-  // The Monthly Scorecard is the single source of truth for current MPLH and
-  // labor hours. Do not rebuild historical MPLH from staffing positions.
-  const currentMplh = card?.current?.averageMplh ?? null;
+  // Reuse the scorecard's official-meal/date-range aggregation for workload,
+  // but use the MPLH Report's budgeted-hours source for Labor Optimization.
   const operatingDays = n(card?.current?.operatingDays);
-  const scorecardLaborHours = n(card?.current?.laborHours);
-  const baselineDailyHours = operatingDays > 0 ? scorecardLaborHours / operatingDays : null;
+  const baselineDailyHours = n(school?.budget_labor_hours) || null;
+  const totalMealEquivalents =
+    n(card?.current?.totals?.breakfast) * 0.66 +
+    n(card?.current?.totals?.lunch) +
+    n(card?.current?.totals?.supper);
+  const averageMealEquivalents =
+    operatingDays > 0 ? totalMealEquivalents / operatingDays : null;
+  const currentMplh =
+    card?.current?.hasMeals && baselineDailyHours > 0
+      ? averageMealEquivalents / baselineDailyHours
+      : null;
 
   return {
     school,
@@ -63,6 +71,7 @@ function makeSchoolState(school, dataset, startDate, endDate) {
     movableHours,
     currentMplh,
     baselineDailyHours,
+    averageMealEquivalents,
     projectedDailyHoursDelta: 0,
     projectedMplh: currentMplh,
     incoming: [],
@@ -80,16 +89,45 @@ const validState = (state) =>
     state.baselineDailyHours > 0
   );
 
-// Preserve the exact Scorecard average MPLH as the starting point. A proposed
-// transfer changes only the daily labor-hour denominator by that position's
-// actual assigned hours. This avoids a second, competing MPLH calculation.
 const projectedMplhFor = (state, dailyHoursDelta) => {
   if (!validState(state)) return null;
   const projectedHours = state.baselineDailyHours + dailyHoursDelta;
   if (projectedHours <= 0) return null;
-  const averageMealEquivalents = state.currentMplh * state.baselineDailyHours;
-  return averageMealEquivalents / projectedHours;
+  return state.averageMealEquivalents / projectedHours;
 };
+
+export function buildManualWhatIf(result, fromSchoolId, positionId, toSchoolId) {
+  const recommendations = result?.recommendations || [];
+  const from = recommendations.find(
+    (row) => String(row.school.location_id) === String(fromSchoolId)
+  );
+  const to = recommendations.find(
+    (row) => String(row.school.location_id) === String(toSchoolId)
+  );
+  const position = from?.movableWorkers.find(
+    (row) => String(getEmployeeKey(row)) === String(positionId)
+  );
+  if (!from || !to || from === to || !position || !validState(from) || !validState(to)) {
+    return null;
+  }
+  const hours = n(position.assigned_daily_hours);
+  const fromProjectedMplh = projectedMplhFor(from, -hours);
+  const toProjectedMplh = projectedMplhFor(to, hours);
+  if (hours <= 0 || fromProjectedMplh === null || toProjectedMplh === null) return null;
+  return {
+    position,
+    hours,
+    isVacantPosition: isVacant(position),
+    from,
+    to,
+    fromCurrentMplh: from.currentMplh,
+    fromProjectedMplh,
+    toCurrentMplh: to.currentMplh,
+    toProjectedMplh,
+  };
+}
+
+export { getEmployeeKey };
 
 function findBestMove(states, usedEmployees) {
   let best = null;
