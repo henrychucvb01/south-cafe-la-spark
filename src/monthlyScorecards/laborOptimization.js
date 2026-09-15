@@ -55,7 +55,7 @@ function makeSchoolState(school, dataset, startDate, endDate) {
       days
     : null;
 
-  const currentMplh = averageEquivalents !== null ? mplhFor(averageEquivalents, assignedHours) : null;
+ const currentMplh = card?.current?.averageMplh ?? null;
 
   return {
     school,
@@ -69,7 +69,7 @@ function makeSchoolState(school, dataset, startDate, endDate) {
     movableHours,
     averageEquivalents,
     currentMplh,
-    projectedHours: assignedHours,
+    projectedHours: scorecardDailyLaborHours,
     projectedMplh: currentMplh,
     incoming: [],
     outgoing: [],
@@ -82,7 +82,7 @@ const validState = (state) =>
     state.target.min !== null &&
     state.target.max !== null &&
     state.averageEquivalents !== null &&
-    state.assignedHours > 0
+    state.projectedHours > 0
   );
 
 function findBestMove(states, usedEmployees) {
