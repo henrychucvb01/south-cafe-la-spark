@@ -69,7 +69,7 @@ function makeSchoolState(school, dataset, startDate, endDate) {
   movableHours,
   averageEquivalents,
   currentMplh,
-  projectedHours: scorecardDailyLaborHours,
+  projectedHours: assignedHours,
   projectedMplh: currentMplh,
   incoming: [],
   outgoing: [],
