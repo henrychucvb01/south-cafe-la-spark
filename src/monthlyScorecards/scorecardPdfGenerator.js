@@ -16,9 +16,9 @@ export function isExcludedSchool(school) {
 }
 
 const formatInt = (v) =>
-  v === null || v === undefined ? "—" : Math.round(Number(v)).toLocaleString();
+  v === null || v === undefined ? "N/A" : Math.round(Number(v)).toLocaleString();
 const formatDec = (v, digits = 1) =>
-  v === null || v === undefined ? "—" : Number(v).toFixed(digits);
+  v === null || v === undefined ? "N/A" : Number(v).toFixed(digits);
 const formatMoney = (v) =>
   v === null || v === undefined
     ? "Unavailable"
@@ -27,6 +27,45 @@ const formatMoney = (v) =>
         currency: "USD",
         maximumFractionDigits: 2,
       });
+
+function pdfText(value) {
+  return String(value ?? "")
+    .replace(/[\u2010-\u2015]/g, "-")
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/\u2026/g, "...")
+    .replace(/[\u2022\u00B7]/g, "|")
+    .replace(/\uFFFD/g, "-")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\x20-\x7E]/g, "");
+}
+
+function makePdfTextSafe(page) {
+  const drawText = page.drawText.bind(page);
+  page.drawText = (text, options) => drawText(pdfText(text), options);
+  return page;
+}
+
+function wrapText(text, font, size, maxWidth) {
+  const words = pdfText(text).split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = "";
+  words.forEach((word) => {
+    const candidate = line ? `${line} ${word}` : word;
+    if (font.widthOfTextAtSize(candidate, size) <= maxWidth || !line) line = candidate;
+    else { lines.push(line); line = word; }
+  });
+  if (line) lines.push(line);
+  return lines;
+}
+
+function drawWrapped(page, text, { x, y, width, size, font, color, lineHeight = size + 2, maxLines }) {
+  const lines = wrapText(text, font, size, width);
+  const shown = maxLines ? lines.slice(0, maxLines) : lines;
+  shown.forEach((line, index) => page.drawText(line, { x, y: y - index * lineHeight, size, font, color }));
+  return shown.length * lineHeight;
+}
 
 export async function appendSchoolScorecardPages(pdfDoc, card, dateRange, pdfLib) {
   const { rgb, StandardFonts } = pdfLib;
@@ -37,7 +76,7 @@ export async function appendSchoolScorecardPages(pdfDoc, card, dateRange, pdfLib
   const rangeLabel = `${dateRange.startDate} to ${dateRange.endDate}`;
 
   // ================= PAGE 1 =================
-  const page1 = pdfDoc.addPage([612, 792]);
+  const page1 = makePdfTextSafe(pdfDoc.addPage([612, 792]));
   const { width, height } = page1.getSize();
 
   // Header Banner
@@ -321,9 +360,9 @@ export async function appendSchoolScorecardPages(pdfDoc, card, dateRange, pdfLib
   page1.drawText(
     `Average MPLH: ${formatDec(current.averageMplh)}  (Target: ${
       current.target?.min !== null && current.target?.min !== undefined
-        ? `${current.target.min}–${current.target.max}`
+        ? `${current.target.min}-${current.target.max}`
         : "N/A"
-    })`,
+    })${changes?.mplh !== null && changes?.mplh !== undefined ? ` | vs Prior: ${changes.mplh >= 0 ? "+" : ""}${formatDec(changes.mplh)} MPLH` : ""}`,
     {
       x: 48,
       y: y - 18,
@@ -349,8 +388,8 @@ export async function appendSchoolScorecardPages(pdfDoc, card, dateRange, pdfLib
   );
 
   page1.drawText(
-    `Days Meeting Target: ${current.daysMeetingTarget ?? "—"}  |  Days Below Target: ${
-      current.daysBelowTarget ?? "—"
+    `Days Meeting Target: ${current.daysMeetingTarget ?? "N/A"}  |  Days Below Target: ${
+      current.daysBelowTarget ?? "N/A"
     }`,
     {
       x: 48,
@@ -393,18 +432,17 @@ export async function appendSchoolScorecardPages(pdfDoc, card, dateRange, pdfLib
     }
   );
 
-  page1.drawText(
-    `Estimated Wages: ${formatMoney(current.laborCost)}   |   Total Meal Revenue: ${formatMoney(current.revenue)}`,
-    {
-      x: 48,
-      y: y - 42,
-      size: 8.5,
-      font: fontRegular,
-      color: rgb(0.25, 0.3, 0.35),
-    }
+  drawWrapped(page1,
+    `Food Cost - Breakfast: ${current.costAvailable?.breakfast ? formatMoney(current.costs?.breakfast) : "Unavailable"} | Lunch: ${current.costAvailable?.lunch ? formatMoney(current.costs?.lunch) : "Unavailable"}${current.costAvailable?.supper ? ` | Supper: ${formatMoney(current.costs?.supper)}` : ""}`,
+    { x:48,y:y-40,width:chartW-24,size:7.5,font:fontRegular,color:rgb(.25,.3,.35),lineHeight:9,maxLines:2 }
   );
 
-  page1.drawText("SPARK Monthly Scorecard • Page 1 of 2", {
+  drawWrapped(page1,
+    `Estimated Wages: ${formatMoney(current.laborCost)} | Meal Revenue - Breakfast: ${formatMoney(current.revenues?.breakfast)} | Lunch: ${formatMoney(current.revenues?.lunch)}${current.totals?.supper > 0 ? ` | Supper: ${formatMoney(current.revenues?.supper)}` : ""} | Total: ${formatMoney(current.revenue)}`,
+    { x:48,y:y-56,width:chartW-24,size:7.4,font:fontBold,color:rgb(.12,.25,.32),lineHeight:8,maxLines:2 }
+  );
+
+  page1.drawText("SPARK Monthly Scorecard - Page 1 of 3", {
     x: 36,
     y: 20,
     size: 8,
@@ -413,7 +451,7 @@ export async function appendSchoolScorecardPages(pdfDoc, card, dateRange, pdfLib
   });
 
   // ================= PAGE 2 =================
-  const page2 = pdfDoc.addPage([612, 792]);
+  const page2 = makePdfTextSafe(pdfDoc.addPage([612, 792]));
   let y2 = height - 44;
 
   page2.drawRectangle({
@@ -424,7 +462,7 @@ export async function appendSchoolScorecardPages(pdfDoc, card, dateRange, pdfLib
     color: rgb(0.12, 0.22, 0.32),
   });
   page2.drawText(
-    `${school.school_name} — Management Detail (${rangeLabel})`,
+    `${school.school_name} - Management Detail (${rangeLabel})`,
     {
       x: 46,
       y: y2 - 17,
@@ -452,9 +490,9 @@ export async function appendSchoolScorecardPages(pdfDoc, card, dateRange, pdfLib
 
   page2.drawRectangle({
     x: 36,
-    y: y2 - 58,
+    y: y2 - 88,
     width: halfW,
-    height: 58,
+    height: 88,
     color: rgb(0.97, 0.98, 0.99),
     borderColor: rgb(0.85, 0.88, 0.92),
     borderWidth: 1,
@@ -475,25 +513,18 @@ export async function appendSchoolScorecardPages(pdfDoc, card, dateRange, pdfLib
       color: rgb(0.5, 0.5, 0.5),
     });
   } else {
-    bTop.slice(0, 2).forEach((it, idx) => {
-      page2.drawText(
-        `${it.rank}. ${String(it.name || "").slice(0, 28)} (${formatInt(it.served)} served)`,
-        {
-          x: 44,
-          y: y2 - 28 - idx * 13,
-          size: 7.5,
-          font: fontRegular,
-          color: rgb(0.1, 0.1, 0.1),
-        }
-      );
+    bTop.slice(0, 3).forEach((it, idx) => {
+      drawWrapped(page2, `${it.rank}. ${it.name} - ${formatInt(it.served)} served${it.strongestWeekLabel ? `; best ${it.strongestWeekLabel}` : ""}`, {
+        x:44,y:y2-28-idx*20,width:halfW-16,size:7,font:fontRegular,color:rgb(.1,.1,.1),lineHeight:7.5,maxLines:3,
+      });
     });
   }
 
   page2.drawRectangle({
     x: 36 + halfW + 12,
-    y: y2 - 58,
+    y: y2 - 88,
     width: halfW,
-    height: 58,
+    height: 88,
     color: rgb(0.97, 0.98, 0.99),
     borderColor: rgb(0.85, 0.88, 0.92),
     borderWidth: 1,
@@ -514,22 +545,15 @@ export async function appendSchoolScorecardPages(pdfDoc, card, dateRange, pdfLib
       color: rgb(0.5, 0.5, 0.5),
     });
   } else {
-    lTop.slice(0, 2).forEach((it, idx) => {
-      page2.drawText(
-        `${it.rank}. ${String(it.name || "").slice(0, 28)} (${formatInt(it.served)} served)`,
-        {
-          x: 44 + halfW + 12,
-          y: y2 - 28 - idx * 13,
-          size: 7.5,
-          font: fontRegular,
-          color: rgb(0.1, 0.1, 0.1),
-        }
-      );
+    lTop.slice(0, 3).forEach((it, idx) => {
+      drawWrapped(page2, `${it.rank}. ${it.name} - ${formatInt(it.served)} served${it.strongestWeekLabel ? `; best ${it.strongestWeekLabel}` : ""}`, {
+        x:44+halfW+12,y:y2-28-idx*20,width:halfW-16,size:7,font:fontRegular,color:rgb(.1,.1,.1),lineHeight:7.5,maxLines:3,
+      });
     });
   }
 
   // 5. Forecasting & Leftovers
-  y2 -= 78;
+  y2 -= 108;
   page2.drawText("05  FORECASTING & LEFTOVERS", {
     x: 36,
     y: y2,
@@ -542,16 +566,16 @@ export async function appendSchoolScorecardPages(pdfDoc, card, dateRange, pdfLib
   const prod = current.productionTotals || {};
   page2.drawRectangle({
     x: 36,
-    y: y2 - 66,
+    y: y2 - 142,
     width: width - 72,
-    height: 66,
+    height: 142,
     color: rgb(0.97, 0.98, 0.99),
     borderColor: rgb(0.85, 0.88, 0.92),
     borderWidth: 1,
   });
 
   page2.drawText(
-    `Planned: ${formatInt(prod.planned)} | Prepared: ${formatInt(prod.prepared)} | Served: ${formatInt(prod.served)} | Carryover: ${formatInt(prod.leftover)} | Wasted: ${formatInt(prod.wasted)} (${formatDec(prod.wastePercentage)}%)`,
+    `Planned: ${formatInt(prod.planned)} | Prepared: ${formatInt(prod.prepared)} | Served: ${formatInt(prod.served)}`,
     {
       x: 46,
       y: y2 - 18,
@@ -560,25 +584,28 @@ export async function appendSchoolScorecardPages(pdfDoc, card, dateRange, pdfLib
       color: rgb(0.1, 0.2, 0.3),
     }
   );
-
-  const worst = current.worstItems || [];
-  const weeklyText=(current.weekly||[]).map((week)=>`${week.label}: ${formatDec(week.carryoverPercentage)}% carryover / ${formatDec(week.wastePercentage)}% waste`).join("; ");
-  page2.drawText((weeklyText||"No weekly production trend available.").slice(0,125),{
-    x:46,y:y2-36,size:7,font:fontRegular,color:rgb(.3,.4,.45),
+  page2.drawText(`Leftover / Carryover: ${formatInt(prod.leftover)} | Wasted: ${formatInt(prod.wasted)} | Waste: ${formatDec(prod.wastePercentage)}%`, {
+    x:46,y:y2-36,size:8,font:fontBold,color:rgb(.15,.3,.35),
   });
-  const worstText = worst.length
-    ? `Worst food waste: ${worst.map((w) => `${w.name} (${formatDec(w.wastePercentage)}%)`).join(", ")}`
-    : "No recorded food waste for this reporting period.";
-  page2.drawText(worstText.slice(0, 110), {
-    x: 46,
-    y: y2 - 53,
-    size: 7.5,
-    font: fontRegular,
-    color: rgb(0.4, 0.45, 0.5),
+  page2.drawText("Weekly Carryover and Waste", {x:46,y:y2-55,size:8,font:fontBold,color:rgb(.2,.3,.4)});
+  page2.drawText("Week", {x:46,y:y2-69,size:7,font:fontBold,color:rgb(.35,.4,.45)});
+  page2.drawText("Prepared", {x:190,y:y2-69,size:7,font:fontBold,color:rgb(.35,.4,.45)});
+  page2.drawText("Served", {x:255,y:y2-69,size:7,font:fontBold,color:rgb(.35,.4,.45)});
+  page2.drawText("Carryover", {x:315,y:y2-69,size:7,font:fontBold,color:rgb(.35,.4,.45)});
+  page2.drawText("Carryover %", {x:385,y:y2-69,size:7,font:fontBold,color:rgb(.35,.4,.45)});
+  page2.drawText("Waste / %", {x:470,y:y2-69,size:7,font:fontBold,color:rgb(.35,.4,.45)});
+  (current.weekly || []).forEach((week,index)=>{
+    const wy=y2-83-index*11;
+    page2.drawText(week.label,{x:46,y:wy,size:6.8,font:fontRegular,color:rgb(.15,.2,.25)});
+    page2.drawText(formatInt(week.prepared),{x:190,y:wy,size:6.8,font:fontRegular,color:rgb(.15,.2,.25)});
+    page2.drawText(formatInt(week.served),{x:255,y:wy,size:6.8,font:fontRegular,color:rgb(.15,.2,.25)});
+    page2.drawText(formatInt(week.leftover),{x:315,y:wy,size:6.8,font:fontRegular,color:rgb(.15,.2,.25)});
+    page2.drawText(`${formatDec(week.carryoverPercentage)}%`,{x:385,y:wy,size:6.8,font:fontRegular,color:rgb(.15,.2,.25)});
+    page2.drawText(`${formatInt(week.wasted)} / ${formatDec(week.wastePercentage)}%`,{x:470,y:wy,size:6.8,font:fontRegular,color:rgb(.15,.2,.25)});
   });
 
   // 6. Management Focus
-  y2 -= 86;
+  y2 -= 162;
   page2.drawText("06  MANAGEMENT FOCUS", {
     x: 36,
     y: y2,
@@ -587,6 +614,17 @@ export async function appendSchoolScorecardPages(pdfDoc, card, dateRange, pdfLib
     color: rgb(0.12, 0.22, 0.32),
   });
   y2 -= 12;
+
+  const weekText = (label, week) => week
+    ? `${label}: ${week.label} | Lunch ${formatDec(week.lunchParticipation)}% | MPLH ${formatDec(week.mplh)} | Carryover ${formatDec(week.carryoverPercentage)}% | Waste ${formatDec(week.wastePercentage)}%`
+    : `${label}: Not enough comparable weekly data.`;
+  drawWrapped(page2, weekText("Best Week", current.bestWeek), {
+    x:36,y:y2,width:width-72,size:7.5,font:fontBold,color:rgb(.12,.3,.24),lineHeight:9,
+  });
+  drawWrapped(page2, weekText("Watch Week", current.watchWeek), {
+    x:36,y:y2-12,width:width-72,size:7.5,font:fontBold,color:rgb(.5,.3,.08),lineHeight:9,
+  });
+  y2 -= 34;
 
   const focusKeys = [
     { label: "WIN", text: summary?.win },
@@ -600,13 +638,13 @@ export async function appendSchoolScorecardPages(pdfDoc, card, dateRange, pdfLib
     const col = idx % 2;
     const row = Math.floor(idx / 2);
     const fx = 36 + col * (itemW + 16);
-    const fy = y2 - row * 52;
+    const fy = y2 - row * 66;
 
     page2.drawRectangle({
       x: fx,
-      y: fy - 44,
+      y: fy - 58,
       width: itemW,
-      height: 44,
+      height: 58,
       color: rgb(0.96, 0.98, 0.99),
       borderColor: rgb(0.85, 0.88, 0.92),
       borderWidth: 1,
@@ -620,23 +658,75 @@ export async function appendSchoolScorecardPages(pdfDoc, card, dateRange, pdfLib
       color: rgb(0.1, 0.4, 0.6),
     });
 
-    const body = String(item.text || "No notes available.").slice(0, 90);
-    page2.drawText(body, {
-      x: fx + 10,
-      y: fy - 30,
-      size: 7.5,
-      font: fontRegular,
-      color: rgb(0.2, 0.25, 0.3),
+    drawWrapped(page2, item.text || "No notes available.", {
+      x:fx+10,y:fy-27,width:itemW-20,size:7,font:fontRegular,
+      color:rgb(.2,.25,.3),lineHeight:8,maxLines:5,
     });
   });
 
-  page2.drawText("SPARK Monthly Scorecard • Page 2 of 2", {
+  page2.drawText("SPARK Monthly Scorecard - Page 2 of 3", {
     x: 36,
     y: 20,
     size: 8,
     font: fontRegular,
     color: rgb(0.6, 0.65, 0.7),
   });
+
+  // ================= PAGE 3 =================
+  const page3 = makePdfTextSafe(pdfDoc.addPage([612, 792]));
+  let y3 = height - 44;
+  page3.drawRectangle({x:36,y:y3-26,width:width-72,height:28,color:rgb(.12,.22,.32)});
+  page3.drawText(`${school.school_name} - Waste and Carryover Detail`,{
+    x:46,y:y3-17,size:10,font:fontBold,color:rgb(1,1,1),
+  });
+  y3-=48;
+
+  const drawItemTable=(title,items,isWaste)=>{
+    page3.drawText(title,{x:36,y:y3,size:10.5,font:fontBold,color:rgb(.12,.22,.32)});
+    y3-=16;
+    const columns=isWaste
+      ? [["Item",36],["Prepared",300],["Served",355],["Carryover",405],["Wasted",468],["Waste %",515],["Days",565]]
+      : [["Item",36],["Prepared",350],["Served",410],["Carryover",460],["Carryover %",520],["Days",575]];
+    columns.forEach(([label,x])=>page3.drawText(label,{x,y:y3,size:6.5,font:fontBold,color:rgb(.35,.4,.45)}));
+    y3-=10;
+    if(!items.length){
+      page3.drawText(isWaste ? "No recorded food waste for this reporting period." : "No high-carryover items met the reporting threshold.",{x:36,y:y3,size:8,font:fontRegular,color:rgb(.45,.48,.5)});
+      y3-=20;
+      return;
+    }
+    items.forEach((item)=>{
+      const nameLines=wrapText(item.name,fontRegular,7.2,isWaste?250:300);
+      const rowH=Math.max(18,nameLines.length*9+6);
+      if(y3-rowH<48) return;
+      page3.drawRectangle({x:36,y:y3-rowH+3,width:width-72,height:rowH,color:rgb(.975,.982,.987)});
+      nameLines.forEach((line,index)=>page3.drawText(line,{x:40,y:y3-7-index*9,size:7.2,font:fontRegular,color:rgb(.1,.15,.2)}));
+      if(isWaste){
+        page3.drawText(formatInt(item.prepared),{x:305,y:y3-7,size:7,font:fontRegular});
+        page3.drawText(formatInt(item.served),{x:360,y:y3-7,size:7,font:fontRegular});
+        page3.drawText(formatInt(item.leftover),{x:417,y:y3-7,size:7,font:fontRegular});
+        page3.drawText(formatInt(item.wasted),{x:475,y:y3-7,size:7,font:fontRegular});
+        page3.drawText(`${formatDec(item.wastePercentage)}%`,{x:520,y:y3-7,size:7,font:fontBold});
+        page3.drawText(String(item.serviceDays ?? "-"),{x:575,y:y3-7,size:7,font:fontRegular});
+      }else{
+        page3.drawText(formatInt(item.prepared),{x:355,y:y3-7,size:7,font:fontRegular});
+        page3.drawText(formatInt(item.served),{x:415,y:y3-7,size:7,font:fontRegular});
+        page3.drawText(formatInt(item.leftover),{x:470,y:y3-7,size:7,font:fontRegular});
+        page3.drawText(`${formatDec(item.carryoverPercentage)}%`,{x:530,y:y3-7,size:7,font:fontBold});
+        page3.drawText(String(item.serviceDays ?? "-"),{x:580,y:y3-7,size:7,font:fontRegular});
+      }
+      y3-=rowH;
+    });
+    y3-=14;
+  };
+
+  drawItemTable("WORST FOOD WASTE ITEMS",current.worstItems || [],true);
+  drawItemTable("HIGH CARRYOVER ITEMS",current.highCarryoverItems || [],false);
+  if(current.forecastObservation){
+    page3.drawText("FORECASTING OBSERVATION",{x:36,y:y3,size:9,font:fontBold,color:rgb(.12,.22,.32)});
+    y3-=14;
+    drawWrapped(page3,current.forecastObservation,{x:36,y:y3,width:width-72,size:8,font:fontRegular,color:rgb(.2,.25,.3),lineHeight:10});
+  }
+  page3.drawText("SPARK Monthly Scorecard - Page 3 of 3",{x:36,y:20,size:8,font:fontRegular,color:rgb(.6,.65,.7)});
 }
 
 export function triggerPdfDownload(pdfBytes, filename) {
