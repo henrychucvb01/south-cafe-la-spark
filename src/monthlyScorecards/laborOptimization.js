@@ -13,7 +13,6 @@ const isSenior = (position) =>
   /senior food service worker/i.test(String(position?.classification_title || ""));
 
 const isMovableWorker = (position) =>
-  !isVacant(position) &&
   !isManager(position) &&
   !isSenior(position) &&
   /food services? worker/i.test(String(position?.classification_title || ""));
@@ -37,8 +36,7 @@ function makeSchoolState(school, dataset, startDate, endDate) {
   const positions = (dataset.staffing_positions || []).filter(
   (position) =>
     String(position.location_id) === String(school.location_id) &&
-    position.active !== false &&
-    !isVacant(position)
+    position.active !== false
   );
 
   const fixedPositions = positions.filter((position) => isManager(position) || isSenior(position));
@@ -200,6 +198,9 @@ export function buildLaborOptimization(dataset, month, startDate, endDate) {
 
   const transfers = [];
   const usedEmployees = new Set();
+  const allMovablePositions = states.flatMap((state) => state.movableWorkers);
+  const filledMovableWorkers = allMovablePositions.filter((position) => !isVacant(position)).length;
+  const vacantMovablePositions = allMovablePositions.filter(isVacant).length;
   const qualifyingSenders = states.filter(
     (state) => validState(state) && state.currentMplh < state.target.min - MPLH_INTERVENTION_THRESHOLD
   ).length;
@@ -226,7 +227,11 @@ export function buildLaborOptimization(dataset, month, startDate, endDate) {
 
     transfers.push({
       employee: move.employee,
-      employeeName: move.employee.employee_name,
+      employeeName: isVacant(move.employee) ? null : move.employee.employee_name,
+      isVacantPosition: isVacant(move.employee),
+      transferLabel: isVacant(move.employee)
+        ? `Move VACANT ${move.hours.toFixed(1)}-hour FSW position`
+        : move.employee.employee_name,
       classification: move.employee.classification_title,
       hours: move.hours,
       from: move.sender.school,
@@ -268,7 +273,14 @@ export function buildLaborOptimization(dataset, month, startDate, endDate) {
     };
   });
 
-  return { recommendations, transfers, qualifyingSenders, qualifyingReceivers };
+  return {
+    recommendations,
+    transfers,
+    qualifyingSenders,
+    qualifyingReceivers,
+    filledMovableWorkers,
+    vacantMovablePositions,
+  };
 }
 
-export { isMovableWorker };
+export { isMovableWorker, isVacant };
