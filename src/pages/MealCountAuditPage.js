@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { supabase } from "../supabaseClient";
 
-export default function MealCountAuditPage() {
+export default function MealCountAuditPage({ schools: propSchools }) {
   const [locations, setLocations] = useState([]);
   const [selectedLocationId, setSelectedLocationId] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("2026-08");
@@ -37,19 +37,34 @@ export default function MealCountAuditPage() {
     return { startDate: start, endDate: end, allMonthWeekdays: dates };
   }, [selectedMonth]);
 
-  // 2. Load the 29 Schools on mount
+  // 2. Load the 29 Schools (select * to avoid any column crashes)
   useEffect(() => {
     async function loadSchools() {
+      if (propSchools && propSchools.length > 0) {
+        setLocations(propSchools);
+        setSelectedLocationId(String(propSchools[0].id));
+        setLoading(false);
+        return;
+      }
+
       try {
         const { data, error } = await supabase
           .from("locations")
-          .select("id, school_name, source_site_id, labor_type")
+          .select("*")
           .order("school_name", { ascending: true });
 
         if (error) throw error;
-        setLocations(data || []);
-        if (data?.length > 0) {
-          setSelectedLocationId(String(data[0].id));
+
+        const mapped = (data || []).map((loc) => ({
+          ...loc,
+          id: String(loc.id),
+          school_name: loc.school_name || loc.name || `Location ${loc.id}`,
+          location_code: String(loc.location_code || loc.source_site_id || loc.id),
+        }));
+
+        setLocations(mapped);
+        if (mapped.length > 0) {
+          setSelectedLocationId(String(mapped[0].id));
         }
       } catch (err) {
         console.error("Error loading schools:", err);
@@ -58,9 +73,9 @@ export default function MealCountAuditPage() {
       }
     }
     loadSchools();
-  }, []);
+  }, [propSchools]);
 
-  // 3. Load District Uploads (daily_meal_counts) & Finish Line (meal_counts) for selected school
+  // 3. Load District Uploads (daily_meal_counts) & Finish Line (meal_counts)
   useEffect(() => {
     if (!selectedLocationId || locations.length === 0) return;
 
@@ -71,18 +86,22 @@ export default function MealCountAuditPage() {
 
       const selectedLoc = locations.find((l) => String(l.id) === String(selectedLocationId));
       const locId = String(selectedLoc?.id || "");
-      const siteId = String(selectedLoc?.source_site_id || "");
+      const locCode = String(selectedLoc?.location_code || selectedLoc?.source_site_id || "");
+
+      // Match either ID or location_code
+      const searchKeys = [locId, locCode].filter(Boolean);
 
       try {
-        // 1. FETCH UPLOADED DISTRICT COUNTS (daily_meal_counts)
-        let filterOr = [];
-        if (siteId) filterOr.push(`source_site_id.eq.${siteId}`, `location_id.eq.${siteId}`);
-        if (locId) filterOr.push(`location_id.eq.${locId}`, `source_site_id.eq.${locId}`);
+        // 1. Fetch from daily_meal_counts
+        let filterParts = [];
+        searchKeys.forEach((key) => {
+          filterParts.push(`source_site_id.eq.${key}`, `location_id.eq.${key}`);
+        });
 
         const { data: dData, error: dError } = await supabase
           .from("daily_meal_counts")
           .select("*")
-          .or(filterOr.join(","))
+          .or(filterParts.join(","))
           .gte("date", startDate)
           .lte("date", endDate);
 
@@ -92,11 +111,11 @@ export default function MealCountAuditPage() {
           setDistrictData([]);
         }
 
-        // 2. FETCH FINISH LINE COUNTS (meal_counts)
+        // 2. Fetch from meal_counts (Finish Line)
         const { data: fData, error: fError } = await supabase
           .from("meal_counts")
           .select("*")
-          .or(filterOr.join(","))
+          .or(filterParts.join(","))
           .gte("service_date", startDate)
           .lte("service_date", endDate);
 
@@ -107,7 +126,6 @@ export default function MealCountAuditPage() {
         }
       } catch (err) {
         console.error("Audit load error:", err);
-        setFeedback(`Error loading counts: ${err.message}`);
       } finally {
         setLoading(false);
       }
@@ -118,7 +136,7 @@ export default function MealCountAuditPage() {
 
   const currentSchool = locations.find((s) => String(s.id) === String(selectedLocationId));
 
-  // 4. Build Daily Comparison
+  // 4. Build Comparison Rows
   const comparisonRows = useMemo(() => {
     if (!currentSchool) return [];
 
@@ -129,7 +147,6 @@ export default function MealCountAuditPage() {
         breakfast: Number(row.breakfast ?? row.breakfast_count ?? 0),
         lunch: Number(row.lunch ?? row.lunch_count ?? 0),
         supper: Number(row.supper ?? row.supper_count ?? 0),
-        raw: row,
       });
     });
 
@@ -141,7 +158,6 @@ export default function MealCountAuditPage() {
         lunch: Number(row.lunch_count ?? row.lunch ?? 0),
         supper: Number(row.supper_count ?? row.supper ?? 0),
         entered_by: row.entered_by,
-        raw: row,
       });
     });
 
@@ -195,7 +211,6 @@ export default function MealCountAuditPage() {
     });
   }, [currentSchool, districtData, finishLineData, allMonthWeekdays, excludedDates]);
 
-  // Toggle Exclude Date
   function toggleExcludeDate(date) {
     setExcludedDates((prev) => {
       const next = new Set(prev);
@@ -210,12 +225,11 @@ export default function MealCountAuditPage() {
     });
   }
 
-  // Quick Copy: Sync Finish Line count to District count
   async function handleCopyDistrict(row) {
     if (!row.dist || !currentSchool) return;
     setSavingDate(row.date);
     try {
-      const { error } = await supabase.from("meal_counts").upsert(
+      await supabase.from("meal_counts").upsert(
         {
           location_id: currentSchool.id,
           service_date: row.date,
@@ -228,8 +242,6 @@ export default function MealCountAuditPage() {
         },
         { onConflict: "location_id,service_date" }
       );
-
-      if (error) throw error;
 
       setFinishLineData((prev) => [
         ...prev.filter((r) => (r.service_date || r.date) !== row.date),
@@ -248,14 +260,14 @@ export default function MealCountAuditPage() {
     }
   }
 
-  // Save manual edit directly to both tables
   async function handleSaveEdit(date) {
     setSavingDate(date);
     try {
-      // 1. Update District Table (daily_meal_counts)
+      const locCode = currentSchool.location_code || currentSchool.id;
+
       await supabase.from("daily_meal_counts").upsert(
         {
-          source_site_id: currentSchool.source_site_id,
+          source_site_id: locCode,
           location_id: currentSchool.id,
           date,
           breakfast: Number(editValues.breakfast),
@@ -265,7 +277,6 @@ export default function MealCountAuditPage() {
         { onConflict: "source_site_id,date" }
       );
 
-      // 2. Update Finish Line Table (meal_counts)
       await supabase.from("meal_counts").upsert(
         {
           location_id: currentSchool.id,
@@ -290,7 +301,7 @@ export default function MealCountAuditPage() {
       ]);
 
       setEditingRow(null);
-      setFeedback(`Saved verified count for ${date}!`);
+      setFeedback(`Saved count for ${date}!`);
     } catch (err) {
       setFeedback(`Save failed: ${err.message}`);
     } finally {
@@ -314,7 +325,7 @@ export default function MealCountAuditPage() {
             District Meal Count Audit & Reconciliation
           </h1>
           <p style={{ margin: "3px 0 0 0", fontSize: "13px", color: "#6b7280" }}>
-            Audits district-imported meals (daily_meal_counts) against Finish Line manager entries.
+            Audits district-imported meals (daily_meal_counts) against Finish Line entries.
           </p>
         </div>
 
@@ -348,7 +359,7 @@ export default function MealCountAuditPage() {
           <div style={{ maxHeight: "680px", overflowY: "auto" }}>
             {locations.length === 0 ? (
               <div style={{ padding: "20px", textAlign: "center", color: "#6b7280", fontSize: "12px" }}>
-                Loading schools...
+                {loading ? "Loading schools..." : "No schools found."}
               </div>
             ) : (
               locations.map((school) => {
@@ -368,7 +379,7 @@ export default function MealCountAuditPage() {
                     <strong style={{ fontSize: "13px", color: isSelected ? "#1d4ed8" : "#111827", display: "block" }}>
                       {school.school_name}
                     </strong>
-                    <small style={{ color: "#6b7280" }}>Location {school.source_site_id}</small>
+                    <small style={{ color: "#6b7280" }}>Location {school.location_code || school.id}</small>
                   </div>
                 );
               })
@@ -385,7 +396,7 @@ export default function MealCountAuditPage() {
                   <h2 style={{ margin: 0, fontSize: "17px", fontWeight: "800", color: "#111827" }}>
                     {currentSchool.school_name}
                   </h2>
-                  <small style={{ color: "#6b7280" }}>Location ID: {currentSchool.source_site_id}</small>
+                  <small style={{ color: "#6b7280" }}>Location {currentSchool.location_code || currentSchool.id}</small>
                 </div>
 
                 <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
@@ -439,7 +450,7 @@ export default function MealCountAuditPage() {
                           {row.dayLabel}
                         </td>
 
-                        {/* DISTRICT UPLOAD */}
+                        {/* DISTRICT */}
                         <td style={{ padding: "10px 14px" }}>
                           {row.dist ? (
                             <div>
