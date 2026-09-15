@@ -58,22 +58,22 @@ function makeSchoolState(school, dataset, startDate, endDate) {
  const currentMplh = card?.current?.averageMplh ?? null;
 
   return {
-    school,
-    card,
-    target,
-    positions,
-    fixedPositions,
-    movableWorkers,
-    assignedHours,
-    fixedHours,
-    movableHours,
-    averageEquivalents,
-    currentMplh,
-    projectedHours: scorecardDailyLaborHours,
-    projectedMplh: currentMplh,
-    incoming: [],
-    outgoing: [],
-  };
+  school,
+  card,
+  target,
+  positions,
+  fixedPositions,
+  movableWorkers,
+  assignedHours,
+  fixedHours,
+  movableHours,
+  averageEquivalents,
+  currentMplh,
+  projectedHours: scorecardDailyLaborHours,
+  projectedMplh: currentMplh,
+  incoming: [],
+  outgoing: [],
+};
 }
 
 const validState = (state) =>
