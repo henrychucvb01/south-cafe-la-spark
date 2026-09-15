@@ -192,67 +192,6 @@ function getCompletedBingoLines(completedGoalIds, bingoCard) {
   }, []);
 }
 
-function getBingoGateIndexes() {
-  return new Set(BINGO_LINES.map((line) => line[line.length - 1]));
-}
-
- {
-  const visible = new Set(verifiedGoalIds);
-  const gateIndexes = getBingoGateIndexes();
-
-  gateIndexes.forEach((squareIndex) => {
-    const square = bingoCard[squareIndex];
-
-    if (
-      square &&
-      verifiedGoalIds.has(square.id) &&
-      !claimedGateGoalIds.has(square.id)
-    ) {
-      visible.delete(square.id);
-    }
-  });
-
-  return visible;
-}
-
-function getReadyGateGoalIds(
-  verifiedGoalIds,
-  visibleCompletedGoalIds,
-  claimedGateGoalIds,
-  bingoCard
-) {
-  const ready = new Set();
-
-  BINGO_LINES.forEach((line) => {
-    const gateIndex = line[line.length - 1];
-    const gateSquare = bingoCard[gateIndex];
-
-    if (!gateSquare) {
-      return;
-    }
-
-    if (!verifiedGoalIds.has(gateSquare.id)) {
-      return;
-    }
-
-    if (claimedGateGoalIds.has(gateSquare.id)) {
-      return;
-    }
-
-    const otherSquaresComplete = line
-      .slice(0, -1)
-      .every((squareIndex) =>
-        visibleCompletedGoalIds.has(bingoCard[squareIndex].id)
-      );
-
-    if (otherSquaresComplete) {
-      ready.add(gateSquare.id);
-    }
-  });
-
-  return ready;
-}
-
 const LABOR_TARGETS = {
   secondary: { min: 18, max: 20 },
   elementary_prep: { min: 20, max: 22 },
@@ -412,8 +351,6 @@ function DailyBitesPage({ location, employee, onBack }) {
   const [blackoutEarned, setBlackoutEarned] = useState(false);
   const [celebratingSquareIndexes, setCelebratingSquareIndexes] = useState(new Set());
   const [celebrationMessage, setCelebrationMessage] = useState("");
-  const [readyGateGoalIds, setReadyGateGoalIds] = useState(new Set());
-  const [claimingGoalId, setClaimingGoalId] = useState("");
   const [gameProgress, setGameProgress] = useState([]);
   const [gamesLoading, setGamesLoading] = useState(true);
   const [gamesError, setGamesError] = useState("");
@@ -656,65 +593,6 @@ function DailyBitesPage({ location, employee, onBack }) {
 
     return () => window.clearTimeout(timer);
   }, [celebrationMessage]);
-
-  async function claimBingoGateSquare(square, squareIndex) {
-    if (!square || !readyGateGoalIds.has(square.id) || claimingGoalId) {
-      return;
-    }
-
-    setClaimingGoalId(square.id);
-    setBingoError("");
-
-    const completedAfterClick = new Set(completedGoalIds);
-    completedAfterClick.add(square.id);
-
-    const linesAfterClick = getCompletedBingoLines(
-      completedAfterClick,
-      schoolBingoCard
-    );
-
-    const newlyCompletedLineCount = Math.max(
-      0,
-      linesAfterClick.length - completedLineIndexes.length
-    );
-
-    setCelebratingSquareIndexes(new Set([squareIndex]));
-
-    if (newlyCompletedLineCount > 0) {
-      setCelebrationMessage(
-        `🎉 BINGO! ${newlyCompletedLineCount} new line${
-          newlyCompletedLineCount === 1 ? "" : "s"
-        } completed!`
-      );
-    }
-
-    try {
-      const uniqueKey =
-        `${CARD_ONE_KEY}-square-claim-${location.id}-${square.id}`;
-
-      const { error } = await supabase.from("spark_points").insert({
-        location_id: location.id,
-        points: 0,
-        point_type: "bingo_square_claim",
-        description: square.id,
-        service_date: dateString(new Date()),
-        source: "bingo",
-        awarded_by: employee?.employee_name || "Covering Employee",
-        unique_key: uniqueKey,
-      });
-
-      if (error && error.code !== "23505") {
-        throw error;
-      }
-
-      await loadBingoProgress();
-    } catch (error) {
-      console.error("Bingo square claim error:", error);
-      setBingoError(error.message || "Could not complete the Bingo square.");
-    } finally {
-      setClaimingGoalId("");
-    }
-  }
 
   async function awardBingoRewards(completed, existingPointRows, bingoCard) {
     const completedLines = getCompletedBingoLines(completed, bingoCard);
@@ -1211,28 +1089,9 @@ function DailyBitesPage({ location, employee, onBack }) {
         completed.add("mplh-5");
       }
 
-      const claimedGateGoalIds = new Set(
-        pointRows
-          .filter((row) => row.point_type === "bingo_square_claim")
-          .map((row) => row.description)
-          .filter(Boolean)
-      );
-
-      const visibleCompleted = buildVisibleCompletedGoals(
-        completed,
-        claimedGateGoalIds,
-        schoolBingoCard
-      );
-
-      const readyGates = getReadyGateGoalIds(
-        completed,
-        visibleCompleted,
-        claimedGateGoalIds,
-        schoolBingoCard
-      );
+      const visibleCompleted = new Set(completed);
 
       setCompletedGoalIds(visibleCompleted);
-      setReadyGateGoalIds(readyGates);
 
       await awardBingoRewards(
         visibleCompleted,
@@ -1246,7 +1105,6 @@ function DailyBitesPage({ location, employee, onBack }) {
       setCompletedLineIndexes([]);
       setEarnedMilestones(new Set());
       setBlackoutEarned(false);
-      setReadyGateGoalIds(new Set());
     } finally {
       setBingoLoading(false);
     }
@@ -1257,9 +1115,8 @@ function DailyBitesPage({ location, employee, onBack }) {
       schoolBingoCard.map((square) => ({
         ...square,
         completed: completedGoalIds.has(square.id),
-        readyToClaim: readyGateGoalIds.has(square.id),
       })),
-    [schoolBingoCard, completedGoalIds, readyGateGoalIds]
+    [schoolBingoCard, completedGoalIds]
   );
 
   const completedSquares = bingoSquares.filter(
@@ -1472,9 +1329,9 @@ function DailyBitesPage({ location, employee, onBack }) {
                 <h2>🎯 SPARK Bingo</h2>
 
                 <p>
-                  SPARK fills your card automatically. When the final square
-                  of a Bingo line is ready, click that square to complete the
-                  line and see the celebration.
+                  SPARK automatically completes squares whenever your verified
+                  work meets a Bingo goal. Completed lines and rewards are
+                  recognized automatically.
                 </p>
               </div>
 
@@ -1524,8 +1381,6 @@ function DailyBitesPage({ location, employee, onBack }) {
               <div className="spark-bingo-board">
                 {bingoSquares.map((square, squareIndex) => {
                   const isComplete = Boolean(square.completed);
-                  const isReady = Boolean(square.readyToClaim);
-                  const isClaiming = claimingGoalId === square.id;
 
                   const className = [
                     "spark-bingo-square",
@@ -1546,11 +1401,7 @@ function DailyBitesPage({ location, employee, onBack }) {
                       <strong>{square.label}</strong>
 
                       <span>
-                        {isReady
-                          ? isClaiming
-                            ? "Completing..."
-                            : "READY — click to complete"
-                          : square.detail}
+                        {square.detail}
                       </span>
 
                       {isComplete && (
@@ -1562,50 +1413,8 @@ function DailyBitesPage({ location, employee, onBack }) {
                         </div>
                       )}
 
-                      {isReady && !isComplete && (
-                        <div
-                          style={{
-                            position: "absolute",
-                            top: "7px",
-                            right: "7px",
-                            padding: "4px 7px",
-                            borderRadius: "999px",
-                            background: "#e5a92b",
-                            color: "#ffffff",
-                            fontSize: "10px",
-                            fontWeight: "900",
-                            letterSpacing: "0.04em",
-                          }}
-                        >
-                          READY
-                        </div>
-                      )}
                     </>
                   );
-
-                  if (isReady && !isComplete) {
-                    return (
-                      <button
-                        key={square.id}
-                        type="button"
-                        className={className}
-                        disabled={Boolean(claimingGoalId)}
-                        onClick={() =>
-                          claimBingoGateSquare(square, squareIndex)
-                        }
-                        style={{
-                          width: "100%",
-                          font: "inherit",
-                          cursor: claimingGoalId ? "wait" : "pointer",
-                          appearance: "none",
-                          outline: "none",
-                          boxShadow: "0 0 0 3px rgba(229, 169, 43, 0.14)",
-                        }}
-                      >
-                        {squareContent}
-                      </button>
-                    );
-                  }
 
                   return (
                     <div key={square.id} className={className}>
@@ -1662,10 +1471,9 @@ function DailyBitesPage({ location, employee, onBack }) {
 
             <p className="spark-bingo-note">
               This Card 1 is unique to your school and stays the same through
-              December 31. Regular squares complete automatically. A final
-              line-completing square waits for your click so you get to see the
-              Bingo celebration. Rewards and blackout are still awarded only
-              once.
+              December 31. SPARK completes squares automatically when the
+              underlying work is verified. Line rewards and blackout are still
+              awarded only once.
             </p>
           </section>
         </div>
