@@ -15,7 +15,7 @@ const schoolYearFor = (value) => {
 
 export default function MealCountAuditPage({ supervisorPin, schools: propSchools = [] }) {
   const [selectedLocationId, setSelectedLocationId] = useState("");
-  const [selectedMonth, setSelectedMonth] = useState("2026-08");
+  const [selectedMonth, setSelectedMonth] = useState("2026-09");
 
   const [loading, setLoading] = useState(false);
   const [savingDate, setSavingDate] = useState(null);
@@ -28,7 +28,7 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
   const [editValues, setEditValues] = useState({ breakfast: 0, lunch: 0, supper: 0 });
   const [feedback, setFeedback] = useState("");
 
-  // 1. Filter out demo school so it shows your exact 28 schools
+  // 1. Exact 28 Schools (demo filtered out)
   const schools = useMemo(() => {
     return (propSchools || [])
       .filter((s) => !isDemoSchool(s))
@@ -48,15 +48,15 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
     }
   }, [schools, selectedLocationId]);
 
-  // 2. Exact Month & School Year format matching MonthlyScorecardsPage
+  // 2. Month Weekdays & Formats
   const { startDate, endDate, allMonthWeekdays, schoolYear, reportingMonth } = useMemo(() => {
     const [y, m] = selectedMonth.split("-").map(Number);
     const lastDay = new Date(y, m, 0).getDate();
     const start = `${y}-${String(m).padStart(2, "0")}-01`;
     const end = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
 
-    const yr = schoolYearFor(start); // "2026-27"
-    const repMonth = `${selectedMonth}-01`; // "2026-08-01"
+    const yr = schoolYearFor(start);
+    const repMonth = `${selectedMonth}-01`;
 
     const dates = [];
     const curr = new Date(`${start}T12:00:00`);
@@ -71,7 +71,7 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
     return { startDate: start, endDate: end, allMonthWeekdays: dates, schoolYear: yr, reportingMonth: repMonth };
   }, [selectedMonth]);
 
-  // 3. Load District Upload Dataset using the exact same call as MonthlyScorecardsPage
+  // 3. Load District Uploaded Dataset (production_rows)
   useEffect(() => {
     async function loadDistrictUpload() {
       if (!supervisorPin) return;
@@ -85,7 +85,7 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
     loadDistrictUpload();
   }, [supervisorPin, schoolYear, reportingMonth]);
 
-  // 4. Load Manager Meal Counts (meal_counts)
+  // 4. Load Manager Entries from meal_counts
   useEffect(() => {
     if (!selectedLocationId) return;
 
@@ -128,24 +128,36 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
 
     const validKeys = new Set([locId, siteId, locCode, dirId].filter(Boolean));
 
-    // District Uploaded Rows
-    const distRows = (districtDataset?.meal_counts || []).filter((r) => {
+    // A. Real Uploaded District Rows (from production_rows)
+    const distMap = new Map();
+    const prodRows = (districtDataset?.production_rows || []).filter((r) => {
       const id1 = String(r.location_id || "");
       const id2 = String(r.source_site_id || "");
       return validKeys.has(id1) || validKeys.has(id2);
     });
 
-    const distMap = new Map();
-    distRows.forEach((row) => {
-      const d = String(row.service_date || row.date).slice(0, 10);
-      distMap.set(d, {
-        breakfast: Number(row.breakfast_count ?? row.breakfast ?? 0),
-        lunch: Number(row.lunch_count ?? row.lunch ?? 0),
-        supper: Number(row.supper_count ?? row.supper ?? 0),
-      });
+    prodRows.forEach((row) => {
+      const d = String(row.production_date || row.service_date || row.date).slice(0, 10);
+      const meal = String(row.meal_type || "").toLowerCase();
+      const count = Number(row.meals_served ?? row.served ?? 0);
+
+      if (!distMap.has(d)) {
+        distMap.set(d, { breakfast: 0, lunch: 0, supper: 0, hasUpload: false });
+      }
+      const entry = distMap.get(d);
+      if (meal.includes("breakfast")) {
+        entry.breakfast = Math.max(entry.breakfast, count);
+        entry.hasUpload = true;
+      } else if (meal.includes("lunch")) {
+        entry.lunch = Math.max(entry.lunch, count);
+        entry.hasUpload = true;
+      } else if (meal.includes("supper")) {
+        entry.supper = Math.max(entry.supper, count);
+        entry.hasUpload = true;
+      }
     });
 
-    // Manager counts from meal_counts
+    // B. Manager Entries (from meal_counts)
     const managerMap = new Map();
     managerMealCounts.forEach((row) => {
       const d = String(row.service_date || row.date).slice(0, 10);
@@ -158,7 +170,8 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
     });
 
     return allMonthWeekdays.map((date) => {
-      const dist = distMap.get(date) || null;
+      const distEntry = distMap.get(date);
+      const dist = distEntry && distEntry.hasUpload ? distEntry : null;
       const mgr = managerMap.get(date) || null;
       const isExcluded = excludedDates.has(date);
 
@@ -310,7 +323,7 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
             District Meal Count Audit & Reconciliation
           </h1>
           <p style={{ margin: "3px 0 0 0", fontSize: "13px", color: "#6b7280" }}>
-            Reconcile district uploads against manager entries. Click Exclude to drop non-school days.
+            Reconciles uploaded district production records against manager entries.
           </p>
         </div>
 
@@ -498,88 +511,87 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
                                     : row.status === "mismatch"
                                     ? "#fef3c7"
                                     : "#f3f4f6",
-                                color:
-                                  row.isExcluded
-                                    ? "#4b5563"
-                                    : row.status === "clean"
-                                    ? "#065f46"
-                                    : row.status === "mismatch"
-                                    ? "#92400e"
-                                    : "#6b7280",
-                              }}
-                            >
-                              {row.statusLabel}
-                            </span>
-                          </td>
+                              color:
+                                row.isExcluded
+                                  ? "#4b5563"
+                                  : row.status === "clean"
+                                  ? "#065f46"
+                                  : row.status === "mismatch"
+                                  ? "#92400e"
+                                  : "#6b7280",
+                            }}
+                          >
+                            {row.statusLabel}
+                          </span>
+                        </td>
 
-                          {/* ACTIONS */}
-                          <td style={{ padding: "10px 14px", textAlign: "right" }}>
-                            {isEditingThis ? (
-                              <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
+                        {/* ACTIONS */}
+                        <td style={{ padding: "10px 14px", textAlign: "right" }}>
+                          {isEditingThis ? (
+                            <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
+                              <button
+                                onClick={() => handleSaveEdit(row.date)}
+                                disabled={savingDate === row.date}
+                                style={{ padding: "4px 8px", borderRadius: "4px", background: "#059669", color: "#fff", border: "none", fontWeight: "700", cursor: "pointer", fontSize: "11px" }}
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={() => setEditingRow(null)}
+                                style={{ padding: "4px 6px", borderRadius: "4px", background: "#e5e7eb", border: "none", cursor: "pointer", fontSize: "11px" }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
+                              {row.status === "mismatch" && (
                                 <button
-                                  onClick={() => handleSaveEdit(row.date)}
+                                  onClick={() => handleCopyDistrict(row)}
                                   disabled={savingDate === row.date}
-                                  style={{ padding: "4px 8px", borderRadius: "4px", background: "#059669", color: "#fff", border: "none", fontWeight: "700", cursor: "pointer", fontSize: "11px" }}
+                                  title="Sync Manager count to match District upload"
+                                  style={{ padding: "3px 8px", borderRadius: "4px", background: "#fef3c7", border: "1px solid #f59e0b", color: "#92400e", fontWeight: "700", cursor: "pointer", fontSize: "11px" }}
                                 >
-                                  Save
+                                  Use District
                                 </button>
-                                <button
-                                  onClick={() => setEditingRow(null)}
-                                  style={{ padding: "4px 6px", borderRadius: "4px", background: "#e5e7eb", border: "none", cursor: "pointer", fontSize: "11px" }}
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            ) : (
-                              <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
-                                {row.status === "mismatch" && (
-                                  <button
-                                    onClick={() => handleCopyDistrict(row)}
-                                    disabled={savingDate === row.date}
-                                    title="Sync Manager count to match District upload"
-                                    style={{ padding: "3px 8px", borderRadius: "4px", background: "#fef3c7", border: "1px solid #f59e0b", color: "#92400e", fontWeight: "700", cursor: "pointer", fontSize: "11px" }}
-                                  >
-                                    Use District
-                                  </button>
-                                )}
+                              )}
 
-                                <button
-                                  onClick={() => toggleExcludeDate(row.date)}
-                                  title={row.isExcluded ? "Restore Date to Report" : "Exclude Date from Report"}
-                                  style={{
-                                    padding: "3px 8px",
-                                    borderRadius: "4px",
-                                    background: row.isExcluded ? "#dbeafe" : "#fee2e2",
-                                    border: row.isExcluded ? "1px solid #93c5fd" : "1px solid #fca5a5",
-                                    color: row.isExcluded ? "#1e40af" : "#991b1b",
-                                    fontWeight: "700",
-                                    cursor: "pointer",
-                                    fontSize: "11px",
-                                  }}
-                                >
-                                  {row.isExcluded ? "Restore" : "🚫 Exclude"}
-                                </button>
+                              <button
+                                onClick={() => toggleExcludeDate(row.date)}
+                                title={row.isExcluded ? "Restore Date to Report" : "Exclude Date from Report"}
+                                style={{
+                                  padding: "3px 8px",
+                                  borderRadius: "4px",
+                                  background: row.isExcluded ? "#dbeafe" : "#fee2e2",
+                                  border: row.isExcluded ? "1px solid #93c5fd" : "1px solid #fca5a5",
+                                  color: row.isExcluded ? "#1e40af" : "#991b1b",
+                                  fontWeight: "700",
+                                  cursor: "pointer",
+                                  fontSize: "11px",
+                                }}
+                              >
+                                {row.isExcluded ? "Restore" : "🚫 Exclude"}
+                              </button>
 
-                                <button
-                                  onClick={() => {
-                                    setEditingRow(row.date);
-                                    setEditValues({
-                                      breakfast: row.dist?.breakfast ?? row.mgr?.breakfast ?? 0,
-                                      lunch: row.dist?.lunch ?? row.mgr?.lunch ?? 0,
-                                      supper: row.dist?.supper ?? row.mgr?.supper ?? 0,
-                                    });
-                                  }}
-                                  style={{ padding: "3px 8px", borderRadius: "4px", background: "#f3f4f6", border: "1px solid #d1d5db", color: "#374151", fontWeight: "700", cursor: "pointer", fontSize: "11px" }}
-                                >
-                                  Edit
-                                </button>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
+                              <button
+                                onClick={() => {
+                                  setEditingRow(row.date);
+                                  setEditValues({
+                                    breakfast: row.dist?.breakfast ?? row.mgr?.breakfast ?? 0,
+                                    lunch: row.dist?.lunch ?? row.mgr?.lunch ?? 0,
+                                    supper: row.dist?.supper ?? row.mgr?.supper ?? 0,
+                                  });
+                                }}
+                                style={{ padding: "3px 8px", borderRadius: "4px", background: "#f3f4f6", border: "1px solid #d1d5db", color: "#374151", fontWeight: "700", cursor: "pointer", fontSize: "11px" }}
+                              >
+                                Edit
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
