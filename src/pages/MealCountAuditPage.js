@@ -1,6 +1,17 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { supabase } from "../supabaseClient";
-import { loadMonthlyScorecardDatasetWithRetry } from "../monthlyScorecards/monthlyScorecardService";
+import { loadMonthlyScorecardDataset } from "../monthlyScorecards/monthlyScorecardService";
+
+function isDemoSchool(school) {
+  return String(school?.school_name || "").trim().toLowerCase() === "test high school";
+}
+
+const schoolYearFor = (value) => {
+  const date = new Date(`${value}T12:00:00`);
+  const year = date.getFullYear();
+  const start = date.getMonth() >= 6 ? year : year - 1;
+  return `${start}-${String(start + 1).slice(-2)}`;
+};
 
 export default function MealCountAuditPage({ supervisorPin, schools: propSchools = [] }) {
   const [selectedLocationId, setSelectedLocationId] = useState("");
@@ -17,15 +28,18 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
   const [editValues, setEditValues] = useState({ breakfast: 0, lunch: 0, supper: 0 });
   const [feedback, setFeedback] = useState("");
 
-  // 1. Schools: use props passed from CommandCenterLegacy
+  // 1. Filter out demo school so it shows your exact 28 schools
   const schools = useMemo(() => {
-    return (propSchools || []).map((s) => ({
-      ...s,
-      id: String(s.id),
-      school_name: s.school_name || s.name || `Location ${s.id}`,
-      location_code: String(s.location_code || s.source_site_id || s.id),
-      source_site_id: String(s.source_site_id || s.location_code || s.id),
-    }));
+    return (propSchools || [])
+      .filter((s) => !isDemoSchool(s))
+      .map((s) => ({
+        ...s,
+        id: String(s.id),
+        school_name: s.school_name || s.name || `Location ${s.id}`,
+        location_code: String(s.location_code || s.source_site_id || s.id),
+        source_site_id: String(s.source_site_id || s.location_code || s.id),
+        directory_id: String(s.directory_id || s.location_id || s.id),
+      }));
   }, [propSchools]);
 
   useEffect(() => {
@@ -34,14 +48,15 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
     }
   }, [schools, selectedLocationId]);
 
-  // 2. Month Weekdays & School Year
-  const { startDate, endDate, allMonthWeekdays, schoolYear } = useMemo(() => {
+  // 2. Exact Month & School Year format matching MonthlyScorecardsPage
+  const { startDate, endDate, allMonthWeekdays, schoolYear, reportingMonth } = useMemo(() => {
     const [y, m] = selectedMonth.split("-").map(Number);
     const lastDay = new Date(y, m, 0).getDate();
     const start = `${y}-${String(m).padStart(2, "0")}-01`;
     const end = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
 
-    const yr = m >= 7 ? `${y}-${y + 1}` : `${y - 1}-${y}`;
+    const yr = schoolYearFor(start); // "2026-27"
+    const repMonth = `${selectedMonth}-01`; // "2026-08-01"
 
     const dates = [];
     const curr = new Date(`${start}T12:00:00`);
@@ -53,24 +68,24 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
       }
       curr.setDate(curr.getDate() + 1);
     }
-    return { startDate: start, endDate: end, allMonthWeekdays: dates, schoolYear: yr };
+    return { startDate: start, endDate: end, allMonthWeekdays: dates, schoolYear: yr, reportingMonth: repMonth };
   }, [selectedMonth]);
 
-  // 3. Load Uploaded District Report via Scorecard Service
+  // 3. Load District Upload Dataset using the exact same call as MonthlyScorecardsPage
   useEffect(() => {
     async function loadDistrictUpload() {
       if (!supervisorPin) return;
       try {
-        const data = await loadMonthlyScorecardDatasetWithRetry(supervisorPin, schoolYear, selectedMonth);
+        const data = await loadMonthlyScorecardDataset(supervisorPin, schoolYear, reportingMonth);
         setDistrictDataset(data);
       } catch (err) {
-        console.warn("District dataset load notice:", err.message);
+        console.error("District dataset error:", err);
       }
     }
     loadDistrictUpload();
-  }, [supervisorPin, schoolYear, selectedMonth]);
+  }, [supervisorPin, schoolYear, reportingMonth]);
 
-  // 4. Load Manager Meal Counts (Same query as MealAnalyticsPage)
+  // 4. Load Manager Meal Counts (meal_counts)
   useEffect(() => {
     if (!selectedLocationId) return;
 
@@ -102,18 +117,22 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
 
   const currentSchool = schools.find((s) => String(s.id) === String(selectedLocationId));
 
-  // 5. Match District Upload against Manager Meal Counts
+  // 5. Match District Upload against Manager Counts
   const comparisonRows = useMemo(() => {
     if (!currentSchool) return [];
 
     const locId = String(currentSchool.id);
     const siteId = String(currentSchool.source_site_id);
     const locCode = String(currentSchool.location_code);
+    const dirId = String(currentSchool.directory_id);
+
+    const validKeys = new Set([locId, siteId, locCode, dirId].filter(Boolean));
 
     // District Uploaded Rows
     const distRows = (districtDataset?.meal_counts || []).filter((r) => {
-      const rId = String(r.location_id || r.source_site_id || "");
-      return rId === locId || rId === siteId || rId === locCode;
+      const id1 = String(r.location_id || "");
+      const id2 = String(r.source_site_id || "");
+      return validKeys.has(id1) || validKeys.has(id2);
     });
 
     const distMap = new Map();
@@ -126,7 +145,7 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
       });
     });
 
-    // Manager counts from MealAnalyticsPage
+    // Manager counts from meal_counts
     const managerMap = new Map();
     managerMealCounts.forEach((row) => {
       const d = String(row.service_date || row.date).slice(0, 10);
