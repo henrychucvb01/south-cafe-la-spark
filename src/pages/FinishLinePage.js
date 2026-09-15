@@ -6,6 +6,7 @@ import {
   getFinishLinePointAward,
   isStreakEligibleCheck,
 } from "../sparkPolicy";
+import { calculateDisplayedFinishLineStreak } from "../finishLineStreaks";
 /* =========================================================
 DEVELOPMENT TEST MODE
 Normally leave these as:
@@ -711,18 +712,16 @@ AUDIT HELPERS
   FINISH LINE STREAK HELPERS
   ========================================================= */
   async function calculateFinishLineStreak(serviceDate) {
-    const { data, error } = await supabase
-      .from("finish_line_checks")
-      .select("service_date, status, submitted_at")
-      .eq("location_id", location.id)
-      .eq("status", "complete")
-      .gte("service_date", REWARD_LAUNCH_DATE)
-      .lte("service_date", serviceDate)
-      .order("service_date", { ascending: false })
-      .limit(100);
+    const [{data,error},{data:excludedRows,error:excludedError}]=await Promise.all([
+      supabase.from("finish_line_checks").select("service_date, status, submitted_at")
+        .eq("location_id",location.id).eq("status","complete").gte("service_date",REWARD_LAUNCH_DATE)
+        .lte("service_date",serviceDate).order("service_date",{ascending:false}).limit(100),
+      supabase.from("spark_excluded_days").select("service_date").eq("location_id",location.id)
+        .gte("service_date",REWARD_LAUNCH_DATE).lte("service_date",serviceDate).limit(100),
+    ]);
 
-    if (error) {
-      console.error("Could not calculate Finish Line streak:", error);
+    if (error || excludedError) {
+      console.error("Could not calculate Finish Line streak:", error || excludedError);
       return 1;
     }
 
@@ -730,28 +729,9 @@ AUDIT HELPERS
       return 1;
     }
 
-    let streak = 0;
-    let expectedDate = new Date(`${serviceDate}T12:00:00`);
-
-    for (const row of data.filter(isStreakEligibleCheck)) {
-      while (
-        expectedDate.getDay() === 0 ||
-        expectedDate.getDay() === 6
-      ) {
-        expectedDate.setDate(expectedDate.getDate() - 1);
-      }
-
-      const expected = expectedDate.toISOString().split("T")[0];
-
-      if (row.service_date !== expected) {
-        break;
-      }
-
-      streak += 1;
-      expectedDate.setDate(expectedDate.getDate() - 1);
-    }
-
-    return Math.max(streak, 1);
+    const completedDates=new Set(data.filter(isStreakEligibleCheck).map((row)=>row.service_date));
+    const excludedDates=new Set((excludedRows||[]).map((row)=>row.service_date));
+    return calculateDisplayedFinishLineStreak(completedDates,excludedDates,serviceDate);
   }
 
   function getStreakMessage(streak) {
