@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { supabase } from "../supabaseClient";
-import { loadOfficialMealCounts } from "../monthlyScorecards/monthlyScorecardService";
+import { importOfficialMealCounts, loadOfficialMealCounts } from "../monthlyScorecards/monthlyScorecardService";
+import { parseOfficialMealCountCsv } from "../mealCountAudit/officialMealCountParser";
 
 function isDemoSchool(school) {
   return String((school && school.school_name) || "").trim().toLowerCase() === "test high school";
@@ -21,6 +22,9 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
   const [editingRow, setEditingRow] = useState(null);
   const [editValues, setEditValues] = useState({ breakfast: 0, lunch: 0, supper: 0 });
   const [feedback, setFeedback] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // 1. Exact 28 Schools (demo filtered out)
   const schools = useMemo(() => {
@@ -82,11 +86,11 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
     }
     loadOfficialUpload();
     return () => { active = false; };
-  }, [supervisorPin, startDate, endDate]);
+  }, [supervisorPin, startDate, endDate, refreshKey]);
 
   // 4. Load Manager Entries from meal_counts
   useEffect(() => {
-    if (!selectedLocationId) return;
+    if (!supervisorPin) return;
 
     async function loadManagerCounts() {
       setLoading(true);
@@ -94,7 +98,6 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
         const { data, error } = await supabase
           .from("meal_counts")
           .select("*")
-          .eq("location_id", selectedLocationId)
           .gte("service_date", startDate)
           .lte("service_date", endDate)
           .order("service_date", { ascending: true });
@@ -114,7 +117,7 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
     }
 
     loadManagerCounts();
-  }, [selectedLocationId, startDate, endDate]);
+  }, [supervisorPin, startDate, endDate, refreshKey]);
 
   const currentSchool = schools.find((s) => String(s.id) === String(selectedLocationId));
 
@@ -142,7 +145,7 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
 
     // B. Manager Entries (from meal_counts)
     const managerMap = new Map();
-    managerMealCounts.forEach((row) => {
+    managerMealCounts.filter((row) => String(row.location_id) === locId).forEach((row) => {
       const d = String(row.service_date || row.date || "").slice(0, 10);
       managerMap.set(d, {
         breakfast: Number(row.breakfast_count != null ? row.breakfast_count : 0),
@@ -244,7 +247,7 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
       );
 
       setManagerMealCounts((prev) => [
-        ...prev.filter((r) => r.service_date !== row.date),
+        ...prev.filter((r) => !(String(r.location_id) === String(currentSchool.id) && r.service_date === row.date)),
         {
           service_date: row.date,
           location_id: currentSchool.id,
@@ -279,7 +282,7 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
       );
 
       setManagerMealCounts((prev) => [
-        ...prev.filter((r) => r.service_date !== date),
+        ...prev.filter((r) => !(String(r.location_id) === String(currentSchool.id) && r.service_date === date)),
         {
           service_date: date,
           location_id: currentSchool.id,
@@ -304,6 +307,61 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
   });
 
   const mismatchCount = comparisonRows.filter((r) => r.status === "mismatch" && !r.isExcluded).length;
+
+  const schoolIssues = useMemo(() => {
+    const officialBySchoolDate = new Map();
+    officialMealCounts.forEach((row) => {
+      officialBySchoolDate.set(`${row.location_id}|${String(row.service_date).slice(0, 10)}`, row);
+    });
+    const managerBySchoolDate = new Map();
+    managerMealCounts.forEach((row) => {
+      managerBySchoolDate.set(`${row.location_id}|${String(row.service_date).slice(0, 10)}`, row);
+    });
+    const result = new Map();
+    schools.forEach((school) => {
+      let missing = 0;
+      let off = 0;
+      allMonthWeekdays.forEach((date) => {
+        const official = officialBySchoolDate.get(`${school.id}|${date}`);
+        if (!official) return;
+        const manager = managerBySchoolDate.get(`${school.id}|${date}`);
+        if (!manager) {
+          missing += 1;
+          return;
+        }
+        const differs = ["breakfast_count", "lunch_count", "supper_count"].some(
+          (field) => Number(official[field] || 0) !== Number(manager[field] || 0)
+        );
+        if (differs) off += 1;
+      });
+      result.set(String(school.id), { missing, off });
+    });
+    return result;
+  }, [schools, officialMealCounts, managerMealCounts, allMonthWeekdays]);
+
+  async function handleOfficialUpload(file) {
+    if (!file) return;
+    if (!/\.csv$/i.test(file.name)) {
+      setFeedback("Error: Official Meal Count upload must be a CSV file.");
+      return;
+    }
+    setUploading(true);
+    setFeedback("");
+    try {
+      const parsed = parseOfficialMealCountCsv(await file.text(), schools);
+      const result = await importOfficialMealCounts(supervisorPin, file.name, parsed.records);
+      const notes = [];
+      if (parsed.rejected.length) notes.push(`${parsed.rejected.length} invalid row(s) skipped`);
+      if (parsed.outOfArea.length) notes.push(`${parsed.outOfArea.length} out-of-area row(s) ignored`);
+      setFeedback(`Official Meal Count imported: ${result.written || parsed.records.length} school-date record(s) updated${notes.length ? `. ${notes.join("; ")}.` : "."}`);
+      setRefreshKey((value) => value + 1);
+    } catch (error) {
+      setFeedback(`Error: ${error.message || "Official Meal Count upload failed."}`);
+    } finally {
+      setUploading(false);
+      setDragging(false);
+    }
+  }
 
   return (
     <div style={{ padding: "20px", maxWidth: "1400px", margin: "0 auto", fontFamily: "sans-serif" }}>
@@ -342,6 +400,32 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
         </div>
       )}
 
+      <div
+        onDragEnter={(event) => { event.preventDefault(); setDragging(true); }}
+        onDragOver={(event) => event.preventDefault()}
+        onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setDragging(false); }}
+        onDrop={(event) => {
+          event.preventDefault();
+          setDragging(false);
+          if (!uploading) handleOfficialUpload(event.dataTransfer.files?.[0]);
+        }}
+        style={{
+          display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px",
+          padding: "14px 16px", marginBottom: "16px", borderRadius: "10px",
+          border: `2px dashed ${dragging ? "#2563eb" : "#93c5fd"}`,
+          background: dragging ? "#eff6ff" : "#f8fbff",
+        }}
+      >
+        <div>
+          <strong style={{ display: "block", color: "#1e3a5f", fontSize: "13px" }}>Upload Official Meal Count</strong>
+          <span style={{ color: "#64748b", fontSize: "12px" }}>Drag and drop the official CSV here. Overlapping school/date records are replaced.</span>
+        </div>
+        <label style={{ flexShrink: 0, padding: "8px 12px", borderRadius: "6px", background: uploading ? "#94a3b8" : "#2563eb", color: "white", fontSize: "12px", fontWeight: "800", cursor: uploading ? "wait" : "pointer" }}>
+          {uploading ? "Uploading…" : "Choose CSV"}
+          <input type="file" accept=".csv,text/csv" disabled={uploading} onChange={(event) => { handleOfficialUpload(event.target.files?.[0]); event.target.value = ""; }} style={{ position: "absolute", width: 1, height: 1, opacity: 0 }} />
+        </label>
+      </div>
+
       {/* TWO COLUMN MASTER-DETAIL */}
       <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: "18px", alignItems: "start" }}>
         {/* LEFT COLUMN: SCHOOLS */}
@@ -358,6 +442,7 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
             ) : (
               schools.map((school) => {
                 const isSelected = String(school.id) === String(selectedLocationId);
+                const issues = schoolIssues.get(String(school.id)) || { missing: 0, off: 0 };
                 return (
                   <div
                     key={school.id}
@@ -374,6 +459,12 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
                       {school.school_name}
                     </strong>
                     <small style={{ color: "#6b7280" }}>Location {school.location_code || school.id}</small>
+                    {(issues.missing > 0 || issues.off > 0) && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "5px", marginTop: "6px" }}>
+                        {issues.missing > 0 && <span title="Official days with no manager entry" style={{ padding: "2px 6px", borderRadius: "999px", background: "#fee2e2", color: "#991b1b", fontSize: "10px", fontWeight: "800" }}>{issues.missing} Missing</span>}
+                        {issues.off > 0 && <span title="Days where manager and official counts differ" style={{ padding: "2px 6px", borderRadius: "999px", background: "#fef3c7", color: "#92400e", fontSize: "10px", fontWeight: "800" }}>{issues.off} Off</span>}
+                      </div>
+                    )}
                   </div>
                 );
               })
