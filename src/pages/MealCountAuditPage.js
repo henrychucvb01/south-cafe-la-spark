@@ -1,15 +1,15 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { supabase } from "../supabaseClient";
+import { loadMonthlyScorecardDatasetWithRetry } from "../monthlyScorecards/monthlyScorecardService";
 
-export default function MealCountAuditPage({ schools: propSchools }) {
-  const [locations, setLocations] = useState([]);
+export default function MealCountAuditPage({ supervisorPin, schools: propSchools = [] }) {
   const [selectedLocationId, setSelectedLocationId] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("2026-08");
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [savingDate, setSavingDate] = useState(null);
-  const [districtData, setDistrictData] = useState([]);
-  const [finishLineData, setFinishLineData] = useState([]);
+  const [districtDataset, setDistrictDataset] = useState(null);
+  const [managerMealCounts, setManagerMealCounts] = useState([]);
   const [excludedDates, setExcludedDates] = useState(new Set());
   const [showNonOperating, setShowNonOperating] = useState(false);
 
@@ -17,12 +17,31 @@ export default function MealCountAuditPage({ schools: propSchools }) {
   const [editValues, setEditValues] = useState({ breakfast: 0, lunch: 0, supper: 0 });
   const [feedback, setFeedback] = useState("");
 
-  // 1. Month Weekdays
-  const { startDate, endDate, allMonthWeekdays } = useMemo(() => {
+  // 1. Schools: use props passed from CommandCenterLegacy
+  const schools = useMemo(() => {
+    return (propSchools || []).map((s) => ({
+      ...s,
+      id: String(s.id),
+      school_name: s.school_name || s.name || `Location ${s.id}`,
+      location_code: String(s.location_code || s.source_site_id || s.id),
+      source_site_id: String(s.source_site_id || s.location_code || s.id),
+    }));
+  }, [propSchools]);
+
+  useEffect(() => {
+    if (schools.length > 0 && !selectedLocationId) {
+      setSelectedLocationId(schools[0].id);
+    }
+  }, [schools, selectedLocationId]);
+
+  // 2. Month Weekdays & School Year
+  const { startDate, endDate, allMonthWeekdays, schoolYear } = useMemo(() => {
     const [y, m] = selectedMonth.split("-").map(Number);
     const lastDay = new Date(y, m, 0).getDate();
     const start = `${y}-${String(m).padStart(2, "0")}-01`;
     const end = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+
+    const yr = m >= 7 ? `${y}-${y + 1}` : `${y - 1}-${y}`;
 
     const dates = [];
     const curr = new Date(`${start}T12:00:00`);
@@ -34,145 +53,103 @@ export default function MealCountAuditPage({ schools: propSchools }) {
       }
       curr.setDate(curr.getDate() + 1);
     }
-    return { startDate: start, endDate: end, allMonthWeekdays: dates };
+    return { startDate: start, endDate: end, allMonthWeekdays: dates, schoolYear: yr };
   }, [selectedMonth]);
 
-  // 2. Load the 29 Schools (select * to avoid any column crashes)
+  // 3. Load Uploaded District Report via Scorecard Service
   useEffect(() => {
-    async function loadSchools() {
-      if (propSchools && propSchools.length > 0) {
-        setLocations(propSchools);
-        setSelectedLocationId(String(propSchools[0].id));
-        setLoading(false);
-        return;
+    async function loadDistrictUpload() {
+      if (!supervisorPin) return;
+      try {
+        const data = await loadMonthlyScorecardDatasetWithRetry(supervisorPin, schoolYear, selectedMonth);
+        setDistrictDataset(data);
+      } catch (err) {
+        console.warn("District dataset load notice:", err.message);
       }
+    }
+    loadDistrictUpload();
+  }, [supervisorPin, schoolYear, selectedMonth]);
 
+  // 4. Load Manager Meal Counts (Same query as MealAnalyticsPage)
+  useEffect(() => {
+    if (!selectedLocationId) return;
+
+    async function loadManagerCounts() {
+      setLoading(true);
       try {
         const { data, error } = await supabase
-          .from("locations")
-          .select("*")
-          .order("school_name", { ascending: true });
-
-        if (error) throw error;
-
-        const mapped = (data || []).map((loc) => ({
-          ...loc,
-          id: String(loc.id),
-          school_name: loc.school_name || loc.name || `Location ${loc.id}`,
-          location_code: String(loc.location_code || loc.source_site_id || loc.id),
-        }));
-
-        setLocations(mapped);
-        if (mapped.length > 0) {
-          setSelectedLocationId(String(mapped[0].id));
-        }
-      } catch (err) {
-        console.error("Error loading schools:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadSchools();
-  }, [propSchools]);
-
-  // 3. Load District Uploads (daily_meal_counts) & Finish Line (meal_counts)
-  useEffect(() => {
-    if (!selectedLocationId || locations.length === 0) return;
-
-    async function loadAuditData() {
-      setLoading(true);
-      setFeedback("");
-      setEditingRow(null);
-
-      const selectedLoc = locations.find((l) => String(l.id) === String(selectedLocationId));
-      const locId = String(selectedLoc?.id || "");
-      const locCode = String(selectedLoc?.location_code || selectedLoc?.source_site_id || "");
-
-      // Match either ID or location_code
-      const searchKeys = [locId, locCode].filter(Boolean);
-
-      try {
-        // 1. Fetch from daily_meal_counts
-        let filterParts = [];
-        searchKeys.forEach((key) => {
-          filterParts.push(`source_site_id.eq.${key}`, `location_id.eq.${key}`);
-        });
-
-        const { data: dData, error: dError } = await supabase
-          .from("daily_meal_counts")
-          .select("*")
-          .or(filterParts.join(","))
-          .gte("date", startDate)
-          .lte("date", endDate);
-
-        if (!dError && dData) {
-          setDistrictData(dData);
-        } else {
-          setDistrictData([]);
-        }
-
-        // 2. Fetch from meal_counts (Finish Line)
-        const { data: fData, error: fError } = await supabase
           .from("meal_counts")
           .select("*")
-          .or(filterParts.join(","))
+          .eq("location_id", selectedLocationId)
           .gte("service_date", startDate)
-          .lte("service_date", endDate);
+          .lte("service_date", endDate)
+          .order("service_date", { ascending: true });
 
-        if (!fError && fData) {
-          setFinishLineData(fData);
+        if (!error && data) {
+          setManagerMealCounts(data);
         } else {
-          setFinishLineData([]);
+          setManagerMealCounts([]);
         }
       } catch (err) {
-        console.error("Audit load error:", err);
+        console.error("Manager counts error:", err);
       } finally {
         setLoading(false);
       }
     }
 
-    loadAuditData();
-  }, [selectedLocationId, startDate, endDate, locations]);
+    loadManagerCounts();
+  }, [selectedLocationId, startDate, endDate]);
 
-  const currentSchool = locations.find((s) => String(s.id) === String(selectedLocationId));
+  const currentSchool = schools.find((s) => String(s.id) === String(selectedLocationId));
 
-  // 4. Build Comparison Rows
+  // 5. Match District Upload against Manager Meal Counts
   const comparisonRows = useMemo(() => {
     if (!currentSchool) return [];
 
-    const distMap = new Map();
-    districtData.forEach((row) => {
-      const d = String(row.date || row.service_date).slice(0, 10);
-      distMap.set(d, {
-        breakfast: Number(row.breakfast ?? row.breakfast_count ?? 0),
-        lunch: Number(row.lunch ?? row.lunch_count ?? 0),
-        supper: Number(row.supper ?? row.supper_count ?? 0),
-      });
+    const locId = String(currentSchool.id);
+    const siteId = String(currentSchool.source_site_id);
+    const locCode = String(currentSchool.location_code);
+
+    // District Uploaded Rows
+    const distRows = (districtDataset?.meal_counts || []).filter((r) => {
+      const rId = String(r.location_id || r.source_site_id || "");
+      return rId === locId || rId === siteId || rId === locCode;
     });
 
-    const flMap = new Map();
-    finishLineData.forEach((row) => {
+    const distMap = new Map();
+    distRows.forEach((row) => {
       const d = String(row.service_date || row.date).slice(0, 10);
-      flMap.set(d, {
+      distMap.set(d, {
         breakfast: Number(row.breakfast_count ?? row.breakfast ?? 0),
         lunch: Number(row.lunch_count ?? row.lunch ?? 0),
         supper: Number(row.supper_count ?? row.supper ?? 0),
+      });
+    });
+
+    // Manager counts from MealAnalyticsPage
+    const managerMap = new Map();
+    managerMealCounts.forEach((row) => {
+      const d = String(row.service_date || row.date).slice(0, 10);
+      managerMap.set(d, {
+        breakfast: Number(row.breakfast_count ?? 0),
+        lunch: Number(row.lunch_count ?? 0),
+        supper: Number(row.supper_count ?? 0),
         entered_by: row.entered_by,
       });
     });
 
     return allMonthWeekdays.map((date) => {
       const dist = distMap.get(date) || null;
-      const fl = flMap.get(date) || null;
+      const mgr = managerMap.get(date) || null;
       const isExcluded = excludedDates.has(date);
 
       const hasDist = dist && (dist.lunch > 0 || dist.breakfast > 0);
-      const hasFl = fl && (fl.lunch > 0 || fl.breakfast > 0);
-      const isNonOperating = !hasDist && !hasFl;
+      const hasMgr = mgr && (mgr.lunch > 0 || mgr.breakfast > 0);
+      const isNonOperating = !hasDist && !hasMgr;
 
-      const diffLunch = (dist?.lunch || 0) - (fl?.lunch || 0);
-      const diffBreakfast = (dist?.breakfast || 0) - (fl?.breakfast || 0);
-      const hasMismatch = hasDist && hasFl && (Math.abs(diffLunch) >= 5 || Math.abs(diffBreakfast) >= 5);
+      const diffLunch = (dist?.lunch || 0) - (mgr?.lunch || 0);
+      const diffBreakfast = (dist?.breakfast || 0) - (mgr?.breakfast || 0);
+      const hasMismatch = hasDist && hasMgr && (Math.abs(diffLunch) >= 5 || Math.abs(diffBreakfast) >= 5);
 
       let status = "clean";
       let statusLabel = "Match";
@@ -186,10 +163,10 @@ export default function MealCountAuditPage({ schools: propSchools }) {
       } else if (hasMismatch) {
         status = "mismatch";
         statusLabel = `Diff: ${diffLunch >= 0 ? "+" : ""}${diffLunch} lunch`;
-      } else if (hasDist && !hasFl) {
+      } else if (hasDist && !hasMgr) {
         status = "clean";
         statusLabel = "District Verified";
-      } else if (!hasDist && hasFl) {
+      } else if (!hasDist && hasMgr) {
         status = "pending_dist";
         statusLabel = "District Pending";
       }
@@ -202,14 +179,14 @@ export default function MealCountAuditPage({ schools: propSchools }) {
           day: "numeric",
         }),
         dist,
-        fl,
+        mgr,
         status,
         statusLabel,
         isExcluded,
         isNonOperating,
       };
     });
-  }, [currentSchool, districtData, finishLineData, allMonthWeekdays, excludedDates]);
+  }, [currentSchool, districtDataset, managerMealCounts, allMonthWeekdays, excludedDates]);
 
   function toggleExcludeDate(date) {
     setExcludedDates((prev) => {
@@ -219,7 +196,7 @@ export default function MealCountAuditPage({ schools: propSchools }) {
         setFeedback(`Restored ${date} to report.`);
       } else {
         next.add(date);
-        setFeedback(`Excluded ${date} from report.`);
+        setFeedback(`Excluded ${date} from calculations.`);
       }
       return next;
     });
@@ -243,10 +220,11 @@ export default function MealCountAuditPage({ schools: propSchools }) {
         { onConflict: "location_id,service_date" }
       );
 
-      setFinishLineData((prev) => [
-        ...prev.filter((r) => (r.service_date || r.date) !== row.date),
+      setManagerMealCounts((prev) => [
+        ...prev.filter((r) => r.service_date !== row.date),
         {
           service_date: row.date,
+          location_id: currentSchool.id,
           breakfast_count: row.dist.breakfast,
           lunch_count: row.dist.lunch,
           supper_count: row.dist.supper,
@@ -263,20 +241,6 @@ export default function MealCountAuditPage({ schools: propSchools }) {
   async function handleSaveEdit(date) {
     setSavingDate(date);
     try {
-      const locCode = currentSchool.location_code || currentSchool.id;
-
-      await supabase.from("daily_meal_counts").upsert(
-        {
-          source_site_id: locCode,
-          location_id: currentSchool.id,
-          date,
-          breakfast: Number(editValues.breakfast),
-          lunch: Number(editValues.lunch),
-          supper: Number(editValues.supper),
-        },
-        { onConflict: "source_site_id,date" }
-      );
-
       await supabase.from("meal_counts").upsert(
         {
           location_id: currentSchool.id,
@@ -291,13 +255,15 @@ export default function MealCountAuditPage({ schools: propSchools }) {
         { onConflict: "location_id,service_date" }
       );
 
-      setDistrictData((prev) => [
-        ...prev.filter((r) => (r.date || r.service_date) !== date),
-        { date, breakfast: editValues.breakfast, lunch: editValues.lunch, supper: editValues.supper },
-      ]);
-      setFinishLineData((prev) => [
-        ...prev.filter((r) => (r.service_date || r.date) !== date),
-        { service_date: date, breakfast_count: editValues.breakfast, lunch_count: editValues.lunch, supper_count: editValues.supper },
+      setManagerMealCounts((prev) => [
+        ...prev.filter((r) => r.service_date !== date),
+        {
+          service_date: date,
+          location_id: currentSchool.id,
+          breakfast_count: editValues.breakfast,
+          lunch_count: editValues.lunch,
+          supper_count: editValues.supper,
+        },
       ]);
 
       setEditingRow(null);
@@ -325,7 +291,7 @@ export default function MealCountAuditPage({ schools: propSchools }) {
             District Meal Count Audit & Reconciliation
           </h1>
           <p style={{ margin: "3px 0 0 0", fontSize: "13px", color: "#6b7280" }}>
-            Audits district-imported meals (daily_meal_counts) against Finish Line entries.
+            Reconcile district uploads against manager entries. Click Exclude to drop non-school days.
           </p>
         </div>
 
@@ -353,16 +319,16 @@ export default function MealCountAuditPage({ schools: propSchools }) {
         {/* LEFT COLUMN: SCHOOLS */}
         <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", overflow: "hidden" }}>
           <div style={{ padding: "12px 14px", background: "#f9fafb", borderBottom: "1px solid #e5e7eb", fontWeight: "800", fontSize: "12px", color: "#374151" }}>
-            ALL SCHOOLS ({locations.length})
+            ALL SCHOOLS ({schools.length})
           </div>
 
           <div style={{ maxHeight: "680px", overflowY: "auto" }}>
-            {locations.length === 0 ? (
+            {schools.length === 0 ? (
               <div style={{ padding: "20px", textAlign: "center", color: "#6b7280", fontSize: "12px" }}>
-                {loading ? "Loading schools..." : "No schools found."}
+                No schools found.
               </div>
             ) : (
-              locations.map((school) => {
+              schools.map((school) => {
                 const isSelected = String(school.id) === String(selectedLocationId);
                 return (
                   <div
@@ -421,172 +387,180 @@ export default function MealCountAuditPage({ schools: propSchools }) {
                   <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb", color: "#4b5563", fontSize: "11px" }}>
                     <th style={{ padding: "10px 14px" }}>DATE</th>
                     <th style={{ padding: "10px 14px" }}>DISTRICT (UPLOADED)</th>
-                    <th style={{ padding: "10px 14px" }}>FINISH LINE (MANAGER)</th>
+                    <th style={{ padding: "10px 14px" }}>MANAGER ENTRY</th>
                     <th style={{ padding: "10px 14px" }}>STATUS</th>
                     <th style={{ padding: "10px 14px", textAlign: "right" }}>ACTIONS</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleRows.map((row) => {
-                    const isEditingThis = editingRow === row.date;
-                    const rowBg = row.isExcluded
-                      ? "#f3f4f6"
-                      : row.status === "mismatch"
-                      ? "#fffbeb"
-                      : row.isNonOperating
-                      ? "#fafafa"
-                      : "#fff";
+                  {loading ? (
+                    <tr>
+                      <td colSpan="5" style={{ padding: "30px", textAlign: "center", color: "#6b7280" }}>
+                        Loading counts...
+                      </td>
+                    </tr>
+                  ) : (
+                    visibleRows.map((row) => {
+                      const isEditingThis = editingRow === row.date;
+                      const rowBg = row.isExcluded
+                        ? "#f3f4f6"
+                        : row.status === "mismatch"
+                        ? "#fffbeb"
+                        : row.isNonOperating
+                        ? "#fafafa"
+                        : "#fff";
 
-                    return (
-                      <tr
-                        key={row.date}
-                        style={{
-                          borderBottom: "1px solid #f3f4f6",
-                          background: rowBg,
-                          opacity: row.isExcluded ? 0.45 : 1,
-                        }}
-                      >
-                        <td style={{ padding: "10px 14px", fontWeight: "700", textDecoration: row.isExcluded ? "line-through" : "none" }}>
-                          {row.dayLabel}
-                        </td>
+                      return (
+                        <tr
+                          key={row.date}
+                          style={{
+                            borderBottom: "1px solid #f3f4f6",
+                            background: rowBg,
+                            opacity: row.isExcluded ? 0.45 : 1,
+                          }}
+                        >
+                          <td style={{ padding: "10px 14px", fontWeight: "700", textDecoration: row.isExcluded ? "line-through" : "none" }}>
+                            {row.dayLabel}
+                          </td>
 
-                        {/* DISTRICT */}
-                        <td style={{ padding: "10px 14px" }}>
-                          {row.dist ? (
-                            <div>
-                              <strong>{row.dist.lunch}</strong> Lunch &bull; <strong>{row.dist.breakfast}</strong> Brk
-                            </div>
-                          ) : (
-                            <span style={{ color: "#9ca3af", fontStyle: "italic", fontSize: "12px" }}>—</span>
-                          )}
-                        </td>
+                          {/* DISTRICT UPLOAD */}
+                          <td style={{ padding: "10px 14px" }}>
+                            {row.dist ? (
+                              <div>
+                                <strong>{row.dist.lunch}</strong> Lunch &bull; <strong>{row.dist.breakfast}</strong> Brk
+                              </div>
+                            ) : (
+                              <span style={{ color: "#9ca3af", fontStyle: "italic", fontSize: "12px" }}>—</span>
+                            )}
+                          </td>
 
-                        {/* FINISH LINE */}
-                        <td style={{ padding: "10px 14px" }}>
-                          {isEditingThis ? (
-                            <div style={{ display: "flex", gap: "6px" }}>
-                              <input
-                                type="number"
-                                placeholder="Brk"
-                                value={editValues.breakfast}
-                                onChange={(e) => setEditValues({ ...editValues, breakfast: e.target.value })}
-                                style={{ width: "60px", padding: "3px", fontSize: "12px", border: "1px solid #ccc", borderRadius: "4px" }}
-                              />
-                              <input
-                                type="number"
-                                placeholder="Lun"
-                                value={editValues.lunch}
-                                onChange={(e) => setEditValues({ ...editValues, lunch: e.target.value })}
-                                style={{ width: "60px", padding: "3px", fontSize: "12px", border: "1px solid #ccc", borderRadius: "4px" }}
-                              />
-                            </div>
-                          ) : row.fl ? (
-                            <div>
-                              <strong>{row.fl.lunch}</strong> Lunch &bull; <strong>{row.fl.breakfast}</strong> Brk
-                            </div>
-                          ) : (
-                            <span style={{ color: "#9ca3af", fontStyle: "italic", fontSize: "12px" }}>—</span>
-                          )}
-                        </td>
+                          {/* MANAGER ENTRY */}
+                          <td style={{ padding: "10px 14px" }}>
+                            {isEditingThis ? (
+                              <div style={{ display: "flex", gap: "6px" }}>
+                                <input
+                                  type="number"
+                                  placeholder="Brk"
+                                  value={editValues.breakfast}
+                                  onChange={(e) => setEditValues({ ...editValues, breakfast: e.target.value })}
+                                  style={{ width: "60px", padding: "3px", fontSize: "12px", border: "1px solid #ccc", borderRadius: "4px" }}
+                                />
+                                <input
+                                  type="number"
+                                  placeholder="Lun"
+                                  value={editValues.lunch}
+                                  onChange={(e) => setEditValues({ ...editValues, lunch: e.target.value })}
+                                  style={{ width: "60px", padding: "3px", fontSize: "12px", border: "1px solid #ccc", borderRadius: "4px" }}
+                                />
+                              </div>
+                            ) : row.mgr ? (
+                              <div>
+                                <strong>{row.mgr.lunch}</strong> Lunch &bull; <strong>{row.mgr.breakfast}</strong> Brk
+                              </div>
+                            ) : (
+                              <span style={{ color: "#9ca3af", fontStyle: "italic", fontSize: "12px" }}>—</span>
+                            )}
+                          </td>
 
-                        {/* STATUS */}
-                        <td style={{ padding: "10px 14px" }}>
-                          <span
-                            style={{
-                              display: "inline-block",
-                              padding: "2px 7px",
-                              borderRadius: "4px",
-                              fontSize: "10px",
-                              fontWeight: "800",
-                              backgroundColor:
-                                row.isExcluded
-                                  ? "#e5e7eb"
-                                  : row.status === "clean"
-                                  ? "#d1fae5"
-                                  : row.status === "mismatch"
-                                  ? "#fef3c7"
-                                  : "#f3f4f6",
-                              color:
-                                row.isExcluded
-                                  ? "#4b5563"
-                                  : row.status === "clean"
-                                  ? "#065f46"
-                                  : row.status === "mismatch"
-                                  ? "#92400e"
-                                  : "#6b7280",
-                            }}
-                          >
-                            {row.statusLabel}
-                          </span>
-                        </td>
+                          {/* STATUS */}
+                          <td style={{ padding: "10px 14px" }}>
+                            <span
+                              style={{
+                                display: "inline-block",
+                                padding: "2px 7px",
+                                borderRadius: "4px",
+                                fontSize: "10px",
+                                fontWeight: "800",
+                                backgroundColor:
+                                  row.isExcluded
+                                    ? "#e5e7eb"
+                                    : row.status === "clean"
+                                    ? "#d1fae5"
+                                    : row.status === "mismatch"
+                                    ? "#fef3c7"
+                                    : "#f3f4f6",
+                                color:
+                                  row.isExcluded
+                                    ? "#4b5563"
+                                    : row.status === "clean"
+                                    ? "#065f46"
+                                    : row.status === "mismatch"
+                                    ? "#92400e"
+                                    : "#6b7280",
+                              }}
+                            >
+                              {row.statusLabel}
+                            </span>
+                          </td>
 
-                        {/* ACTIONS */}
-                        <td style={{ padding: "10px 14px", textAlign: "right" }}>
-                          {isEditingThis ? (
-                            <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
-                              <button
-                                onClick={() => handleSaveEdit(row.date)}
-                                disabled={savingDate === row.date}
-                                style={{ padding: "4px 8px", borderRadius: "4px", background: "#059669", color: "#fff", border: "none", fontWeight: "700", cursor: "pointer", fontSize: "11px" }}
-                              >
-                                Save
-                              </button>
-                              <button
-                                onClick={() => setEditingRow(null)}
-                                style={{ padding: "4px 6px", borderRadius: "4px", background: "#e5e7eb", border: "none", cursor: "pointer", fontSize: "11px" }}
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          ) : (
-                            <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
-                              {row.status === "mismatch" && (
+                          {/* ACTIONS */}
+                          <td style={{ padding: "10px 14px", textAlign: "right" }}>
+                            {isEditingThis ? (
+                              <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
                                 <button
-                                  onClick={() => handleCopyDistrict(row)}
+                                  onClick={() => handleSaveEdit(row.date)}
                                   disabled={savingDate === row.date}
-                                  title="Sync Finish Line count to match District upload"
-                                  style={{ padding: "3px 8px", borderRadius: "4px", background: "#fef3c7", border: "1px solid #f59e0b", color: "#92400e", fontWeight: "700", cursor: "pointer", fontSize: "11px" }}
+                                  style={{ padding: "4px 8px", borderRadius: "4px", background: "#059669", color: "#fff", border: "none", fontWeight: "700", cursor: "pointer", fontSize: "11px" }}
                                 >
-                                  Use District
+                                  Save
                                 </button>
-                              )}
+                                <button
+                                  onClick={() => setEditingRow(null)}
+                                  style={{ padding: "4px 6px", borderRadius: "4px", background: "#e5e7eb", border: "none", cursor: "pointer", fontSize: "11px" }}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
+                                {row.status === "mismatch" && (
+                                  <button
+                                    onClick={() => handleCopyDistrict(row)}
+                                    disabled={savingDate === row.date}
+                                    title="Sync Manager count to match District upload"
+                                    style={{ padding: "3px 8px", borderRadius: "4px", background: "#fef3c7", border: "1px solid #f59e0b", color: "#92400e", fontWeight: "700", cursor: "pointer", fontSize: "11px" }}
+                                  >
+                                    Use District
+                                  </button>
+                                )}
 
-                              <button
-                                onClick={() => toggleExcludeDate(row.date)}
-                                title={row.isExcluded ? "Restore Date to Report" : "Exclude Date from Report"}
-                                style={{
-                                  padding: "3px 8px",
-                                  borderRadius: "4px",
-                                  background: row.isExcluded ? "#dbeafe" : "#fee2e2",
-                                  border: row.isExcluded ? "1px solid #93c5fd" : "1px solid #fca5a5",
-                                  color: row.isExcluded ? "#1e40af" : "#991b1b",
-                                  fontWeight: "700",
-                                  cursor: "pointer",
-                                  fontSize: "11px",
-                                }}
-                              >
-                                {row.isExcluded ? "Restore" : "🚫 Exclude"}
-                              </button>
+                                <button
+                                  onClick={() => toggleExcludeDate(row.date)}
+                                  title={row.isExcluded ? "Restore Date to Report" : "Exclude Date from Report"}
+                                  style={{
+                                    padding: "3px 8px",
+                                    borderRadius: "4px",
+                                    background: row.isExcluded ? "#dbeafe" : "#fee2e2",
+                                    border: row.isExcluded ? "1px solid #93c5fd" : "1px solid #fca5a5",
+                                    color: row.isExcluded ? "#1e40af" : "#991b1b",
+                                    fontWeight: "700",
+                                    cursor: "pointer",
+                                    fontSize: "11px",
+                                  }}
+                                >
+                                  {row.isExcluded ? "Restore" : "🚫 Exclude"}
+                                </button>
 
-                              <button
-                                onClick={() => {
-                                  setEditingRow(row.date);
-                                  setEditValues({
-                                    breakfast: row.dist?.breakfast ?? row.fl?.breakfast ?? 0,
-                                    lunch: row.dist?.lunch ?? row.fl?.lunch ?? 0,
-                                    supper: row.dist?.supper ?? row.fl?.supper ?? 0,
-                                  });
-                                }}
-                                style={{ padding: "3px 8px", borderRadius: "4px", background: "#f3f4f6", border: "1px solid #d1d5db", color: "#374151", fontWeight: "700", cursor: "pointer", fontSize: "11px" }}
-                              >
-                                Edit
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                                <button
+                                  onClick={() => {
+                                    setEditingRow(row.date);
+                                    setEditValues({
+                                      breakfast: row.dist?.breakfast ?? row.mgr?.breakfast ?? 0,
+                                      lunch: row.dist?.lunch ?? row.mgr?.lunch ?? 0,
+                                      supper: row.dist?.supper ?? row.mgr?.supper ?? 0,
+                                    });
+                                  }}
+                                  style={{ padding: "3px 8px", borderRadius: "4px", background: "#f3f4f6", border: "1px solid #d1d5db", color: "#374151", fontWeight: "700", cursor: "pointer", fontSize: "11px" }}
+                                >
+                                  Edit
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
