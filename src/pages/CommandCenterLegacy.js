@@ -1539,7 +1539,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
            ) : view === "monthly-scorecards" ? (
   <MonthlyScorecardsPage supervisorPin={supervisorPin} />
 ) : view === "meal-audit" ? (
-  <MealCountAuditPage supervisorPin={supervisorPin} />
+  <MealCountAuditPage supervisorPin={supervisorPin} schools={schools} />
 
           ) : view === "labor-optimization" ? (
             <LaborOptimizationPage supervisorPin={supervisorPin} />
