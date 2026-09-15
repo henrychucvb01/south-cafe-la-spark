@@ -16,6 +16,10 @@ import SupervisorLeaderboard from "../leaderboard/SupervisorLeaderboard";
 function isDemoSchool(school) {
   return String(school?.school_name || "").trim().toLowerCase() === "test high school";
 }
+import MonthlyScorecardsPage from "../monthlyScorecards/MonthlyScorecardsPage";
+import LaborOptimizationPage from "../monthlyScorecards/LaborOptimizationPage";
+import StaffManagementPage from "../staffing/StaffManagementPage";
+import MealCountAuditPage from "./MealCountAuditPage";
 
 function isFinishLineCommentItem(item) {
   return String(item?.item_key || "").endsWith("_comment");
@@ -693,6 +697,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
       setPointsSaving(false);
     }
   }
+  
 
   function getMonitoringCycleStart() {
     const now = new Date();
@@ -770,6 +775,8 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
       const now = new Date();
       const cycleStart = getMonitoringCycleStart();
 
+ 
+  
       // The sequence number makes each required monitoring unique.
       // Breakfast/Lunch will only ever be #1. Supper can be #1, #2, or #3.
       const sequence = currentCount + 1;
@@ -1244,6 +1251,37 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
           </button>
 
           <button
+            className={`command-nav-button ${view === "monthly-scorecards" ? "active" : ""}`}
+            onClick={() => setView("monthly-scorecards")}
+          >
+            <span>🗓</span>
+            Monthly Scorecards
+          </button>
+
+              <button
+  className={`command-nav-button ${view === "meal-audit" ? "active" : ""}`}
+  onClick={() => setView("meal-audit")}
+>
+  <span>🔍</span>
+  Meal Audit
+</button>
+          <button
+            className={`command-nav-button ${view === "labor-optimization" ? "active" : ""}`}
+            onClick={() => setView("labor-optimization")}
+          >
+            <span>⚙</span>
+            Labor Optimization
+          </button>
+
+          <button
+            className={`command-nav-button ${view === "staff-management" ? "active" : ""}`}
+            onClick={() => setView("staff-management")}
+          >
+            <span>👥</span>
+            Staffing
+          </button>
+
+          <button
             className={`command-nav-button ${
               view === "spark-points" ? "active" : ""
             }`}
@@ -1329,6 +1367,12 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
                 ? "South Café LA Location Directory"
                 : view === "feedback"
                 ? "South Café LA Feedback"
+                : view === "monthly-scorecards"
+                ? "South Café LA Monthly Scorecards"
+                : view === "labor-optimization"
+                ? "South Café LA Labor Optimization"
+                : view === "staff-management"
+                ? "South Café LA Staff Management"
                 : "South Café LA Command Center"}
             </h2>
 
@@ -1353,6 +1397,12 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
                 ? "Maintain the location records managers use across SPARK."
                 : view === "feedback"
                 ? "Review manager questions, suggestions, and reported problems."
+                : view === "monthly-scorecards"
+                ? "Import and verify recurring LAUSD monthly reports."
+                : view === "labor-optimization"
+                ? "Review staffing balance and recommended worker transfers."
+                : view === "staff-management"
+                ? "View and manage employee assignments across area schools."
                 : `Area operations overview for ${formatDate(
                     dashboardDate
                   )}.`}
@@ -1390,7 +1440,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
               </>
             )}
 
-            {view !== "pin-reset" && view !== "location-directory" && view !== "feedback" && view !== "leaderboard" && (
+            {view !== "pin-reset" && view !== "location-directory" && view !== "feedback" && view !== "leaderboard" && view !== "monthly-scorecards" && view !== "labor-optimization" && view !== "staff-management" && (
               <button
                 className="command-refresh"
                 onClick={
@@ -1485,6 +1535,16 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
             <SupervisorFeedbackPanel supervisorPin={supervisorPin} />
           ) : view === "leaderboard" ? (
             <SupervisorLeaderboard embedded />
+        
+           ) : view === "monthly-scorecards" ? (
+  <MonthlyScorecardsPage supervisorPin={supervisorPin} />
+) : view === "meal-audit" ? (
+  <MealCountAuditPage supervisorPin={supervisorPin} schools={schools} />
+
+          ) : view === "labor-optimization" ? (
+            <LaborOptimizationPage supervisorPin={supervisorPin} />
+          ) : view === "staff-management" ? (
+            <StaffManagementPage supervisorPin={supervisorPin} />
           ) : view === "location-directory" ? (
             <SupervisorLocationDirectory supervisorPin={supervisorPin} />
           ) : view === "meal-trends" ? (

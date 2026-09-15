@@ -1,42 +1,5 @@
-const VAGUE_WORDS = [
-  "rude",
-  "disrespectful",
-  "angry",
-  "mad",
-  "lazy",
-  "aggressive",
-  "hostile",
-  "unprofessional",
-  "bad attitude",
-  "argumentative",
-  "inappropriate",
-  "insubordinate",
-];
-
-const OBSERVABLE_WORDS = [
-  "yelled",
-  "raised voice",
-  "shouted",
-  "pointed",
-  "walked away",
-  "refused",
-  "said",
-  "stated",
-  "used",
-  "left",
-  "arrived",
-  "failed",
-  "did not",
-  "ignored",
-  "continued",
-  "threw",
-  "pushed",
-  "hit",
-  "touched",
-];
-
 function normalize(value = "") {
-  return value.trim().toLowerCase();
+  return String(value || "").trim().toLowerCase();
 }
 
 function hasAny(text, words) {
@@ -54,223 +17,135 @@ function addIssue(issues, issue) {
   });
 }
 
-export function checkIncidentDocumentation(form) {
+// Map vague words to helpful, concrete suggestions
+const VAGUE_WORD_COACHING = {
+  rude: "Instead of 'rude', describe their specific tone, gesture, or words (e.g., 'spoke in a raised voice' or 'rolled eyes').",
+  disrespectful: "Instead of 'disrespectful', state the exact action (e.g., 'ignored instruction' or 'turned back while being spoken to').",
+  angry: "Describe physical indicators (e.g., 'clenched fists', 'slammed tray', 'shouted') rather than assuming emotion.",
+  mad: "Describe physical indicators (e.g., 'clenched fists', 'slammed tray', 'shouted') rather than assuming emotion.",
+  lazy: "Instead of 'lazy', state the specific duty not done (e.g., 'did not begin dish line prep at 10:30 AM').",
+  aggressive: "Describe specific physical actions or statements rather than summarizing it as 'aggressive'.",
+  hostile: "State the concrete statements or conduct rather than concluding the environment was 'hostile'.",
+  unprofessional: "State the specific policy or task that was missed rather than using 'unprofessional'.",
+  "bad attitude": "Instead of 'bad attitude', note the direct behavior (e.g., 'did not respond to greetings and refused assigned station').",
+  argumentative: "State what directive was given and the employee's exact verbal refusal.",
+  insubordinate: "Clearly document: 1) What direct order you gave, and 2) Exactly what the employee did or said to refuse it.",
+};
+
+export function checkIncidentDocumentation(form, aiResult = null) {
   const issues = [];
 
-  const facts = normalize(form.observedFacts);
+  const facts = normalize(form.observedFacts || form.description || form.roughDescription);
   const action = normalize(form.managerAction);
-  const response = normalize(form.employeeResponse);
-  const witnesses = normalize(form.witnesses);
-  const exactWords = normalize(form.exactWords);
-  const impact = normalize(form.impact);
+  const employeeName = normalize(form.employeeName || form.involvedPeople);
+  const date = normalize(form.incidentDate);
 
-  // -----------------------------
-  // BASIC REQUIRED INFORMATION
-  // -----------------------------
+  // Read AI analysis either from the 2nd parameter or from properties inside form
+  const ai = aiResult || form._aiAnalysis || form.aiAnalysis || null;
 
-  if (!form.incidentDate) {
-    addIssue(issues, {
-      id: "missing-date",
-      level: "error",
-      title: "Incident date is missing",
-      message: "The record should identify when the incident occurred.",
-      field: "incidentDate",
-      followUpQuestion: "What date did the incident occur?",
-    });
-  }
-
-  if (!form.incidentWhere?.trim()) {
-    addIssue(issues, {
-      id: "missing-location",
-      level: "error",
-      title: "Location is missing",
-      message: "The record should identify where the incident occurred.",
-      field: "incidentWhere",
-      followUpQuestion: "Where exactly did the incident occur?",
-    });
-  }
-
-  if (!form.involvedPeople?.trim()) {
-    addIssue(issues, {
-      id: "missing-people",
-      level: "error",
-      title: "People involved are missing",
-      message: "Identify the employee and any other people directly involved.",
-      field: "involvedPeople",
-      followUpQuestion: "Who was directly involved in the incident?",
-    });
-  }
+  // -------------------------------------------------------------
+  // 1. CORE CHECKS (Only block if we literally don't know who or what happened)
+  // -------------------------------------------------------------
 
   if (!facts) {
     addIssue(issues, {
       id: "missing-facts",
       level: "error",
-      title: "Incident details are missing",
-      message: "Describe what was actually seen, heard, or documented.",
+      title: "Incident details needed",
+      message: "Please write a brief summary of what happened.",
       field: "observedFacts",
-      followUpQuestion: "What exactly did you personally see or hear?",
+      followUpQuestion: "What did you personally observe or hear?",
     });
   }
 
-  // -----------------------------
-  // VAGUE OR SUBJECTIVE LANGUAGE
-  // -----------------------------
+  if (!employeeName) {
+    addIssue(issues, {
+      id: "missing-people",
+      level: "warning", // Changed to warning so it doesn't hard-lock the manager
+      title: "Employee name missing",
+      message: "Adding the employee's name makes this an official record.",
+      field: "employeeName",
+      followUpQuestion: "Which employee was involved?",
+    });
+  }
 
-  if (facts && hasAny(facts, VAGUE_WORDS)) {
-    const hasObservableDetail = hasAny(facts, OBSERVABLE_WORDS);
+  if (!date) {
+    addIssue(issues, {
+      id: "missing-date",
+      level: "warning", // Changed to warning so it doesn't trap the user
+      title: "Date not specified",
+      message: "The date helps establish an accurate timeline.",
+      field: "incidentDate",
+      followUpQuestion: "What date did this take place?",
+    });
+  }
 
-    if (!hasObservableDetail) {
+  // -------------------------------------------------------------
+  // 2. HELPFUL WRITING COACH (Gives actual solutions, not just scolding)
+  // -------------------------------------------------------------
+
+  // If Gemini provided specific coaching, use it!
+  if (ai?.writingCoach && Array.isArray(ai.writingCoach) && ai.writingCoach.length > 0) {
+    ai.writingCoach.forEach((coach, idx) => {
       addIssue(issues, {
-        id: "vague-language",
+        id: `ai-coach-${idx}`,
         level: "warning",
-        title: "Add observable details",
-        message:
-          "The description contains a conclusion or opinion but does not clearly describe the behavior that was observed.",
+        title: `Clarify: "${coach.originalPhrase || coach.original}"`,
+        message: coach.suggestedReplacement 
+          ? `HR prefers observable facts. Consider: "${coach.suggestedReplacement}"`
+          : coach.whyProblematic || coach.coaching,
         field: "observedFacts",
-        followUpQuestion:
-          "What specifically did the employee say or do that led you to describe the behavior that way?",
       });
+    });
+  } else {
+    // Fallback: Check for vague words and give actionable advice
+    for (const [word, advice] of Object.entries(VAGUE_WORD_COACHING)) {
+      if (facts.includes(word)) {
+        addIssue(issues, {
+          id: `vague-${word}`,
+          level: "info",
+          title: `Tip for word: "${word}"`,
+          message: advice,
+          field: "observedFacts",
+        });
+        break; // Only show one coaching tip at a time so we don't overwhelm
+      }
     }
   }
 
-  // -----------------------------
-  // SHORT INCIDENT DESCRIPTION
-  // -----------------------------
+  // -------------------------------------------------------------
+  // 3. AI FOLLOW-UP QUESTIONS (Targeted, not generic)
+  // -------------------------------------------------------------
 
-  if (facts && facts.length < 40) {
-    addIssue(issues, {
-      id: "short-description",
-      level: "warning",
-      title: "The description may need more detail",
-      message:
-        "The incident description is very short. Consider adding specific actions, statements, timing, or sequence of events.",
-      field: "observedFacts",
-      followUpQuestion:
-        "Can you describe exactly what happened from the beginning of the incident to the end?",
-    });
-  }
-
-  // -----------------------------
-  // QUOTES
-  // -----------------------------
-
-  const quoteIndicators = [
-    "said",
-    "stated",
-    "told me",
-    "told",
-    "yelled",
-    "shouted",
-    "called",
-  ];
-
-  if (facts && hasAny(facts, quoteIndicators) && !exactWords) {
-    addIssue(issues, {
-      id: "possible-quote",
-      level: "info",
-      title: "Exact statement may be useful",
-      message: "You mentioned that someone spoke or made a statement.",
-      field: "exactWords",
-      followUpQuestion:
-        "Do you remember the exact words that were said? If not, leave this blank rather than guessing.",
-    });
-  }
-
-  // -----------------------------
-  // MANAGER RESPONSE
-  // -----------------------------
-
-  if (!action) {
-    addIssue(issues, {
-      id: "missing-manager-action",
-      level: "warning",
-      title: "Manager response is missing",
-      message: "If you took action after the incident, document what you did.",
-      field: "managerAction",
-      followUpQuestion:
-        "What action did you take after observing or learning about the incident?",
-    });
-  }
-
-  // -----------------------------
-  // DIRECTIVE GIVEN
-  // -----------------------------
-
-  const directiveWords = [
-    "instructed",
-    "directed",
-    "told",
-    "advised",
-    "ordered",
-    "asked",
-    "reminded",
-  ];
-
-  // -----------------------------
-  // REFUSAL / INSUBORDINATION DETAIL
-  // -----------------------------
-
-  const refusalWords = [
-    "refused",
-    "would not",
-    "didn't follow",
-    "did not follow",
-    "ignored",
-  ];
-
-  if (facts && hasAny(facts, refusalWords)) {
-    if (!action) {
+  if (ai?.followUpQuestions && Array.isArray(ai.followUpQuestions) && ai.followUpQuestions.length > 0) {
+    ai.followUpQuestions.slice(0, 2).forEach((q, idx) => {
       addIssue(issues, {
-        id: "directive-needed",
-        level: "warning",
-        title: "Clarify the directive",
-        message:
-          "The description suggests that an employee may not have followed a direction.",
-        field: "managerAction",
-        followUpQuestion:
-          "What specific instruction or directive was given to the employee?",
+        id: `ai-q-${idx}`,
+        level: "info",
+        title: "Helpful detail to consider",
+        message: q,
+        field: "observedFacts",
+        followUpQuestion: q,
       });
-    }
-  }
-
-  // -----------------------------
-  // WITNESSES
-  // -----------------------------
-
-  if (!witnesses) {
-    addIssue(issues, {
-      id: "witness-check",
-      level: "info",
-      title: "Confirm witnesses",
-      message: "No witnesses are currently listed.",
-      field: "witnesses",
-      followUpQuestion:
-        "Did anyone else see or hear the incident? If not, you can leave this blank.",
     });
-  }
-
-  // -----------------------------
-  // WORKPLACE IMPACT
-  // -----------------------------
-
-  if (!impact) {
+  } else if (!action) {
+    // Friendly reminder about manager action only if not already documented
     addIssue(issues, {
-      id: "impact-check",
+      id: "manager-action-tip",
       level: "info",
-      title: "Consider documenting the impact",
-      message:
-        "If the incident affected service, safety, teamwork, productivity, or operations, that information may be useful.",
-      field: "impact",
-      followUpQuestion:
-        "Did the incident affect meal service, safety, teamwork, productivity, or cafeteria operations?",
+      title: "Did you take immediate action?",
+      message: "If you gave a directive or spoke with the employee, note it here.",
+      field: "managerAction",
+      followUpQuestion: "What did you say or do when this happened?",
     });
   }
 
   return {
     issues,
-    errors: issues.filter((issue) => issue.level === "error"),
-    warnings: issues.filter((issue) => issue.level === "warning"),
-    info: issues.filter((issue) => issue.level === "info"),
-    canContinue: issues.filter((issue) => issue.level === "error").length === 0,
+    errors: issues.filter((i) => i.level === "error"),
+    warnings: issues.filter((i) => i.level === "warning"),
+    info: issues.filter((i) => i.level === "info"),
+    // Now the manager is NEVER unfairly locked out as long as there is some description!
+    canContinue: issues.filter((i) => i.level === "error").length === 0,
   };
 }

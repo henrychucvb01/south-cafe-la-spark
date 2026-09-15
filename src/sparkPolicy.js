@@ -1,6 +1,6 @@
 export const SCHOOL_YEAR_START = "2026-08-12";
 export const SCHOOL_YEAR_END = "2027-06-04";
-export const REWARD_LAUNCH_DATE = "2026-09-03";
+export const REWARD_LAUNCH_DATE = "2026-08-12";
 export const FULL_FINISH_LINE_POINTS = 5;
 export const LATE_FINISH_LINE_POINTS = 2;
 

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { awardSparkPoints } from "../sparkPoints";
 import { REWARD_LAUNCH_DATE, isStreakEligibleCheck } from "../sparkPolicy";
+import { getPerfectMonthCandidates, getPerfectWeekCandidates } from "../finishLineStreaks";
 
 import {
   LineChart,
@@ -126,17 +127,6 @@ function SchoolHub({
     return previous;
   }
 
-  function getMondayForDate(date) {
-    const monday = new Date(date);
-    const day = monday.getDay();
-    const distanceFromMonday = day === 0 ? 6 : day - 1;
-
-    monday.setDate(monday.getDate() - distanceFromMonday);
-    monday.setHours(12, 0, 0, 0);
-
-    return monday;
-  }
-
   async function awardPerfectWeekBonuses({
     completedDates,
     excludedDates,
@@ -146,71 +136,25 @@ function SchoolHub({
       return;
     }
 
-    const todayDate = new Date(`${todayString}T12:00:00`);
+    for (const award of getPerfectWeekCandidates({completedDates,excludedDates,todayString,rewardLaunchDate:REWARD_LAUNCH_DATE})) {
+      await awardSparkPoints({
+        locationId:location.id,points:award.points,pointType:award.pointType,
+        description:"Perfect Finish Line Week",serviceDate:award.serviceDate,
+        employeeId:employee?.id||null,employeeName:employee?.employee_name||"Covering Employee",
+        uniqueKey:`perfect-week-${location.id}-${award.period}`,
+      });
+    }
+  }
 
-    // Look back far enough to cover the same Finish Line history window.
-    const oldestDate = new Date(todayDate);
-    oldestDate.setDate(oldestDate.getDate() - 100);
-
-    let monday = getMondayForDate(oldestDate);
-    const currentWeekMonday = getMondayForDate(todayDate);
-
-    while (monday <= currentWeekMonday) {
-      const friday = new Date(monday);
-      friday.setDate(friday.getDate() + 4);
-
-      // Do not award a week until Friday has arrived.
-      if (friday <= todayDate) {
-        const fridayString = getDateString(friday);
-        if (fridayString < REWARD_LAUNCH_DATE) {
-          monday = new Date(monday);
-          monday.setDate(monday.getDate() + 7);
-          continue;
-        }
-
-        let weekQualifies = true;
-        let completedDayCount = 0;
-
-        for (let offset = 0; offset < 5; offset += 1) {
-          const serviceDate = new Date(monday);
-          serviceDate.setDate(serviceDate.getDate() + offset);
-
-          const serviceDateString = getDateString(serviceDate);
-
-          // Approved excluded/unassigned dates are neutral:
-          // they do not break the week and do not count as completed days.
-          if (excludedDates.has(serviceDateString)) {
-            continue;
-          }
-
-          if (!completedDates.has(serviceDateString)) {
-            weekQualifies = false;
-            break;
-          }
-
-          completedDayCount += 1;
-        }
-
-        // Require at least one real completed Finish Line day so an entirely
-        // excluded week cannot earn a Perfect Week bonus.
-        if (weekQualifies && completedDayCount > 0) {
-          const mondayString = getDateString(monday);
-
-          await awardSparkPoints({
-            locationId: location.id,
-            points: 25,
-            pointType: "perfect_week",
-            description: "Perfect Finish Line Week",
-            serviceDate: fridayString,
-            employeeId: employee?.id || null,
-            employeeName: employee?.employee_name || "Covering Employee",
-            uniqueKey: `perfect-week-${location.id}-${mondayString}`,
-          });
-        }
-      }
-
-      monday = new Date(monday);
-      monday.setDate(monday.getDate() + 7);
+  async function awardPerfectMonthBonuses({completedDates,excludedDates,todayString}) {
+    if(!location?.id)return;
+    for(const award of getPerfectMonthCandidates({completedDates,excludedDates,todayString,rewardLaunchDate:REWARD_LAUNCH_DATE})){
+      await awardSparkPoints({
+        locationId:location.id,points:award.points,pointType:award.pointType,
+        description:"Perfect Finish Line Month",serviceDate:award.serviceDate,
+        employeeId:employee?.id||null,employeeName:employee?.employee_name||"Covering Employee",
+        uniqueKey:`perfect-month-${location.id}-${award.period}`,
+      });
     }
   }
 
@@ -243,7 +187,7 @@ function SchoolHub({
         .gte("service_date", REWARD_LAUNCH_DATE)
         .lte("service_date", today)
         .order("service_date", { ascending: false })
-        .limit(100);
+        .limit(300);
 
       if (streakError) {
         throw streakError;
@@ -306,6 +250,7 @@ function SchoolHub({
         excludedDates,
         todayString: today,
       });
+      await awardPerfectMonthBonuses({completedDates,excludedDates,todayString:today});
 
       // Refresh the visible school total in case a weekly bonus was just earned.
       await loadSparkPoints();
