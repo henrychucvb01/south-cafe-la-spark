@@ -1,6 +1,7 @@
 import { buildSchoolScorecard, getMplhTarget } from "./monthlyScorecardCalculations";
 
 const n = (value) => Number(value) || 0;
+export const MPLH_INTERVENTION_THRESHOLD = 6;
 
 const isVacant = (position) =>
   String(position?.employee_name || "").trim().toUpperCase() === "VACANT";
@@ -17,7 +18,7 @@ const isMovableWorker = (position) =>
   !isSenior(position) &&
   /food services? worker/i.test(String(position?.classification_title || ""));
 
-const mplhFor = (equivalents, hours) => (hours > 0 ? equivalents / hours : null);
+const mean = (values) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
 
 const distanceToRange = (value, target) =>
   value < target.min ? target.min - value : value > target.max ? value - target.max : 0;
@@ -35,7 +36,7 @@ function makeSchoolState(school, dataset, startDate, endDate) {
   const card = buildSchoolScorecard(school, dataset, { startDate, endDate });
   const positions = (dataset.staffing_positions || []).filter(
   (position) =>
-    String(position.location_id) === String(school.id) &&
+    String(position.location_id) === String(school.location_id) &&
     position.active !== false &&
     !isVacant(position)
   );
@@ -47,15 +48,25 @@ function makeSchoolState(school, dataset, startDate, endDate) {
   const fixedHours = fixedPositions.reduce((sum, position) => sum + n(position.assigned_daily_hours), 0);
   const movableHours = movableWorkers.reduce((sum, position) => sum + n(position.assigned_daily_hours), 0);
 
-  const days = card?.current?.operatingDays || 0;
-  const averageEquivalents = days
-    ? (card.current.totals.breakfast * 0.66 +
-        card.current.totals.lunch +
-        card.current.totals.supper) /
-      days
-    : null;
+  const laborByDate = new Map();
+  (dataset.labor_hours || []).forEach((row) => {
+    if (String(row.location_id) === String(school.location_id)) {
+      laborByDate.set(String(row.service_date).slice(0, 10), row);
+    }
+  });
+  const dailyBaselines = (card?.current?.participationTrend || []).map((day) => {
+    const adjustment = laborByDate.get(day.date);
+    return {
+      date: day.date,
+      equivalents: n(day.breakfast) * 0.66 + n(day.lunch) + n(day.supper),
+      hours:
+        n(school.budget_labor_hours) +
+        n(adjustment?.additional_worker_hours) +
+        n(adjustment?.manager_overtime_hours),
+    };
+  }).filter((day) => day.hours > 0);
 
- const currentMplh = card?.current?.averageMplh ?? null;
+  const currentMplh = card?.current?.averageMplh ?? null;
 
   return {
   school,
@@ -67,9 +78,10 @@ function makeSchoolState(school, dataset, startDate, endDate) {
   assignedHours,
   fixedHours,
   movableHours,
-  averageEquivalents,
+  dailyBaselines,
   currentMplh,
   projectedHours: assignedHours,
+  projectedDailyHoursDelta: 0,
   projectedMplh: currentMplh,
   incoming: [],
   outgoing: [],
@@ -81,22 +93,34 @@ const validState = (state) =>
     state?.target &&
     state.target.min !== null &&
     state.target.max !== null &&
-    state.averageEquivalents !== null &&
+    state.currentMplh !== null &&
+    state.dailyBaselines.length > 0 &&
     state.projectedHours > 0
   );
+
+const projectedMplhFor = (state, dailyHoursDelta) => {
+  const daily = state.dailyBaselines
+    .map((row) => row.hours + dailyHoursDelta > 0 ? row.equivalents / (row.hours + dailyHoursDelta) : null)
+    .filter((value) => value !== null);
+  return mean(daily);
+};
 
 function findBestMove(states, usedEmployees) {
   let best = null;
 
   // Senders MUST be below target.min (overstaffed)
   const senders = states.filter(
-    (state) => validState(state) && state.projectedMplh < state.target.min
+    (state) =>
+      validState(state) &&
+      state.projectedMplh < state.target.min - MPLH_INTERVENTION_THRESHOLD
   );
 
   // Receivers MUST be strictly ABOVE target.max (understaffed)
   // Schools already within [target.min, target.max] are NEVER receivers
   const receivers = states.filter(
-    (state) => validState(state) && state.projectedMplh > state.target.max
+    (state) =>
+      validState(state) &&
+      state.projectedMplh > state.target.max + MPLH_INTERVENTION_THRESHOLD
   );
 
   for (const sender of senders) {
@@ -108,7 +132,10 @@ function findBestMove(states, usedEmployees) {
       if (hours <= 0 || sender.projectedHours - hours <= sender.fixedHours) continue;
 
       const sendingProjectedHours = sender.projectedHours - hours;
-      const sendingProjectedMplh = mplhFor(sender.averageEquivalents, sendingProjectedHours);
+      const sendingProjectedMplh = projectedMplhFor(
+        sender,
+        sender.projectedDailyHoursDelta - hours
+      );
 
       // Sender cannot be stripped past its target max
       if (sendingProjectedMplh > sender.target.max) continue;
@@ -117,7 +144,10 @@ function findBestMove(states, usedEmployees) {
         if (receiver === sender) continue;
 
         const receivingProjectedHours = receiver.projectedHours + hours;
-        const receivingProjectedMplh = mplhFor(receiver.averageEquivalents, receivingProjectedHours);
+        const receivingProjectedMplh = projectedMplhFor(
+          receiver,
+          receiver.projectedDailyHoursDelta + hours
+        );
 
         // HARD PROTECTION: Do not dump workers on a receiver if it crashes below target.min
         // Allow at most 0.5 MPLH buffer below min so discrete shifts don't block good moves
@@ -170,6 +200,12 @@ export function buildLaborOptimization(dataset, month, startDate, endDate) {
 
   const transfers = [];
   const usedEmployees = new Set();
+  const qualifyingSenders = states.filter(
+    (state) => validState(state) && state.currentMplh < state.target.min - MPLH_INTERVENTION_THRESHOLD
+  ).length;
+  const qualifyingReceivers = states.filter(
+    (state) => validState(state) && state.currentMplh > state.target.max + MPLH_INTERVENTION_THRESHOLD
+  ).length;
 
   while (true) {
     const move = findBestMove(states, usedEmployees);
@@ -179,6 +215,8 @@ export function buildLaborOptimization(dataset, month, startDate, endDate) {
 
     move.sender.projectedHours -= move.hours;
     move.receiver.projectedHours += move.hours;
+    move.sender.projectedDailyHoursDelta -= move.hours;
+    move.receiver.projectedDailyHoursDelta += move.hours;
 
     move.sender.projectedMplh = move.sendingProjectedMplh;
     move.receiver.projectedMplh = move.receivingProjectedMplh;
@@ -230,7 +268,7 @@ export function buildLaborOptimization(dataset, month, startDate, endDate) {
     };
   });
 
-  return { recommendations, transfers };
+  return { recommendations, transfers, qualifyingSenders, qualifyingReceivers };
 }
 
 export { isMovableWorker };
