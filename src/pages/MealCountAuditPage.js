@@ -1,17 +1,10 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { supabase } from "../supabaseClient";
-import { loadMonthlyScorecardDataset } from "../monthlyScorecards/monthlyScorecardService";
+import { loadOfficialMealCounts } from "../monthlyScorecards/monthlyScorecardService";
 
 function isDemoSchool(school) {
   return String((school && school.school_name) || "").trim().toLowerCase() === "test high school";
 }
-
-const schoolYearFor = (value) => {
-  const date = new Date(`${value}T12:00:00`);
-  const year = date.getFullYear();
-  const start = date.getMonth() >= 6 ? year : year - 1;
-  return `${start}-${String(start + 1).slice(-2)}`;
-};
 
 export default function MealCountAuditPage({ supervisorPin, schools: propSchools = [] }) {
   const [selectedLocationId, setSelectedLocationId] = useState("");
@@ -19,7 +12,8 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
 
   const [loading, setLoading] = useState(false);
   const [savingDate, setSavingDate] = useState(null);
-  const [districtDataset, setDistrictDataset] = useState(null);
+  const [officialMealCounts, setOfficialMealCounts] = useState([]);
+  const [officialLoadError, setOfficialLoadError] = useState("");
   const [managerMealCounts, setManagerMealCounts] = useState([]);
   const [excludedDates, setExcludedDates] = useState(new Set());
   const [showNonOperating, setShowNonOperating] = useState(false);
@@ -49,16 +43,13 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
   }, [schools, selectedLocationId]);
 
   // 2. Month Weekdays & Formats
-  const { startDate, endDate, allMonthWeekdays, schoolYear, reportingMonth } = useMemo(() => {
+  const { startDate, endDate, allMonthWeekdays } = useMemo(() => {
     const parts = selectedMonth.split("-").map(Number);
     const y = parts[0];
     const m = parts[1];
     const lastDay = new Date(y, m, 0).getDate();
     const start = `${y}-${String(m).padStart(2, "0")}-01`;
     const end = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
-
-    const yr = schoolYearFor(start);
-    const repMonth = `${selectedMonth}-01`;
 
     const dates = [];
     const curr = new Date(`${start}T12:00:00`);
@@ -70,22 +61,28 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
       }
       curr.setDate(curr.getDate() + 1);
     }
-    return { startDate: start, endDate: end, allMonthWeekdays: dates, schoolYear: yr, reportingMonth: repMonth };
+    return { startDate: start, endDate: end, allMonthWeekdays: dates };
   }, [selectedMonth]);
 
-  // 3. Load District Uploaded Dataset (production_rows)
+  // 3. Load the separate, authoritative Official Meal Count upload.
   useEffect(() => {
-    async function loadDistrictUpload() {
+    let active = true;
+    async function loadOfficialUpload() {
       if (!supervisorPin) return;
       try {
-        const data = await loadMonthlyScorecardDataset(supervisorPin, schoolYear, reportingMonth);
-        setDistrictDataset(data);
+        setOfficialLoadError("");
+        const data = await loadOfficialMealCounts(supervisorPin, startDate, endDate);
+        if (active) setOfficialMealCounts(data);
       } catch (err) {
-        console.error("District dataset error:", err);
+        if (active) {
+          setOfficialMealCounts([]);
+          setOfficialLoadError(err.message || "Official Meal Count upload could not be loaded.");
+        }
       }
     }
-    loadDistrictUpload();
-  }, [supervisorPin, schoolYear, reportingMonth]);
+    loadOfficialUpload();
+    return () => { active = false; };
+  }, [supervisorPin, startDate, endDate]);
 
   // 4. Load Manager Entries from meal_counts
   useEffect(() => {
@@ -103,7 +100,9 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
           .order("service_date", { ascending: true });
 
         if (!error && data) {
-          setManagerMealCounts(data);
+          setManagerMealCounts(data.filter((row) =>
+            String(row.entered_by || "").toLowerCase() !== "historical workbook import"
+          ));
         } else {
           setManagerMealCounts([]);
         }
@@ -119,44 +118,26 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
 
   const currentSchool = schools.find((s) => String(s.id) === String(selectedLocationId));
 
-  // 5. Match District Upload against Manager Counts
+  // 5. Match Official Meal Count Upload against Manager Counts
   const comparisonRows = useMemo(() => {
     if (!currentSchool) return [];
 
     const locId = String(currentSchool.id);
-    const siteId = String(currentSchool.source_site_id);
-    const locCode = String(currentSchool.location_code);
-    const dirId = String(currentSchool.directory_id);
 
-    const validKeys = new Set([locId, siteId, locCode, dirId].filter(Boolean));
-
-    // A. Real Uploaded District Rows (from production_rows)
+    // A. One official row per locations.id + service_date. The database unique
+    // constraint prevents duplicate representations of the same official count.
     const distMap = new Map();
-    const prodRows = ((districtDataset && districtDataset.production_rows) || []).filter((r) => {
-      const id1 = String((r && r.location_id) || "");
-      const id2 = String((r && r.source_site_id) || "");
-      return validKeys.has(id1) || validKeys.has(id2);
-    });
-
-    prodRows.forEach((row) => {
-      const d = String(row.production_date || row.service_date || row.date || "").slice(0, 10);
-      const meal = String(row.meal_type || "").toLowerCase();
-      const count = Number(row.meals_served != null ? row.meals_served : (row.served != null ? row.served : 0));
-
-      if (!distMap.has(d)) {
-        distMap.set(d, { breakfast: 0, lunch: 0, supper: 0, hasUpload: false });
-      }
-      const entry = distMap.get(d);
-      if (meal.indexOf("breakfast") !== -1) {
-        entry.breakfast = Math.max(entry.breakfast, count);
-        entry.hasUpload = true;
-      } else if (meal.indexOf("lunch") !== -1) {
-        entry.lunch = Math.max(entry.lunch, count);
-        entry.hasUpload = true;
-      } else if (meal.indexOf("supper") !== -1) {
-        entry.supper = Math.max(entry.supper, count);
-        entry.hasUpload = true;
-      }
+    officialMealCounts
+      .filter((row) => String(row.location_id) === locId)
+      .forEach((row) => {
+        const date = String(row.service_date || "").slice(0, 10);
+        distMap.set(date, {
+          breakfast: Number(row.breakfast_count || 0),
+          lunch: Number(row.lunch_count || 0),
+          supper: Number(row.supper_count || 0),
+          hasUpload: true,
+          source: row.source_label,
+        });
     });
 
     // B. Manager Entries (from meal_counts)
@@ -177,8 +158,8 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
       const mgr = managerMap.get(date) || null;
       const isExcluded = excludedDates.has(date);
 
-      const hasDist = dist && (dist.lunch > 0 || dist.breakfast > 0);
-      const hasMgr = mgr && (mgr.lunch > 0 || mgr.breakfast > 0);
+      const hasDist = Boolean(dist);
+      const hasMgr = Boolean(mgr);
       const isNonOperating = !hasDist && !hasMgr;
 
       const distLunch = dist ? dist.lunch : 0;
@@ -188,7 +169,10 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
 
       const diffLunch = distLunch - mgrLunch;
       const diffBreakfast = distBreakfast - mgrBreakfast;
-      const hasMismatch = hasDist && hasMgr && (Math.abs(diffLunch) >= 5 || Math.abs(diffBreakfast) >= 5);
+      const distSupper = dist ? dist.supper : 0;
+      const mgrSupper = mgr ? mgr.supper : 0;
+      const diffSupper = distSupper - mgrSupper;
+      const hasMismatch = hasDist && hasMgr && (diffBreakfast !== 0 || diffLunch !== 0 || diffSupper !== 0);
 
       let status = "clean";
       let statusLabel = "Match";
@@ -201,13 +185,13 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
         statusLabel = "Non-Operating Day";
       } else if (hasMismatch) {
         status = "mismatch";
-        statusLabel = `Diff: ${diffLunch >= 0 ? "+" : ""}${diffLunch} lunch`;
+        statusLabel = `B ${diffBreakfast >= 0 ? "+" : ""}${diffBreakfast} · L ${diffLunch >= 0 ? "+" : ""}${diffLunch} · S ${diffSupper >= 0 ? "+" : ""}${diffSupper}`;
       } else if (hasDist && !hasMgr) {
         status = "clean";
-        statusLabel = "District Verified";
+        statusLabel = "Official count available";
       } else if (!hasDist && hasMgr) {
         status = "pending_dist";
-        statusLabel = "District Pending";
+        statusLabel = "Official count pending";
       }
 
       return {
@@ -225,7 +209,7 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
         isNonOperating,
       };
     });
-  }, [currentSchool, districtDataset, managerMealCounts, allMonthWeekdays, excludedDates]);
+  }, [currentSchool, officialMealCounts, managerMealCounts, allMonthWeekdays, excludedDates]);
 
   function toggleExcludeDate(date) {
     setExcludedDates((prev) => {
@@ -327,10 +311,10 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
         <div>
           <h1 style={{ margin: 0, fontSize: "22px", fontWeight: "800", color: "#111827" }}>
-            District Meal Count Audit & Reconciliation
+            Meal Count Audit & Reconciliation
           </h1>
           <p style={{ margin: "3px 0 0 0", fontSize: "13px", color: "#6b7280" }}>
-            Reconciles uploaded district production records against manager entries.
+            Compares the Official Meal Count upload with manager-entered SPARK counts.
           </p>
         </div>
 
@@ -350,6 +334,11 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
       {feedback && (
         <div style={{ padding: "8px 14px", background: feedback.indexOf("failed") !== -1 || feedback.indexOf("Error") !== -1 ? "#fee2e2" : "#dcfce7", color: feedback.indexOf("failed") !== -1 || feedback.indexOf("Error") !== -1 ? "#991b1b" : "#166534", borderRadius: "6px", marginBottom: "14px", fontSize: "12px", fontWeight: "700" }}>
           {feedback}
+        </div>
+      )}
+      {officialLoadError && (
+        <div style={{ padding: "8px 14px", background: "#fee2e2", color: "#991b1b", borderRadius: "6px", marginBottom: "14px", fontSize: "12px", fontWeight: "700" }}>
+          Official Meal Count data is unavailable. The Use District action remains disabled. {officialLoadError}
         </div>
       )}
 
@@ -425,7 +414,7 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
                 <thead>
                   <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb", color: "#4b5563", fontSize: "11px" }}>
                     <th style={{ padding: "10px 14px" }}>DATE</th>
-                    <th style={{ padding: "10px 14px" }}>DISTRICT (UPLOADED)</th>
+                    <th style={{ padding: "10px 14px" }}>OFFICIAL MEAL COUNT</th>
                     <th style={{ padding: "10px 14px" }}>MANAGER ENTRY</th>
                     <th style={{ padding: "10px 14px" }}>STATUS</th>
                     <th style={{ padding: "10px 14px", textAlign: "right" }}>ACTIONS</th>
@@ -466,11 +455,11 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
                             {row.dayLabel}
                           </td>
 
-                          {/* DISTRICT UPLOAD */}
+                          {/* OFFICIAL MEAL COUNT UPLOAD */}
                           <td style={{ padding: "10px 14px" }}>
                             {row.dist ? (
                               <div>
-                                <strong>{row.dist.lunch}</strong> Lunch &bull; <strong>{row.dist.breakfast}</strong> Brk
+                                <strong>{row.dist.breakfast}</strong> Breakfast &bull; <strong>{row.dist.lunch}</strong> Lunch &bull; <strong>{row.dist.supper}</strong> Supper
                               </div>
                             ) : (
                               <span style={{ color: "#9ca3af", fontStyle: "italic", fontSize: "12px" }}>—</span>
@@ -498,7 +487,7 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
                               </div>
                             ) : row.mgr ? (
                               <div>
-                                <strong>{row.mgr.lunch}</strong> Lunch &bull; <strong>{row.mgr.breakfast}</strong> Brk
+                                <strong>{row.mgr.breakfast}</strong> Breakfast &bull; <strong>{row.mgr.lunch}</strong> Lunch &bull; <strong>{row.mgr.supper}</strong> Supper
                               </div>
                             ) : (
                               <span style={{ color: "#9ca3af", fontStyle: "italic", fontSize: "12px" }}>—</span>
@@ -559,9 +548,9 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
                                 {row.status === "mismatch" && (
                                   <button
                                     onClick={() => handleCopyDistrict(row)}
-                                    disabled={savingDate === row.date}
-                                    title="Sync Manager count to match District upload"
-                                    style={{ padding: "3px 8px", borderRadius: "4px", background: "#fef3c7", border: "1px solid #f59e0b", color: "#92400e", fontWeight: "700", cursor: "pointer", fontSize: "11px" }}
+                                    disabled
+                                    title="Disabled until the separate Official Meal Count source has been verified after migration"
+                                    style={{ padding: "3px 8px", borderRadius: "4px", background: "#f3f4f6", border: "1px solid #d1d5db", color: "#6b7280", fontWeight: "700", cursor: "not-allowed", fontSize: "11px", opacity: 0.7 }}
                                   >
                                     Use District
                                   </button>
