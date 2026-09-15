@@ -1,1 +1,0 @@
-Temporary safety marker. FinishLinePage.js restoration follows in the next commit.
