@@ -34,10 +34,10 @@ function makeSchoolState(school, dataset, startDate, endDate) {
   const target = getMplhTarget(school);
   const card = buildSchoolScorecard(school, dataset, { startDate, endDate });
   const positions = (dataset.staffing_positions || []).filter(
-    (position) =>
-      String(position.source_site_id) === String(school.source_site_id) &&
-      position.active !== false &&
-      !isVacant(position)
+  (position) =>
+    String(position.location_id) === String(school.id) &&
+    position.active !== false &&
+    !isVacant(position)
   );
 
   const fixedPositions = positions.filter((position) => isManager(position) || isSenior(position));
