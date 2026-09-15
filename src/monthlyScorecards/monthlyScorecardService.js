@@ -57,6 +57,18 @@ export async function loadMonthlyScorecardDataset(supervisorPin,schoolYear,repor
   return data || {};
 }
 
+export async function loadManagerMonthlyScorecardDataset({ managerPin, employeeId, locationId, schoolYear, reportingMonth }) {
+  const { data, error } = await supabase.rpc("get_manager_monthly_scorecard_dataset", {
+    p_manager_pin: managerPin,
+    p_employee_id: employeeId || null,
+    p_location_id: locationId,
+    p_school_year: schoolYear,
+    p_reporting_month: reportingMonth,
+  });
+  if (error) throw error;
+  return data || {};
+}
+
 export async function loadOfficialMealCounts(supervisorPin, startDate, endDate) {
   const { data, error } = await supabase.rpc("get_official_meal_counts", {
     p_supervisor_pin: supervisorPin,

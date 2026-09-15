@@ -109,7 +109,7 @@ function ManagerPinPage({ location, employee, onSuccess, onBack }) {
           return;
         }
 
-        onSuccess();
+        onSuccess(pin);
       }
     } catch (error) {
       console.error("Manager PIN error:", error);
@@ -142,7 +142,7 @@ function ManagerPinPage({ location, employee, onSuccess, onBack }) {
           return;
         }
 
-        onSuccess();
+        onSuccess(pinToVerify);
         return;
       }
 
@@ -161,7 +161,7 @@ function ManagerPinPage({ location, employee, onSuccess, onBack }) {
         return;
       }
 
-      onSuccess();
+      onSuccess(pinToVerify);
     } catch (error) {
       console.error("Manager PIN error:", error);
       setMessage(

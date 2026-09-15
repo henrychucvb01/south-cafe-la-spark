@@ -18,11 +18,13 @@ import LocationInformationPage from "./pages/LocationInformationPage";
 import OperationsHelpPage from "./pages/OperationsHelpPage";
 import HowToEarnPointsPage from "./pages/HowToEarnPointsPage"; // <--- Added
 import ManagerFeedback from "./feedback/ManagerFeedback";
+import ManagerMonthlyScorecardPage from "./monthlyScorecards/ManagerMonthlyScorecardPage";
 
 function App() {
   const [screen, setScreen] = useState("login");
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [managerSessionPin, setManagerSessionPin] = useState("");
   const [supervisorSessionPin, setSupervisorSessionPin] = useState("");
   const [editingCheck, setEditingCheck] = useState(null);
   const [installPrompt, setInstallPrompt] = useState(null);
@@ -45,14 +47,15 @@ function App() {
     alert("To install SPARK on this computer, click the Install icon in the browser address bar, then select Install.");
   }
 
-  function resetToLogin() { setSelectedLocation(null); setSelectedEmployee(null); setSupervisorSessionPin(""); setEditingCheck(null); setScreen("login"); }
+  function resetToLogin() { setSelectedLocation(null); setSelectedEmployee(null); setManagerSessionPin(""); setSupervisorSessionPin(""); setEditingCheck(null); setScreen("login"); }
   function managerPage(content) { return <>{content}<ManagerFeedback location={selectedLocation} employee={selectedEmployee} pageRoute={screen} /></>; }
 
   if (screen === "login") return <LoginPage canInstall={canInstall} onInstall={handleInstallApp} onLocationSelected={(location) => { setSelectedLocation(location); setSelectedEmployee(null); setEditingCheck(null); setScreen("employeeSelect"); }} onSupervisor={() => { setEditingCheck(null); setScreen("supervisorPin"); }} />;
   if (screen === "supervisorPin") return <SupervisorPinPage onSuccess={(verifiedPin) => { setSupervisorSessionPin(verifiedPin); setScreen("commandCenter"); }} onBack={() => { setSupervisorSessionPin(""); setScreen("login"); }} />;
   if (screen === "employeeSelect") return <EmployeeSelectPage location={selectedLocation} onEmployeeSelected={(employee) => { setSelectedEmployee(employee); setEditingCheck(null); setScreen("managerPin"); }} onBack={resetToLogin} />;
-  if (screen === "managerPin") return <ManagerPinPage location={selectedLocation} employee={selectedEmployee} onSuccess={() => setScreen("homeBase")} onBack={() => { setSelectedEmployee(null); setScreen("employeeSelect"); }} />;
-  if (screen === "homeBase") return managerPage(<HomeBase location={selectedLocation} employee={selectedEmployee} onSchoolHub={() => setScreen("schoolHub")} onIncidentHelper={() => setScreen("incidentHelper")} onDailyBites={() => setScreen("dailyBites")} onManagerResources={() => setScreen("managerResources")} onExit={resetToLogin} />);
+  if (screen === "managerPin") return <ManagerPinPage location={selectedLocation} employee={selectedEmployee} onSuccess={(verifiedPin) => { setManagerSessionPin(verifiedPin); setScreen("homeBase"); }} onBack={() => { setSelectedEmployee(null); setManagerSessionPin(""); setScreen("employeeSelect"); }} />;
+  if (screen === "homeBase") return managerPage(<HomeBase location={selectedLocation} employee={selectedEmployee} onSchoolHub={() => setScreen("schoolHub")} onMonthlyScorecard={() => setScreen("managerMonthlyScorecard")} onIncidentHelper={() => setScreen("incidentHelper")} onDailyBites={() => setScreen("dailyBites")} onManagerResources={() => setScreen("managerResources")} onExit={resetToLogin} />);
+  if (screen === "managerMonthlyScorecard") return managerPage(<ManagerMonthlyScorecardPage location={selectedLocation} employee={selectedEmployee} managerPin={managerSessionPin} onBack={() => setScreen("homeBase")} />);
   if (screen === "managerResources") return managerPage(<ManagerResourcesPage onAskSpark={() => setScreen("askSpark")} onOperationsHelp={() => setScreen("operationsHelp")} onLocationInformation={() => setScreen("locationInformation")} onHowToEarnPoints={() => setScreen("howToEarnPoints")} onBack={() => setScreen("homeBase")} />);
   if (screen === "howToEarnPoints") return managerPage(<HowToEarnPointsPage onBack={() => setScreen("managerResources")} />);
   if (screen === "operationsHelp") return managerPage(<OperationsHelpPage location={selectedLocation} onBack={() => setScreen("managerResources")} />);

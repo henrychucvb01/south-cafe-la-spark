@@ -4,6 +4,7 @@ function HomeBase({
   location,
   employee,
   onSchoolHub,
+  onMonthlyScorecard,
   onIncidentHelper,
   onDailyBites,
   onManagerResources,
@@ -117,6 +118,15 @@ function HomeBase({
                 </span>
               </div>
 
+              <div className="homebase-card-arrow">›</div>
+            </button>
+
+            <button type="button" className="homebase-card" onClick={onMonthlyScorecard}>
+              <div className="homebase-card-icon">📊</div>
+              <div className="homebase-card-body">
+                <strong>Monthly Scorecard</strong>
+                <span>View your school's monthly performance and management focus.</span>
+              </div>
               <div className="homebase-card-arrow">›</div>
             </button>
           </div>

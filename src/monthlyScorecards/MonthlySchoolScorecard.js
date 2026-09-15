@@ -134,7 +134,7 @@ function WeekSummary({ label, week }) {
   );
 }
 
-export default function MonthlySchoolScorecard({ card, onBack }) {
+export default function MonthlySchoolScorecard({ card, onBack, backLabel = "All schools" }) {
   const { school, current, previous, changes, summary } = card;
   const previousLabel = previous
     ? readableMonth(previous.month).split(" ")[0]
@@ -158,7 +158,7 @@ export default function MonthlySchoolScorecard({ card, onBack }) {
     <div className="monthly-school-scorecard scorecard-sheet">
       <div className="scorecard-toolbar">
         <button type="button" className="scorecard-back" onClick={onBack}>
-          ← All schools
+          ← {backLabel}
         </button>
         <span>Monthly Management Scorecard</span>
       </div>
