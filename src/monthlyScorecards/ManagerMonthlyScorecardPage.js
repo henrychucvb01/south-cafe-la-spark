@@ -79,24 +79,38 @@ export default function ManagerMonthlyScorecardPage({ location, employee, manage
   }, [dataset, range]);
 
   return (
-    <section className="monthly-scorecards">
-      <div className="monthly-scorecards-heading">
-        <div>
-          <span className="monthly-kicker">MANAGER TOOLS</span>
-          <h3>Monthly Scorecard</h3>
-          <p>{location?.school_name || "Your school"} performance and management focus.</p>
+    <div className="login-app" style={{ minHeight: "100vh", background: "#f4f7fa" }}>
+      <header className="login-header">
+        <div className="login-brand">
+          <div className="login-logo spark-login-logo"><img src="/spark-192.png" alt="SPARK" /></div>
+          <div>
+            <div className="login-brand-name">SOUTH CAFÉ LA</div>
+            <div className="login-brand-subtitle">MONTHLY SCORECARD</div>
+          </div>
         </div>
-        <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, fontWeight: 800 }}>
-          Month
-          <select value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} style={{ padding: "9px 12px", borderRadius: 6, border: "1px solid #d4dde5" }}>
-            {months.map((month) => <option key={month} value={month}>{monthLabel(month)}</option>)}
-          </select>
-        </label>
-      </div>
-      {loading && <div className="monthly-scorecard-loading">Loading your monthly scorecard...</div>}
-      {error && <div className="monthly-alert error" role="alert">{error}</div>}
-      {!loading && !error && card && <MonthlySchoolScorecard card={card} onBack={onBack} backLabel="Manager Tools" />}
-      {!loading && !error && !card && <div className="monthly-alert error">No scorecard data is available for this location.</div>}
-    </section>
+        <button type="button" className="homebase-exit-button" onClick={onBack}>← Back to Home Base</button>
+      </header>
+      <main>
+        <section className="monthly-scorecards">
+          <div className="monthly-scorecards-heading">
+            <div>
+              <span className="monthly-kicker">MANAGER TOOLS</span>
+              <h3>Monthly Scorecard</h3>
+              <p>{location?.school_name || "Your school"} performance and management focus.</p>
+            </div>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, fontWeight: 800 }}>
+              Month
+              <select value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} style={{ padding: "9px 12px", borderRadius: 6, border: "1px solid #d4dde5" }}>
+                {months.map((month) => <option key={month} value={month}>{monthLabel(month)}</option>)}
+              </select>
+            </label>
+          </div>
+          {loading && <div className="monthly-scorecard-loading">Loading your monthly scorecard...</div>}
+          {error && <div className="monthly-alert error" role="alert">{error}</div>}
+          {!loading && !error && card && <MonthlySchoolScorecard card={card} onBack={onBack} showToolbar={false} />}
+          {!loading && !error && !card && <div className="monthly-alert error">No scorecard data is available for this location.</div>}
+        </section>
+      </main>
+    </div>
   );
 }
