@@ -196,11 +196,7 @@ function getBingoGateIndexes() {
   return new Set(BINGO_LINES.map((line) => line[line.length - 1]));
 }
 
-function buildVisibleCompletedGoals(
-  verifiedGoalIds,
-  claimedGateGoalIds,
-  bingoCard
-) {
+ {
   const visible = new Set(verifiedGoalIds);
   const gateIndexes = getBingoGateIndexes();
 
