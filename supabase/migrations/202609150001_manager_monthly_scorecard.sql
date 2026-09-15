@@ -67,8 +67,8 @@ begin
     'staffing',coalesce((select jsonb_agg(to_jsonb(a)) from public.monthly_staffing_allocations a
       where a.school_year=p_school_year and a.source_site_id=v_source_site_id),'[]'::jsonb),
     'batches','[]'::jsonb,
-    'available_months',coalesce((select jsonb_agg(x.month order by x.month desc) from (
-      select distinct date_trunc('month',z.activity_date)::date month from (
+    'available_months',coalesce((select jsonb_agg(x.available_month order by x.available_month desc) from (
+      select distinct date_trunc('month',z.activity_date)::date as available_month from (
         select m.service_date activity_date from public.meal_counts m where m.location_id=p_location_id
         union all
         select p.production_date from public.monthly_production_rows p where p.source_site_id=v_source_site_id
