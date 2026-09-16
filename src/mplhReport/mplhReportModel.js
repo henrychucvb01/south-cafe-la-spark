@@ -4,6 +4,11 @@ const TARGETS = {
   elementary_nnc: { min: 24, max: 25 },
 };
 
+const REPORT_TARGET_OVERRIDES = {
+  "1957": { min: 20, max: 22 }, // Willenberg Special Ed
+  "3452": { min: 20, max: 22 }, // Dolores Elementary
+};
+
 const numberOrNull = (value) =>
   value === null || value === undefined || value === "" || Number.isNaN(Number(value))
     ? null
@@ -62,7 +67,8 @@ export function findExtremeMealVariance(valuesByDate) {
 
 function getTarget(school) {
   if (school.mplhTarget) return school.mplhTarget;
-  if (String(school.location_code) === "1957") return TARGETS.special;
+  const reportOverride = REPORT_TARGET_OVERRIDES[String(school.location_code)];
+  if (reportOverride) return reportOverride;
   return TARGETS[school.labor_type] || null;
 }
 

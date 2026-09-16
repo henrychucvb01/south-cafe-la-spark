@@ -51,6 +51,25 @@ test("average MPLH is the average of daily MPLH values", () => {
 
 test("target status uses average MPLH", () => expect(build().schools[0].summary.status).toBe("high"));
 
+test("MPLH Report targets override Dolores and Willenberg without changing other NNC schools", () => {
+  const schools = [
+    { ...school, id: 1, school_name: "Dolores EL", location_code: "3452", labor_type: "elementary_nnc" },
+    { ...school, id: 2, school_name: "Willenberg Special Ed", location_code: "1957", labor_type: "special" },
+    { ...school, id: 3, school_name: "Other NNC", location_code: "9999", labor_type: "elementary_nnc" },
+  ];
+  const report = build({ schools, mealRows: [], laborRows: [] });
+  expect(report.schools[0].summary.target).toEqual({ min: 20, max: 22 });
+  expect(report.schools[1].summary.target).toEqual({ min: 20, max: 22 });
+  expect(report.schools[2].summary.target).toEqual({ min: 24, max: 25 });
+});
+
+test("Dolores daily status uses the 20-22 MPLH report override", () => {
+  const dolores = { ...school, location_code: "3452", labor_type: "elementary_nnc" };
+  const report = build({ schools: [dolores], mealRows: [{ ...meals[0], breakfast_count: 0, lunch_count: 210 }], endDate: "2026-09-01", laborRows: [] }).schools[0];
+  expect(report.daily[0].mplh).toBe(21);
+  expect(report.daily[0].status).toBe("target");
+});
+
 test("excluded and weekend dates are not operating days", () => {
   const report = build({ endDate: "2026-09-07", excludedRows: [{ location_id: 1, service_date: "2026-09-03" }] }).schools[0];
   expect(report.daily.map((day) => day.date)).toEqual(["2026-09-01", "2026-09-02", "2026-09-04", "2026-09-07"]);
