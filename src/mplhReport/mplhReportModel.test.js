@@ -3,6 +3,8 @@ import {
   findExtremeMealVariance,
   prepareMplhPdfData,
 } from "./mplhReportModel";
+import { createMplhReportPdfBytes } from "./mplhReportPdf";
+import { PDFDocument } from "pdf-lib";
 
 const school = { id: 1, school_name: "Alpha", location_code: "1001", labor_type: "elementary_prep", budget_labor_hours: 10 };
 const meals = [
@@ -83,4 +85,12 @@ test("PDF preparation reuses selected report model", () => {
   const pdf = prepareMplhPdfData(model, 1);
   expect(pdf.reports[0]).toBe(model.schools[0]);
   expect(pdf.startDate).toBe("2026-09-01");
+});
+
+test("polished all-school and school-history PDFs render from the shared model", async () => {
+  const model = build();
+  const allPdf = await PDFDocument.load(await createMplhReportPdfBytes(model));
+  const schoolPdf = await PDFDocument.load(await createMplhReportPdfBytes(model, 1));
+  expect(allPdf.getPageCount()).toBe(1);
+  expect(schoolPdf.getPageCount()).toBeGreaterThanOrEqual(1);
 });
