@@ -20,6 +20,8 @@ import MonthlyScorecardsPage from "../monthlyScorecards/MonthlyScorecardsPage";
 import LaborOptimizationPage from "../monthlyScorecards/LaborOptimizationPage";
 import StaffManagementPage from "../staffing/StaffManagementPage";
 import MealCountAuditPage from "./MealCountAuditPage";
+import { buildMplhReportModel } from "../mplhReport/mplhReportModel";
+import { exportMplhReportPdf } from "../mplhReport/mplhReportPdf";
 
 function isFinishLineCommentItem(item) {
   return String(item?.item_key || "").endsWith("_comment");
@@ -2999,296 +3001,118 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
   );
 }
 function MplhReportView({ schools, dashboardDate, formatDate }) {
-  const [mplhSchoolId, setMplhSchoolId] = useState("all");
+  const [startDate, setStartDate] = useState(dashboardDate);
+  const [endDate, setEndDate] = useState(dashboardDate);
+  const [selectedSchoolId, setSelectedSchoolId] = useState("all");
+  const [model, setModel] = useState(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportError, setReportError] = useState("");
 
-  const filteredMplhSchools =
-    mplhSchoolId === "all"
-      ? schools
-      : schools.filter(
-          (school) => String(school.id) === String(mplhSchoolId)
-        );
-
-  const selectedMplhSchool =
-    mplhSchoolId === "all"
-      ? null
-      : schools.find(
-          (school) => String(school.id) === String(mplhSchoolId)
-        );
-
-  const belowTarget = filteredMplhSchools.filter(
-    (school) => school.mplhStatus === "below"
-  ).length;
-
-  const onTarget = filteredMplhSchools.filter(
-    (school) => school.mplhStatus === "target"
-  ).length;
-
-  const highProductivity = filteredMplhSchools.filter(
-    (school) => school.mplhStatus === "high"
-  ).length;
-
-  const noData = filteredMplhSchools.filter(
-    (school) => school.mplh === null
-  ).length;
-
-  function getTypeLabel(type) {
-    if (type === "secondary") {
-      return "Secondary";
+  useEffect(() => {
+    if (!schools.length || !startDate || !endDate || startDate > endDate) return undefined;
+    let active = true;
+    async function loadRange() {
+      setReportLoading(true);
+      setReportError("");
+      try {
+        const ids = schools.map((school) => school.id);
+        const [mealResult, laborResult, excludedResult] = await Promise.all([
+          supabase.from("meal_counts").select("location_id, service_date, breakfast_count, lunch_count, supper_count, supper_status").in("location_id", ids).gte("service_date", startDate).lte("service_date", endDate),
+          supabase.from("labor_hours").select("location_id, service_date, additional_worker_hours, manager_overtime_hours").in("location_id", ids).gte("service_date", startDate).lte("service_date", endDate),
+          supabase.from("spark_excluded_days").select("location_id, service_date").in("location_id", ids).gte("service_date", startDate).lte("service_date", endDate),
+        ]);
+        if (mealResult.error) throw mealResult.error;
+        if (laborResult.error) throw laborResult.error;
+        if (excludedResult.error) throw excludedResult.error;
+        if (active) {
+          setModel(buildMplhReportModel({ schools, mealRows: mealResult.data, laborRows: laborResult.data, excludedRows: excludedResult.data, startDate, endDate }));
+        }
+      } catch (err) {
+        if (active) setReportError(err.message || "Could not load the MPLH report.");
+      } finally {
+        if (active) setReportLoading(false);
+      }
     }
+    loadRange();
+    return () => { active = false; };
+  }, [schools, startDate, endDate]);
 
-    if (type === "elementary_prep") {
-      return "Elementary Prep";
-    }
+  const selectedReport = selectedSchoolId === "all" ? null : model?.schools.find((item) => String(item.school.id) === String(selectedSchoolId));
+  const reports = model?.schools || [];
+  const counts = ["below", "target", "high", "no-data"].reduce((acc, key) => ({ ...acc, [key]: reports.filter((item) => item.summary.status === key).length }), {});
+  const multi = startDate !== endDate;
+  const n = (value, digits = 1) => Number.isFinite(value) ? value.toFixed(digits) : "—";
+  const targetLabel = (target) => target ? `${target.min}–${target.max}` : "—";
+  const typeLabel = (type) => ({ secondary: "Secondary", elementary_prep: "Elementary Prep", elementary_nnc: "Elementary NNC", special: "Special" }[type] || "—");
+  const statusLabel = (status) => ({ below: "Below Target", target: "On Target", high: "High Productivity" }[status] || "No Data");
+  const dateLabel = (date) => new Date(`${date}T12:00:00`).toLocaleDateString([], { month: "short", day: "numeric" });
 
-    if (type === "elementary_nnc") {
-      return "Elementary NNC";
-    }
+  const dateControls = (
+    <div className="supervisor-report-filter">
+      <div><label>Start Date</label><input type="date" value={startDate} max={endDate} onChange={(event) => setStartDate(event.target.value)} /></div>
+      <div><label>End Date</label><input type="date" value={endDate} min={startDate} onChange={(event) => setEndDate(event.target.value)} /></div>
+      {!selectedReport && <div><label>School</label><select value={selectedSchoolId} onChange={(event) => setSelectedSchoolId(event.target.value)}><option value="all">All Schools</option>{schools.map((school) => <option key={school.id} value={school.id}>{school.school_name}</option>)}</select></div>}
+      <button type="button" className="command-action-btn" disabled={!model || reportLoading} onClick={() => exportMplhReportPdf(model, selectedReport?.school.id || null)}>Export PDF</button>
+    </div>
+  );
 
-    if (type === "special") {
-      return "Special";
-    }
-
-    return "—";
-  }
-
-  function getTargetLabel(school) {
-    if (!school.mplhTarget) {
-      return "—";
-    }
-
-    return `${school.mplhTarget.min}–${school.mplhTarget.max}`;
-  }
-
-  function getStatusLabel(status) {
-    if (status === "below") {
-      return "Below Target";
-    }
-
-    if (status === "target") {
-      return "On Target";
-    }
-
-    if (status === "high") {
-      return "High Productivity";
-    }
-
-    return "No Data";
+  if (selectedReport) {
+    const { school, summary, daily } = selectedReport;
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        <section className="dashboard-card" style={{ padding: 22 }}>
+          <button type="button" className="command-action-btn" onClick={() => setSelectedSchoolId("all")}>← Back to All Schools</button>
+          <div style={{ marginTop: 14, fontSize: 11, fontWeight: 800, color: "#6b7785", textTransform: "uppercase", letterSpacing: ".08em" }}>Labor Productivity</div>
+          <h2 style={{ margin: "5px 0 0", fontSize: 24 }}>{school.school_name} — MPLH History</h2>
+          <p style={{ margin: "6px 0 0", color: "#687583" }}>{formatDate(startDate)} – {formatDate(endDate)} • Location {school.location_code}</p>
+        </section>
+        <section className="dashboard-card" style={{ padding: "16px 20px" }}>{dateControls}</section>
+        {reportError && <div className="error-banner">{reportError}</div>}
+        <section className="command-stats">
+          <MetricCard label="Operating Days" value={summary.operatingDays} note={`${summary.daysWithMealData} days with meal data`} />
+          <MetricCard label="Data Flags" value={summary.dataFlags} note={summary.dataFlags ? "Review flagged daily records" : "No issues found"} />
+          <MetricCard label="Avg Meal Equiv." value={n(summary.mealEquivalents)} note={`Breakfast ${n(summary.breakfast)} • Lunch ${n(summary.lunch)}`} />
+          <MetricCard label="Avg MPLH" value={n(summary.mplh)} note={`Target ${targetLabel(summary.target)} • ${statusLabel(summary.status)}`} />
+        </section>
+        <section className="dashboard-card" style={{ padding: 20 }}>
+          <h3 style={{ marginTop: 0 }}>Selected-Range Averages</h3>
+          <div className="mplh-history-summary">
+            {[['Breakfast', summary.breakfast], ['Lunch', summary.lunch], ['Supper', summary.supper], ['Meal Equiv.', summary.mealEquivalents], ['Baseline', summary.baseline], ['Added Hrs', summary.added], ['Actual Hrs', summary.actual], ['MPLH', summary.mplh]].map(([label, value]) => <div key={label}><small>{label}</small><strong>{n(value)}</strong></div>)}
+          </div>
+        </section>
+        <section className="mplh-chart-grid">
+          <TrendCard title="Daily Meal Equivalents" data={daily} dataKey="mealEquivalents" color="#0e8b61" />
+          <TrendCard title="Daily MPLH" data={daily} dataKey="mplh" color="#db8615" />
+        </section>
+        <section className="dashboard-card">
+          <div className="command-section-header" style={{ padding: "18px 20px" }}><div><h3>Daily MPLH History</h3><p>One row per operating day; exclusions and weekends are omitted.</p></div></div>
+          <div className="command-table-wrap"><table className="command-table"><thead><tr>{["Date", "Breakfast", "Lunch", "Supper", "Meal Equiv.", "Baseline", "Added Hrs", "Actual Hrs", "MPLH", "Target", "Status", "Data Flag"].map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{daily.map((day) => <tr key={day.date}><td>{dateLabel(day.date)}</td><td>{n(day.breakfast, 0)}</td><td>{n(day.lunch, 0)}</td><td>{n(day.supper, 0)}</td><td>{n(day.mealEquivalents)}</td><td>{n(day.baseline)}</td><td>{n(day.added)}</td><td>{n(day.actual)}</td><td><strong>{n(day.mplh)}</strong></td><td>{targetLabel(day.target)}</td><td><span className={`mplh-supervisor-status ${day.status}`}>{statusLabel(day.status)}</span></td><td className="mplh-flag-cell">{day.flags.length ? day.flags.map((flag) => <div key={`${flag.meal}-${flag.message}`}>⚠ {flag.message}</div>) : "—"}</td></tr>)}</tbody></table></div>
+        </section>
+      </div>
+    );
   }
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: "18px",
-      }}
-    >
-      {/* REPORT HEADER */}
-
-      <section className="dashboard-card" style={{ padding: "22px" }}>
-        <div>
-          <div
-            style={{
-              fontSize: "11px",
-              fontWeight: "800",
-              color: "#6b7785",
-              textTransform: "uppercase",
-              letterSpacing: ".08em",
-              marginBottom: "5px",
-            }}
-          >
-            Labor Productivity
-          </div>
-
-          <h2
-            style={{
-              margin: 0,
-              fontSize: "24px",
-            }}
-          >
-            MPLH Report
-          </h2>
-
-          <p
-            style={{
-              margin: "6px 0 0",
-              color: "#687583",
-            }}
-          >
-            {formatDate(dashboardDate)}
-            {selectedMplhSchool
-              ? ` • ${selectedMplhSchool.school_name}`
-              : " • All Schools"}
-          </p>
-        </div>
-      </section>
-
-      {/* SCHOOL FILTER */}
-
-      <section className="dashboard-card" style={{ padding: "16px 20px" }}>
-        <div className="supervisor-report-filter">
-          <div>
-            <label>School</label>
-            <select
-              value={mplhSchoolId}
-              onChange={(e) => setMplhSchoolId(e.target.value)}
-            >
-              <option value="all">All Schools</option>
-              {schools.map((school) => (
-                <option key={school.id} value={school.id}>
-                  {school.school_name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </section>
-
-      {/* SUMMARY */}
-
-      <section className="command-stats">
-        <div className="command-stat-card">
-          <div className="command-stat-icon red">!</div>
-
-          <div>
-            <span>Below Target</span>
-            <strong>{belowTarget}</strong>
-            <small>Review participation & labor</small>
-          </div>
-        </div>
-
-        <div className="command-stat-card">
-          <div className="command-stat-icon green">✓</div>
-
-          <div>
-            <span>On Target</span>
-            <strong>{onTarget}</strong>
-            <small>Within current MPLH range</small>
-          </div>
-        </div>
-
-        <div className="command-stat-card">
-          <div className="command-stat-icon yellow">↑</div>
-
-          <div>
-            <span>High Productivity</span>
-            <strong>{highProductivity}</strong>
-            <small>Above current MPLH target</small>
-          </div>
-        </div>
-
-        <div className="command-stat-card">
-          <div className="command-stat-icon blue">—</div>
-
-          <div>
-            <span>No Data</span>
-            <strong>{noData}</strong>
-            <small>No meal data for this date</small>
-          </div>
-        </div>
-      </section>
-
-      {/* SCHOOL REPORT */}
-
-      <section className="dashboard-card">
-        <div
-          className="command-section-header"
-          style={{
-            padding: "18px 20px",
-          }}
-        >
-          <div>
-            <h3>School Labor Productivity</h3>
-
-            <p>
-              {selectedMplhSchool
-                ? `Meal volume and labor for ${selectedMplhSchool.school_name}.`
-                : "Compare meal volume and labor across all locations."}
-            </p>
-          </div>
-        </div>
-
-        <div className="command-table-wrap">
-          <table className="command-table">
-            <thead>
-              <tr>
-                <th>School</th>
-                <th>Type</th>
-                <th>Meal Equiv.</th>
-                <th>Baseline</th>
-                <th>Added Hrs</th>
-                <th>Actual Hrs</th>
-                <th>MPLH</th>
-                <th>Target</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {filteredMplhSchools.map((school) => {
-                const addedHours =
-                  (Number(school.laborRow?.additional_worker_hours) || 0) +
-                  (Number(school.laborRow?.manager_overtime_hours) || 0);
-
-                return (
-                  <tr key={school.id}>
-                    <td className="command-school-name">
-                      <strong>{school.school_name}</strong>
-
-                      <div
-                        style={{
-                          fontSize: "10px",
-                          color: "#788590",
-                          marginTop: "2px",
-                        }}
-                      >
-                        Location {school.location_code}
-                      </div>
-                    </td>
-
-                    <td>{getTypeLabel(school.labor_type)}</td>
-
-                    <td>
-                      {school.mplh === null
-                        ? "—"
-                        : school.mealEquivalents.toFixed(1)}
-                    </td>
-
-                    <td>{Number(school.baselineLabor || 0).toFixed(1)}</td>
-
-                    <td>{addedHours.toFixed(1)}</td>
-
-                    <td>
-                      {school.mplh === null
-                        ? "—"
-                        : Number(school.actualLaborHours).toFixed(1)}
-                    </td>
-
-                    <td>
-                      <strong>
-                        {school.mplh === null ? "—" : school.mplh.toFixed(1)}
-                      </strong>
-                    </td>
-
-                    <td>{getTargetLabel(school)}</td>
-
-                    <td>
-                      <span
-                        className={`mplh-supervisor-status ${school.mplhStatus}`}
-                      >
-                        {getStatusLabel(school.mplhStatus)}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      <section className="dashboard-card" style={{ padding: 22 }}><div style={{ fontSize: 11, fontWeight: 800, color: "#6b7785", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 5 }}>Labor Productivity</div><h2 style={{ margin: 0, fontSize: 24 }}>MPLH Report</h2><p style={{ margin: "6px 0 0", color: "#687583" }}>{formatDate(startDate)}{startDate !== endDate ? ` – ${formatDate(endDate)}` : ""} • All Schools</p></section>
+      <section className="dashboard-card" style={{ padding: "16px 20px" }}>{dateControls}</section>
+      {reportError && <div className="error-banner">{reportError}</div>}
+      <section className="command-stats"><MetricCard label="Below Target" value={counts.below} note="Review participation & labor" icon="!" color="red" /><MetricCard label="On Target" value={counts.target} note="Within current MPLH range" icon="✓" color="green" /><MetricCard label="High Productivity" value={counts.high} note="Above current MPLH target" icon="↑" color="yellow" /><MetricCard label="No Data" value={counts['no-data']} note={reportLoading ? "Loading range data…" : "No meal data for this range"} icon="—" color="blue" /></section>
+      <section className="dashboard-card"><div className="command-section-header" style={{ padding: "18px 20px" }}><div><h3>School Labor Productivity</h3><p>{multi ? "Daily averages across the selected operating dates." : "Compare meal volume and labor across all locations."}</p></div>{model && <div className="mplh-coverage-note"><strong>{model.coverage.operatingDays}</strong> Operating Days • <strong>{model.coverage.daysWithMealData}</strong> school-days with meal data • <strong>{model.coverage.dataFlags}</strong> flags</div>}</div>
+        <div className="command-table-wrap"><table className="command-table"><thead><tr>{["School", "Type", multi ? "Avg Breakfast" : "Breakfast", multi ? "Avg Lunch" : "Lunch", multi ? "Avg Supper" : "Supper", multi ? "Avg Meal Equiv." : "Meal Equiv.", multi ? "Avg Baseline" : "Baseline", multi ? "Avg Added Hrs" : "Added Hrs", multi ? "Avg Actual Hrs" : "Actual Hrs", multi ? "Avg MPLH" : "MPLH", "Target", "Status", "Meal/Data Flags"].map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{reports.map(({ school, summary }) => <tr key={school.id} className="mplh-clickable-row" onClick={() => setSelectedSchoolId(String(school.id))}><td className="command-school-name"><button type="button" className="mplh-school-link"><strong>{school.school_name}</strong><small>Location {school.location_code}</small></button></td><td>{typeLabel(school.labor_type)}</td><td>{n(summary.breakfast, multi ? 1 : 0)}</td><td>{n(summary.lunch, multi ? 1 : 0)}</td><td>{n(summary.supper, multi ? 1 : 0)}</td><td>{n(summary.mealEquivalents)}</td><td>{n(summary.baseline)}</td><td>{n(summary.added)}</td><td>{n(summary.actual)}</td><td><strong>{n(summary.mplh)}</strong></td><td>{targetLabel(summary.target)}</td><td><span className={`mplh-supervisor-status ${summary.status}`}>{statusLabel(summary.status)}</span></td><td>{summary.operatingDays} operating • {summary.daysWithMealData} meal-data days{summary.dataFlags ? ` • ⚠ ${summary.dataFlags} flag${summary.dataFlags === 1 ? "" : "s"}` : ""}</td></tr>)}</tbody></table></div>
       </section>
     </div>
   );
 }
+
+function MetricCard({ label, value, note, icon, color }) {
+  return <div className="command-stat-card">{icon && <div className={`command-stat-icon ${color || "blue"}`}>{icon}</div>}<div><span>{label}</span><strong>{value}</strong><small>{note}</small></div></div>;
+}
+
+function TrendCard({ title, data, dataKey, color }) {
+  return <section className="dashboard-card" style={{ padding: 20 }}><h3 style={{ marginTop: 0 }}>{title}</h3><div style={{ width: "100%", height: 230 }}><ResponsiveContainer><LineChart data={data}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" tickFormatter={(value) => value.slice(5)} fontSize={11} /><YAxis fontSize={11} /><Tooltip labelFormatter={(value) => new Date(`${value}T12:00:00`).toLocaleDateString()} formatter={(value) => [Number(value).toFixed(1), title]} /><Line type="monotone" dataKey={dataKey} stroke={color} strokeWidth={2.5} connectNulls={false} dot={{ r: 3 }} /></LineChart></ResponsiveContainer></div></section>;
+}
+
 function RecentChangesView({
   schools,
   recentChanges,
