@@ -386,6 +386,115 @@
   cursor: pointer;
 }
 
+.spark-daily-leaderboard {
+  padding: 22px;
+  overflow: hidden;
+}
+
+.spark-daily-leaderboard-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+.spark-daily-leaderboard-heading h2 {
+  margin: 4px 0 5px;
+  color: #103e32;
+  font-size: clamp(20px, 3vw, 27px);
+}
+
+.spark-daily-leaderboard-heading p {
+  margin: 0;
+  color: #697a74;
+}
+
+.spark-daily-leaderboard-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #dce7e2;
+  border-radius: 14px;
+}
+
+.spark-daily-leaderboard-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.spark-daily-leaderboard-table th {
+  padding: 11px 14px;
+  background: #0f513f;
+  color: #fff;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.spark-daily-leaderboard-table th:first-child,
+.spark-daily-leaderboard-table td:first-child {
+  width: 76px;
+  text-align: center;
+}
+
+.spark-daily-leaderboard-table th:last-child,
+.spark-daily-leaderboard-table td:last-child {
+  width: 130px;
+  text-align: right;
+}
+
+.spark-daily-leaderboard-table td {
+  padding: 11px 14px;
+  border-top: 1px solid #e5ece9;
+  color: #173a31;
+}
+
+.spark-daily-leaderboard-table tr.top-1 { background: #fff8db; }
+.spark-daily-leaderboard-table tr.top-2 { background: #f4f7f8; }
+.spark-daily-leaderboard-table tr.top-3 { background: #fff2e7; }
+
+.spark-daily-leaderboard-table tr.current-school {
+  background: #e8f7ef;
+  box-shadow: inset 4px 0 0 #169665;
+}
+
+.spark-daily-leaderboard-school strong,
+.spark-daily-leaderboard-school span {
+  display: block;
+}
+
+.spark-daily-leaderboard-school span {
+  margin-top: 3px;
+  color: #287156;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+@media (max-width: 600px) {
+  .spark-daily-leaderboard {
+    padding: 16px;
+  }
+
+  .spark-daily-leaderboard-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .spark-daily-leaderboard-heading .spark-leaderboard-refresh {
+    align-self: flex-start;
+  }
+
+  .spark-daily-leaderboard-table th,
+  .spark-daily-leaderboard-table td {
+    padding: 10px 8px;
+  }
+
+  .spark-daily-leaderboard-table th:last-child,
+  .spark-daily-leaderboard-table td:last-child {
+    width: 96px;
+  }
+}
+
 @media (max-width: 760px) {
   .spark-leaderboard-header,
   .spark-leaderboard-controls,

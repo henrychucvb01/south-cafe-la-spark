@@ -7,6 +7,7 @@ import CafeteriaWordGame from "../dailyBites/games/CafeteriaWordGame";
 import CafeteriaConnectionsGame from "../dailyBites/games/CafeteriaConnectionsGame";
 import ArTrainingQuiz from "../dailyBites/training/ArTrainingQuiz";
 import { getLosAngelesDate, isWeekdayDate } from "../dailyBites/training/arTrainingUtils";
+import SupervisorLeaderboard from "../leaderboard/SupervisorLeaderboard";
 import {
   calculateGameStreak,
   getDailyGameDate,
@@ -1476,6 +1477,12 @@ function DailyBitesPage({ location, employee, onBack }) {
               awarded only once.
             </p>
           </section>
+
+          <SupervisorLeaderboard
+            embedded
+            compact
+            currentLocationId={location?.id}
+          />
         </div>
       </main>
     </div>

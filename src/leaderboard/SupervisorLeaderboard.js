@@ -132,7 +132,7 @@ function isDemoSchool(school) {
   return String(school?.school_name || "").trim().toLowerCase() === "test high school";
 }
 
-export default function SupervisorLeaderboard({ onClose, embedded = false }) {
+export default function SupervisorLeaderboard({ onClose, embedded = false, compact = false, currentLocationId = null }) {
   const season = useMemo(() => getSeason(), []);
   const seasonMonths = useMemo(() => getSeasonMonths(season), [season]);
   const today = toDateKey(new Date());
@@ -143,7 +143,7 @@ export default function SupervisorLeaderboard({ onClose, embedded = false }) {
     return current || seasonMonths[0];
   }, [seasonMonths]);
 
-  const [view, setView] = useState("season");
+  const [view, setView] = useState(compact ? "month" : "season");
   const [selectedMonthKey, setSelectedMonthKey] = useState(
     monthKey(initialMonth.year, initialMonth.month)
   );
@@ -272,6 +272,66 @@ export default function SupervisorLeaderboard({ onClose, embedded = false }) {
   const selectedMonthLabel = `${MONTH_NAMES[selectedMonth.month]} ${selectedMonth.year}`;
 
   const rows = view === "season" ? calculations.seasonRows : calculations.monthRows;
+
+  if (compact) {
+    const monthlyRows = calculations.monthRows;
+    const currentSchoolIndex = monthlyRows.findIndex(
+      (row) => String(row.id) === String(currentLocationId)
+    );
+    const currentSchool = currentSchoolIndex >= 0 ? monthlyRows[currentSchoolIndex] : null;
+    const nextHigherSchool = currentSchool
+      ? [...monthlyRows]
+          .slice(0, currentSchoolIndex)
+          .reverse()
+          .find((row) => row.points > currentSchool.points)
+      : null;
+    const pointsToMoveUp = nextHigherSchool
+      ? nextHigherSchool.points - currentSchool.points + 1
+      : null;
+
+    return (
+      <section className="dashboard-card spark-daily-leaderboard" aria-label={`SPARK Leaderboard - ${selectedMonthLabel}`} aria-busy={loading}>
+        <div className="spark-daily-leaderboard-heading">
+          <div>
+            <div className="dashboard-small-label">CURRENT MONTH</div>
+            <h2>🏆 SPARK Leaderboard — {selectedMonthLabel}</h2>
+            <p>Monthly SPARK points across all area schools.</p>
+          </div>
+          <button type="button" className="spark-leaderboard-refresh" onClick={loadLeaderboard} disabled={loading}>↻ Refresh</button>
+        </div>
+
+        {error ? (
+          <div className="spark-leaderboard-error" role="alert">
+            <span>{error}</span>
+            <button type="button" onClick={loadLeaderboard}>Try again</button>
+          </div>
+        ) : loading ? (
+          <div className="spark-leaderboard-loading">Loading monthly standings…</div>
+        ) : (
+          <div className="spark-daily-leaderboard-table-wrap">
+            <table className="spark-daily-leaderboard-table">
+              <thead><tr><th>Rank</th><th>School</th><th>Monthly Points</th></tr></thead>
+              <tbody>
+                {monthlyRows.map((row) => {
+                  const isCurrentSchool = String(row.id) === String(currentLocationId);
+                  return (
+                    <tr key={row.id} className={`${row.rank <= 3 ? `top-${row.rank}` : ""}${isCurrentSchool ? " current-school" : ""}`}>
+                      <td className="spark-leaderboard-rank">{row.rank === 1 ? "🥇" : row.rank === 2 ? "🥈" : row.rank === 3 ? "🥉" : row.rank}</td>
+                      <td className="spark-daily-leaderboard-school">
+                        <strong>{row.schoolName}</strong>
+                        {isCurrentSchool && <span>Your school{pointsToMoveUp ? ` • ${pointsToMoveUp} point${pointsToMoveUp === 1 ? "" : "s"} to move up` : " • Currently leading"}</span>}
+                      </td>
+                      <td className="spark-leaderboard-points">{row.points.toLocaleString()}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    );
+  }
 
   return (
     <div
