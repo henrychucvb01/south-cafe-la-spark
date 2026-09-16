@@ -66,9 +66,9 @@ export function findExtremeMealVariance(valuesByDate) {
 }
 
 function getTarget(school) {
-  if (school.mplhTarget) return school.mplhTarget;
   const reportOverride = REPORT_TARGET_OVERRIDES[String(school.location_code)];
   if (reportOverride) return reportOverride;
+  if (school.mplhTarget) return school.mplhTarget;
   return TARGETS[school.labor_type] || null;
 }
 
