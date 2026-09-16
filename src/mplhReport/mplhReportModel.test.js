@@ -58,9 +58,9 @@ test("MPLH Report targets override Dolores and Willenberg without changing other
     { ...school, id: 3, school_name: "Other NNC", location_code: "9999", labor_type: "elementary_nnc", mplhTarget: { min: 24, max: 25 } },
   ];
   const report = build({ schools, mealRows: [], laborRows: [] });
-  expect(report.schools[0].summary.target).toEqual({ min: 20, max: 22 });
-  expect(report.schools[1].summary.target).toEqual({ min: 20, max: 22 });
-  expect(report.schools[2].summary.target).toEqual({ min: 24, max: 25 });
+  expect(report.schools[0].summary.target).toEqual(expect.objectContaining({ min: 20, max: 22 }));
+  expect(report.schools[1].summary.target).toEqual(expect.objectContaining({ min: 20, max: 22 }));
+  expect(report.schools[2].summary.target).toEqual(expect.objectContaining({ min: 24, max: 25 }));
 });
 
 test("Dolores daily status uses the 20-22 MPLH report override", () => {

@@ -1,24 +1,5 @@
-export const MPLH_TARGETS = {
-  secondary: { label: "Secondary", min: 18, max: 20 },
-  elementary_prep: { label: "Elementary Prep", min: 20, max: 22 },
-  elementary_nnc: { label: "Elementary NNC", min: 24, max: 25 },
-  special: { label: "Special Education", min: 24, max: 25 },
-  special_ed: { label: "Special Education", min: 24, max: 25 },
-};
-
-export function getMplhTarget(school) {
-  if (
-    String(school?.source_site_id) === "1195701" ||
-    /willenberg/i.test(String(school?.school_name || ""))
-  ) {
-    return MPLH_TARGETS.elementary_prep;
-  }
-  return MPLH_TARGETS[school?.labor_type] || {
-    label: "Not Classified",
-    min: null,
-    max: null,
-  };
-}
+import { MPLH_TARGETS, getMplhTarget } from "../mplhTargets";
+export { MPLH_TARGETS, getMplhTarget };
 
 const MEALS = ["breakfast", "lunch", "supper"];
 const n = (value) => Number(value) || 0;

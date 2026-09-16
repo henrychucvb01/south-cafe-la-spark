@@ -3,6 +3,7 @@ import { supabase } from "../supabaseClient";
 import { awardSparkPoints } from "../sparkPoints";
 import { REWARD_LAUNCH_DATE, isStreakEligibleCheck } from "../sparkPolicy";
 import { getPerfectMonthCandidates, getPerfectWeekCandidates } from "../finishLineStreaks";
+import { getMplhTarget } from "../mplhTargets";
 
 import {
   LineChart,
@@ -14,31 +15,6 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-const LABOR_TARGETS = {
-  secondary: {
-    label: "Secondary",
-    min: 18,
-    max: 20,
-  },
-
-  elementary_prep: {
-    label: "Elementary Prep",
-    min: 20,
-    max: 22,
-  },
-
-  elementary_nnc: {
-    label: "Elementary NNC",
-    min: 24,
-    max: 25,
-  },
-
-  special: {
-    label: "Special Education",
-    min: null,
-    max: null,
-  },
-};
 function SchoolHub({
   location,
   employee,
@@ -665,11 +641,7 @@ function SchoolHub({
    MPLH CALCULATIONS
 ========================================================= */
 
-  const laborTarget = LABOR_TARGETS[location?.labor_type] || {
-    label: "Not Classified",
-    min: null,
-    max: null,
-  };
+  const laborTarget = getMplhTarget(location);
 
   const budgetLaborHours = Number(location?.budget_labor_hours) || 0;
 

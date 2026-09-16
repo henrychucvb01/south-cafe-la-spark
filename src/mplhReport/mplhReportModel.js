@@ -1,13 +1,4 @@
-const TARGETS = {
-  secondary: { min: 18, max: 20 },
-  elementary_prep: { min: 20, max: 22 },
-  elementary_nnc: { min: 24, max: 25 },
-};
-
-const REPORT_TARGET_OVERRIDES = {
-  "1957": { min: 20, max: 22 }, // Willenberg Special Ed
-  "3452": { min: 20, max: 22 }, // Dolores Elementary
-};
+import { getMplhTarget } from "../mplhTargets";
 
 const numberOrNull = (value) =>
   value === null || value === undefined || value === "" || Number.isNaN(Number(value))
@@ -65,13 +56,6 @@ export function findExtremeMealVariance(valuesByDate) {
   );
 }
 
-function getTarget(school) {
-  const reportOverride = REPORT_TARGET_OVERRIDES[String(school.location_code)];
-  if (reportOverride) return reportOverride;
-  if (school.mplhTarget) return school.mplhTarget;
-  return TARGETS[school.labor_type] || null;
-}
-
 export function buildMplhReportModel({
   schools,
   mealRows,
@@ -86,7 +70,7 @@ export function buildMplhReportModel({
   const excluded = new Set((excludedRows || []).map((row) => `${row.location_id}|${row.service_date}`));
 
   const schoolReports = (schools || []).map((school) => {
-    const target = getTarget(school);
+    const target = getMplhTarget(school);
     const operatingDates = weekdays.filter((date) => !excluded.has(`${school.id}|${date}`));
     const schoolMealRows = operatingDates.map((date) => meals.get(`${school.id}|${date}`)).filter(Boolean);
     const supperApplies = schoolMealRows.some(

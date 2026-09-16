@@ -13,36 +13,12 @@ import {
 } from "recharts";
 
 import { supabase } from "../supabaseClient";
+import { getMplhTarget } from "../mplhTargets";
 
 /* =========================================================
    MPLH TARGETS
 ========================================================= */
 
-const LABOR_TARGETS = {
-  secondary: {
-    label: "Secondary",
-    min: 18,
-    max: 20,
-  },
-
-  elementary_prep: {
-    label: "Elementary Prep",
-    min: 20,
-    max: 22,
-  },
-
-  elementary_nnc: {
-    label: "Elementary NNC",
-    min: 24,
-    max: 25,
-  },
-
-  special: {
-    label: "Special Education",
-    min: null,
-    max: null,
-  },
-};
 const REIMBURSEMENT_RATES = {
   breakfast: 4.08,
   lunch: 5.9,
@@ -188,11 +164,7 @@ function MealAnalyticsPage({ location, employee, onBack }) {
 
   const budgetLaborHours = Number(location?.budget_labor_hours) || 0;
 
-  const laborTarget = LABOR_TARGETS[location?.labor_type] || {
-    label: "Not Classified",
-    min: null,
-    max: null,
-  };
+  const laborTarget = getMplhTarget(location);
 
   /* =========================================================
    TODAY'S DAY

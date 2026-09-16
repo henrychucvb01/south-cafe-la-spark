@@ -22,6 +22,7 @@ import StaffManagementPage from "../staffing/StaffManagementPage";
 import MealCountAuditPage from "./MealCountAuditPage";
 import { buildMplhReportModel, resolveMplhExportRequest } from "../mplhReport/mplhReportModel";
 import { exportMplhReportPdf } from "../mplhReport/mplhReportPdf";
+import { getMplhTarget } from "../mplhTargets";
 
 function isFinishLineCommentItem(item) {
   return String(item?.item_key || "").endsWith("_comment");
@@ -248,22 +249,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
             ? mealEquivalents / actualLaborHours
             : null;
 
-        const targets = {
-          secondary: {
-            min: 18,
-            max: 20,
-          },
-          elementary_prep: {
-            min: 20,
-            max: 22,
-          },
-          elementary_nnc: {
-            min: 24,
-            max: 25,
-          },
-        };
-
-        const target = targets[location.labor_type] || null;
+        const target = getMplhTarget(location);
 
         let mplhStatus = "no-data";
 
