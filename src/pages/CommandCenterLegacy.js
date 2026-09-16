@@ -20,7 +20,7 @@ import MonthlyScorecardsPage from "../monthlyScorecards/MonthlyScorecardsPage";
 import LaborOptimizationPage from "../monthlyScorecards/LaborOptimizationPage";
 import StaffManagementPage from "../staffing/StaffManagementPage";
 import MealCountAuditPage from "./MealCountAuditPage";
-import { buildMplhReportModel } from "../mplhReport/mplhReportModel";
+import { buildMplhReportModel, resolveMplhExportRequest } from "../mplhReport/mplhReportModel";
 import { exportMplhReportPdf } from "../mplhReport/mplhReportPdf";
 
 function isFinishLineCommentItem(item) {
@@ -3046,13 +3046,29 @@ function MplhReportView({ schools, dashboardDate, formatDate }) {
   const typeLabel = (type) => ({ secondary: "Secondary", elementary_prep: "Elementary Prep", elementary_nnc: "Elementary NNC", special: "Special" }[type] || "—");
   const statusLabel = (status) => ({ below: "Below Target", target: "On Target", high: "High Productivity" }[status] || "No Data");
   const dateLabel = (date) => new Date(`${date}T12:00:00`).toLocaleDateString([], { month: "short", day: "numeric" });
+  const exportRequest = resolveMplhExportRequest(model, selectedSchoolId, startDate, endDate);
+
+  function changeStartDate(value) {
+    setReportLoading(true);
+    setStartDate(value);
+  }
+
+  function changeEndDate(value) {
+    setReportLoading(true);
+    setEndDate(value);
+  }
+
+  function exportCurrentMplhReport() {
+    if (!exportRequest) return;
+    exportMplhReportPdf(exportRequest.model, exportRequest.schoolId);
+  }
 
   const dateControls = (
     <div className="supervisor-report-filter">
-      <div><label>Start Date</label><input type="date" value={startDate} max={endDate} onChange={(event) => setStartDate(event.target.value)} /></div>
-      <div><label>End Date</label><input type="date" value={endDate} min={startDate} onChange={(event) => setEndDate(event.target.value)} /></div>
+      <div><label>Start Date</label><input type="date" value={startDate} max={endDate} onChange={(event) => changeStartDate(event.target.value)} /></div>
+      <div><label>End Date</label><input type="date" value={endDate} min={startDate} onChange={(event) => changeEndDate(event.target.value)} /></div>
       {!selectedReport && <div><label>School</label><select value={selectedSchoolId} onChange={(event) => setSelectedSchoolId(event.target.value)}><option value="all">All Schools</option>{schools.map((school) => <option key={school.id} value={school.id}>{school.school_name}</option>)}</select></div>}
-      <button type="button" className="command-action-btn" disabled={!model || reportLoading} onClick={() => exportMplhReportPdf(model, selectedReport?.school.id || null)}>Export PDF</button>
+      <button type="button" className="command-action-btn" disabled={!exportRequest || reportLoading} onClick={exportCurrentMplhReport}>{reportLoading || !exportRequest ? "Preparing PDF..." : "Export PDF"}</button>
     </div>
   );
 

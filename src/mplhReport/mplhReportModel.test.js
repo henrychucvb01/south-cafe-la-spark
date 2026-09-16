@@ -2,6 +2,7 @@ import {
   buildMplhReportModel,
   findExtremeMealVariance,
   prepareMplhPdfData,
+  resolveMplhExportRequest,
 } from "./mplhReportModel";
 import { createMplhReportPdfBytes } from "./mplhReportPdf";
 import { PDFDocument } from "pdf-lib";
@@ -93,4 +94,12 @@ test("polished all-school and school-history PDFs render from the shared model",
   const schoolPdf = await PDFDocument.load(await createMplhReportPdfBytes(model, 1));
   expect(allPdf.getPageCount()).toBe(1);
   expect(schoolPdf.getPageCount()).toBeGreaterThanOrEqual(1);
+});
+
+test("export waits for the visible range and locks the selected school", () => {
+  const model = build();
+  expect(resolveMplhExportRequest(model, 1, "2026-09-01", "2026-09-02")).toEqual({ model, schoolId: 1 });
+  expect(resolveMplhExportRequest(model, 1, "2026-09-01", "2026-09-15")).toBeNull();
+  expect(resolveMplhExportRequest(model, 999, "2026-09-01", "2026-09-02")).toBeNull();
+  expect(prepareMplhPdfData(model, 1).reports.map((report) => report.school.id)).toEqual([1]);
 });

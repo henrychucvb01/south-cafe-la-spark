@@ -187,3 +187,13 @@ export function prepareMplhPdfData(model, schoolId = null) {
     reports,
   };
 }
+
+export function resolveMplhExportRequest(model, schoolId, startDate, endDate) {
+  if (!model || model.startDate !== startDate || model.endDate !== endDate) return null;
+  const normalizedSchoolId = schoolId === "all" ? null : schoolId;
+  if (
+    normalizedSchoolId !== null &&
+    !model.schools.some((report) => String(report.school.id) === String(normalizedSchoolId))
+  ) return null;
+  return { model, schoolId: normalizedSchoolId };
+}
