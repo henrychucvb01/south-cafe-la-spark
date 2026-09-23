@@ -8,7 +8,7 @@ The Manager Hub tile opens school-scoped drafts, current-year completed monitori
 
 History dates are generated for the selected week. Every day requires attendance greater than meals; monitoring-date overlap, missing/invalid/duplicate dates and counts are rejected. The average is calculated. Menu fields cover all seven official categories. Questions 1–20 include 18a/18b, the form's N/A restrictions, conditional 18b, and corrective-action rules. No requires action except 18a/19; Yes to 19 requires action. Repeated findings apply to 18b No. Question 20 Yes with other findings prompts review without inventing a new prohibition.
 
-Comments, printed names, signature dates, and both signatures are required. Mouse/touch signatures scale for phone rotation and include explicit consent to apply to both pages. Signatures bind to a SHA-256 digest of report content; content edits clear them and the server independently checks the digest. Navigating questions does not invalidate signatures.
+Comments, printed names, signature dates, and both signatures are required. Each signer opens the drawing pad with Sign with Finger. Mouse/touch signatures scale for phone rotation and include explicit consent to apply to both pages. Signatures bind to a SHA-256 digest of report content; content edits clear them and the server independently checks the digest. Navigating questions does not invalidate signatures.
 
 Preview and submission render the actual supplied template, with answers, history, menu, comments/actions, and both signatures. Submission validates saved data on the server, verifies the template hash, renders successfully, then atomically saves private PDF bytes and locks the record. Completed and previous records are read-only and download the stored original bytes. Interrupted submission responses can safely be retried.
 
@@ -46,7 +46,7 @@ Private database byte storage deliberately provides transactional completion wit
 
 School year is July–June. Follow-up requires a selected date, a count of 1–60 operating days, and explicit confirmation against the school's operating calendar. SPARK does not yet calculate that count from a district calendar. This is an attested check, not an automated calendar calculation.
 
-Separate phone-signature QR sessions remain deferred; the disabled option issues no token or link. Future sessions need independent hashed, expiring, single-use tokens scoped to one signer and report-content digest. Supervisor dashboards, scheduling rules, corrections/replacements UI, combined exports and template administration remain outside this implementation; role/year/version/replacement fields support later work.
+Phone-signature QR handoff is not part of the requested workflow. There is no QR or separate-phone option; signing takes place directly on the device running SPARK. Supervisor dashboards, scheduling rules, corrections/replacements UI, combined exports and template administration remain outside this implementation; role/year/version/replacement fields support later work.
 
 ## Files
 

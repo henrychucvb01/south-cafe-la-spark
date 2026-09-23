@@ -114,6 +114,8 @@ try {
     await page.getByLabel("ASP Coordinator printed name", { exact: true }).fill("Test Coordinator");
     for (const index of [0, 1]) {
       const pad = page.locator(".sm-signature").nth(index);
+      await expect(pad.locator('canvas')).toHaveCount(0);
+      await pad.getByRole('button',{name:'Sign with Finger',exact:true}).click();
       const canvas = pad.locator("canvas");
       await canvas.scrollIntoViewIfNeeded();
       const box = await canvas.boundingBox();

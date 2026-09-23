@@ -10,6 +10,7 @@ export default function SignaturePad({ name, value, onChange, disabled = false, 
   const [date, setDate] = useState(value?.date || "");
   const [applyBoth, setApplyBoth] = useState(value?.pages?.length === 2);
   const [message, setMessage] = useState("");
+  const [expanded, setExpanded] = useState(false);
   const accepted = !!value && value.printedName === name.trim();
 
   function paint() {
@@ -38,7 +39,7 @@ export default function SignaturePad({ name, value, onChange, disabled = false, 
     if (canvas.current) observer?.observe(canvas.current);
     window.addEventListener("resize", paint);
     return () => { observer?.disconnect(); window.removeEventListener("resize", paint); };
-  }, []);
+  }, [expanded, accepted]);
   function point(event) {
     const rect = canvas.current.getBoundingClientRect();
     return [Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)), Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height))];
@@ -75,13 +76,16 @@ export default function SignaturePad({ name, value, onChange, disabled = false, 
     setMessage("");
   }
   return <div className="sm-signature">
-    <p>Sign on this device. On a phone, rotating sideways gives you more space.</p>
+    {!accepted && !disabled && <button type="button" className="sm-primary" aria-expanded={expanded} onClick={() => setExpanded(true)}>Sign with Finger</button>}
+    {(expanded || accepted) && <>
+    <p>{accepted ? "Your signature will appear in your signature spaces on both PDF pages." : "Use your finger to sign in the box below, or use a mouse on a computer. Your signature will be copied into your signature spaces on both PDF pages."}</p>
     <canvas ref={canvas} className="sm-signature-canvas" aria-label={`${label} signature drawing area`} onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={() => { drawing.current = null; }} />
     <label>Signature date<input type="date" value={date} disabled={disabled || accepted} onChange={e => setDate(e.target.value)} /></label>
     <label className="sm-check"><input type="checkbox" checked={applyBoth} disabled={disabled || accepted} onChange={e => setApplyBoth(e.target.checked)} />I authorize this signature to be applied to the required {label} signature locations on both official pages.</label>
     {accepted && <p role="status">✓ Signature accepted for both pages — {value.date}</p>}
     {message && <p className="sm-error" role="alert">{message}</p>}
     {!disabled && <div className="sm-actions"><button type="button" onClick={clear}>Clear</button><button type="button" onClick={accept} disabled={accepted || !hasInk}>Accept Signature</button></div>}
-    <button type="button" disabled title="Secure phone signature sessions are not available yet.">Sign using phone — coming later</button>
+    </>}
+    {disabled && !accepted && <p>No accepted signature.</p>}
   </div>;
 }
