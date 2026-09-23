@@ -1,11 +1,10 @@
+import { OFFICIAL_FORM } from "./officialForm.js";
+export { OFFICIAL_FORM } from "./officialForm.js";
 export const SECTIONS = ["Monitoring Information", "Five-Day History", "Today's Supper Information", "Menu & Serving Sizes", "Monitoring Questions", "Findings / Corrective Action", "Comments", "Names & Signatures", "Final Review", "Submit"];
 export const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 export const MENU = ["Milk", "Meat/Alternate", "Grains/Breads", "Fruit", "Vegetable", "Additional Meat/Alternate", "Other"];
 export const QUESTION_IDS = [...Array.from({ length: 17 }, (_, i) => String(i + 1)), "18a", "18b", "19", "20"];
 
-// The supplied official PDF is a release dependency. Do not substitute guessed
-// wording, N/A eligibility, 18b conditions, or coordinates from another revision.
-export const OFFICIAL_FORM = Object.freeze({ version: null, questions: [], ready: false });
 
 export function localDate() {
   const now = new Date();
@@ -32,7 +31,7 @@ export function weekDates(date) {
   });
 }
 export function newDraft(monitor = "") {
-  return { schemaVersion: 1, monitoringDate: "", arrivalTime: "", departureTime: "", serviceStart: "", serviceEnd: "", programName: "", programType: "", todayAttendance: "", todayMeals: "", weekStart: "", history: [], menu: MENU.map(category => ({ category, applicable: true, item: "", serving: "" })), answers: {}, correctiveActions: {}, repeatedFindings: "", repeatedAction: "", comments: "", monitorName: monitor, coordinatorName: "", signatures: { monitor: null, coordinator: null } };
+  return { schemaVersion: 1, unannounced: null, adultMeals: "", correctiveActionDue: "", followUpRequired: null, extraFollowUp: "", approvedServiceTime: "", monitoringDate: "", arrivalTime: "", departureTime: "", serviceStart: "", serviceEnd: "", programName: "", programType: "", todayAttendance: "", todayMeals: "", weekStart: "", history: [], menu: MENU.map(category => ({ category, applicable: true, item: "", serving: "" })), answers: {}, correctiveActions: {}, repeatedFindings: "", repeatedAction: "", comments: "", monitorName: monitor, coordinatorName: "", signatures: { monitor: null, coordinator: null } };
 }
 export function countValid(value) {
   return /^(0|[1-9]\d*)$/.test(String(value)) && Number.isSafeInteger(Number(value)) && Number(value) <= 1000000;
@@ -81,7 +80,7 @@ export function validate(data, form = OFFICIAL_FORM) {
   if (!form.ready || applicableQuestions(data, form).some(q => !q.options.includes(data.answers[q.id]))) add(5, "findingsPending", "Complete the official monitoring questions before reviewing required corrective actions.");
   applicableQuestions(data, form).forEach(q => {
     if (!q.options.includes(data.answers[q.id])) add(4, `question-${q.id}`, `Answer question ${q.id} using one of its permitted responses.`);
-    if (q.id === "18b" && (!data.repeatedFindings.trim() || !data.repeatedAction.trim())) add(5, "repeatedFindings", "For applicable question 18b, describe the repeated findings and action taken.");
+    if (q.id === "18b" && data.answers["18b"] === "no" && (!data.repeatedFindings.trim() || !data.repeatedAction.trim())) add(5, "repeatedFindings", "For question 18b answered No, describe the repeated findings and action to be taken.");
   });
   findings(data, form).forEach(q => {
     const action = data.correctiveActions[q.id] || {};
@@ -100,5 +99,21 @@ export function validate(data, form = OFFICIAL_FORM) {
     if (!signature?.pages?.includes(1) || !signature?.pages?.includes(2)) add(7, `${role}Signature`, `${name}: explicitly apply the accepted signature to both official pages.`);
   }
   if (!form.ready) add(9, "officialPdf", "The official PDF template and verified field mapping are required before submission.");
+  if (typeof data.unannounced !== "boolean") add(0, "unannounced", "Confirm whether this visit was unannounced.");
+  if (!data.approvedServiceTime?.trim()) add(2, "approvedServiceTime", "Enter the CDE-approved service time shown for this program.");
+  if (!countValid(data.adultMeals)) add(2, "adultMeals", "Enter adult meals as a whole number, including 0 if none.");
+  if (typeof data.followUpRequired !== "boolean") add(5, "followUpRequired", "Confirm whether follow-up is required.");
+  if (findings(data, form).length) {
+    if (!validDate(data.correctiveActionDue)) add(5, "correctiveActionDue", "Enter the date by which corrective action will be completed.");
+    if (validDate(data.correctiveActionDue) && data.correctiveActionDue < data.monitoringDate) add(5, "correctiveActionDue", "The corrective-action deadline cannot precede the monitoring date.");
+    if (data.followUpRequired !== true) add(5, "followUpRequired", "These answers require follow-up within 60 operating days. Choose Yes.");
+  } else if (data.followUpRequired && !data.extraFollowUp?.trim()) add(5, "extraFollowUp", "Describe the required follow-up.");
+  findings(data, form).forEach(q => {
+    const action = data.correctiveActions[q.id] || {};
+    if (!countValid(action.operatingDays) || Number(action.operatingDays) < 1 || Number(action.operatingDays) > 60 || action.calendarConfirmed !== true) add(5, `action-${q.id}-operatingDays`, `Question ${q.id}: confirm the school calendar and enter 1–60 operating days to follow-up. Do not count closed days.`);
+  });
+  for (const role of ["monitor", "coordinator"]) {
+    if (!/^[a-f0-9]{64}$/.test(data.signatures[role]?.contentHash || "")) add(7, `${role}Signature`, "Review this report and accept the signature for its current content.");
+  }
   return errors;
 }

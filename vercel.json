@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/supper-monitoring.js": {
+      "includeFiles": "public/supper-monitoring-2022-09-08.pdf"
+    }
+  }
+}

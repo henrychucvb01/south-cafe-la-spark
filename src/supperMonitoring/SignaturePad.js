@@ -70,7 +70,8 @@ export default function SignaturePad({ name, value, onChange, disabled = false, 
   }
   function accept() {
     if (!name.trim() || !date || !hasInk || !applyBoth) { setMessage("Confirm your printed name, draw a signature, enter its date, and select both pages before accepting."); return; }
-    onChange({ strokes: strokes.current.map(stroke => stroke.map(point => [...point])), printedName: name.trim(), date, pages: [1, 2], acceptedAt: new Date().toISOString(), method: "this-device" });
+    const rect = canvas.current.getBoundingClientRect();
+    onChange({ strokes: strokes.current.map(stroke => stroke.map(point => [...point])), aspectRatio: rect.width / rect.height, printedName: name.trim(), date, pages: [1, 2], acceptedAt: new Date().toISOString(), method: "this-device" });
     setMessage("");
   }
   return <div className="sm-signature">

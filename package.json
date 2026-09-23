@@ -32,7 +32,8 @@
     "test:supper-db": "node scripts/test-supper-monitoring-db.mjs",
     "test:supper-browser": "node scripts/test-supper-monitoring-browser.mjs",
     "test": "react-scripts test --env=jsdom",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "test:supper-report": "node scripts/test-supper-monitoring-report.mjs"
   },
   "browserslist": [
     ">0.2%",

@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
+import { createHash } from "node:crypto";
 
 // Ephemeral PostgreSQL only: no credentials or connections to production.
 const db = new PGlite();
 try {
   await db.exec(`
-    create role anon; create role authenticated;
+    create role anon; create role authenticated; create role service_role;
     create table public.locations(id bigint primary key, active boolean);
     create table public.employees(id bigint primary key, location_id bigint, employee_name text, active boolean);
     insert into public.locations values(1,true),(2,true);
@@ -15,6 +16,7 @@ try {
     create function public.verify_covering_pin(p_pin text) returns boolean language sql as $$ select p_pin='5678' $$;
   `);
   await db.exec(await readFile(new URL("../supabase/migrations/202609230001_supper_monitoring.sql", import.meta.url), "utf8"));
+  await db.exec(await readFile(new URL("../supabase/migrations/202609230002_supper_monitoring_reports.sql", import.meta.url), "utf8"));
   const query = async (sql, params = []) => (await db.query(sql, params)).rows;
   await db.exec("set role anon");
   const open = async (location, employee, pin = "1234") => (await query("select public.open_supper_monitoring_session($1,$2,$3,null) as token", [location, employee, pin]))[0].token;
@@ -42,9 +44,25 @@ try {
   assert.deepEqual(resumed.payload, payload);
   await query("select * from public.save_supper_monitoring_draft($1,$2,1,7,$3::jsonb)", [token, saved.id, JSON.stringify(payload)]);
   await assert.rejects(() => query("select * from public.save_supper_monitoring_draft($1,$2,1,6,$3::jsonb)", [token, saved.id, JSON.stringify(payload)]), /another session/);
-  await assert.rejects(() => query("select public.submit_supper_monitoring($1,$2,2)", [token, saved.id]), /official two-page form/);
-  await db.exec("reset role");
-  await query("update public.supper_monitorings set status='completed',template_version='TEST ONLY',submitted_at=now(),pdf_storage_path='test-only.pdf',pdf_sha256='test-only' where id=$1", [saved.id]);
+  await assert.rejects(() => query("select public.submit_supper_monitoring($1,$2,2)", [token, saved.id]), /secure report service/);
+  const pdf = Buffer.from('%PDF-1.7\n' + 'Test document bytes '.repeat(10));
+  const hash = createHash('sha256').update(pdf).digest('hex');
+  const finalize = (session = token, revision = 2, digest = hash) => query('select * from public.finalize_supper_monitoring($1,$2,$3,$4,$5,$6)', [session,saved.id,revision,'lausd-supper-2022-09-08',pdf.toString('base64'),digest]);
+  await assert.rejects(() => finalize(), /permission denied/);
+  await assert.rejects(() => query('select * from public.supper_monitoring_documents'), /permission denied/);
+  await db.exec('reset role; set role service_role');
+  await assert.rejects(() => finalize(tokenTwo), /not found for this school/);
+  await assert.rejects(() => finalize(token,1), /revision changed/);
+  await assert.rejects(() => finalize(token,2,'wrong'), /integrity/);
+  assert.equal((await query('select * from public.get_supper_monitoring($1,$2)', [token,saved.id]))[0].status,'draft');
+  const completed = (await finalize())[0];
+  assert.equal(completed.status,'completed');
+  assert.equal(completed.revision,3);
+  assert.equal((await finalize())[0].revision,3, 'Retry must not duplicate completion');
+  const encoded = (await query('select public.read_supper_monitoring_pdf($1,$2) as pdf',[token,saved.id]))[0].pdf;
+  assert.deepEqual(Buffer.from(encoded,'base64'),pdf);
+  await assert.rejects(() => query('select public.read_supper_monitoring_pdf($1,$2)',[tokenTwo,saved.id]), /not found for this school/);
+  await db.exec('reset role');
   await db.exec("set role anon");
   await assert.rejects(() => query("select * from public.save_supper_monitoring_draft($1,$2,2,6,$3::jsonb)", [token, saved.id, JSON.stringify(payload)]), /completed/);
   assert.equal((await query("select * from public.get_supper_monitoring($1,$2)", [token, saved.id]))[0].status, "completed");

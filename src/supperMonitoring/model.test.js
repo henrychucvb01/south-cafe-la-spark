@@ -5,11 +5,11 @@ import { newDraft, weekDates, average, validate, requiresCorrectiveAction, findi
 const fixture = { ready: true, questions: QUESTION_IDS.map(id => ({ id, options: ["yes", "no", "na"], ...(id === "18b" ? { when: { id: "18a", answer: "yes" } } : {}) })) };
 function completeDraft() {
   const data = newDraft("A Monitor");
-  Object.assign(data, { monitoringDate: "2026-09-23", arrivalTime: "14:00", departureTime: "16:00", serviceStart: "14:30", serviceEnd: "15:30", programName: "ASP", todayAttendance: "101", todayMeals: "100", weekStart: "2026-09-14", coordinatorName: "B Coordinator", comments: "No Findings" });
+  Object.assign(data, { unannounced: true, adultMeals: "0", approvedServiceTime: "14:30-15:30", followUpRequired: false, monitoringDate: "2026-09-23", arrivalTime: "14:00", departureTime: "16:00", serviceStart: "14:30", serviceEnd: "15:30", programName: "ASP", todayAttendance: "101", todayMeals: "100", weekStart: "2026-09-14", coordinatorName: "B Coordinator", comments: "No Findings" });
   data.history = weekDates(data.weekStart).map(date => ({ date, meals: "100", attendance: "101" }));
   data.menu = data.menu.map(row => ({ ...row, item: "Menu item", serving: "1 cup" }));
   data.answers = Object.fromEntries(QUESTION_IDS.map(id => [id, id === "18a" || id === "19" ? "no" : "yes"]));
-  ["monitor", "coordinator"].forEach(role => { data.signatures[role] = { strokes: [[[0.1, 0.2], [0.4, 0.8]]], printedName: data[`${role}Name`], date: "2026-09-23", pages: [1, 2], acceptedAt: "2026-09-23T20:00:00Z" }; });
+  ["monitor", "coordinator"].forEach(role => { data.signatures[role] = { contentHash: "a".repeat(64), strokes: [[[0.1, 0.2], [0.4, 0.8]]], printedName: data[`${role}Name`], date: "2026-09-23", pages: [1, 2], acceptedAt: "2026-09-23T20:00:00Z" }; });
   return data;
 }
 
@@ -63,9 +63,9 @@ test("18b only applies according to the configured form condition", () => {
   expect(validate(draft, fixture).some(e => e.field === "repeatedFindings")).toBe(true);
 });
 test("corrective action and follow-up fields are mandatory when triggered", () => {
-  const draft = completeDraft(); draft.answers["19"] = "yes";
+  const draft = completeDraft(); draft.answers["19"] = "yes"; draft.followUpRequired = true; draft.correctiveActionDue = "2026-10-01";
   expect(validate(draft, fixture).some(e => e.section === 5)).toBe(true);
-  draft.correctiveActions["19"] = { description: "Finding", action: "Action", training: "Discussion", followUpPlan: "Return visit", actionDate: "2026-09-23", followUpDue: "2026-10-01" };
+  draft.correctiveActions["19"] = { description: "Finding", action: "Action", training: "Discussion", followUpPlan: "Return visit", actionDate: "2026-09-23", followUpDue: "2026-10-01", operatingDays: "6", calendarConfirmed: true };
   expect(validate(draft, fixture)).toEqual([]);
   draft.correctiveActions["19"].followUpComplete = true;
   expect(validate(draft, fixture).some(e => e.field === "action-19-followUpNotes")).toBe(true);
@@ -81,7 +81,7 @@ test("missing menu information, invalid times and incomplete questions fail revi
   expect(validate(draft, fixture).map(e => e.field)).toEqual(expect.arrayContaining(["menu-0", "departureTime", "question-20"]));
 });
 test("official template cannot be bypassed by otherwise complete answers", () => {
-  expect(validate(completeDraft()).map(e => e.field)).toEqual(expect.arrayContaining(["officialForm", "officialPdf"]));
+  expect(validate(completeDraft(), { ready: false, questions: [] }).map(e => e.field)).toEqual(expect.arrayContaining(["officialForm", "officialPdf"]));
 });
 test("school-year boundary uses July and does not parse invalid dates", () => {
   expect(schoolYear("2026-06-30")).toBe("2025-26");

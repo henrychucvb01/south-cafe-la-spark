@@ -2,15 +2,44 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { readFile, mkdir } from "node:fs/promises";
 import { resolve, extname, sep } from "node:path";
-import { chromium } from "@playwright/test";
+import { chromium, expect } from "@playwright/test";
+import { randomUUID } from "node:crypto";
+import { createHandler } from "../api/supper-monitoring.js";
+import { makeFixture } from "./supper-monitoring-fixture.mjs";
 
 // Uses a built app and an entirely mocked backend. Never sends requests to the
 // live SPARK database. Screenshots are written to an ignored local directory.
 const build = resolve("build");
 const output = resolve("test-results/supper-monitoring");
 await mkdir(output, { recursive: true });
+const records = [];
+const documents = new Map();
+const token = randomUUID() + randomUUID();
+const reportHandler = createHandler({ database: {
+  async rpc(name,args) {
+    const record = records.find(r => r.id === args.p_id);
+    if (args.p_token !== token || !record) return { error: { message: 'Session expired.' } };
+    if (name === 'get_supper_monitoring') return { data: record };
+    if (name === 'read_supper_monitoring_pdf') return { data: documents.get(record.id) };
+    if (name === 'finalize_supper_monitoring') {
+      documents.set(record.id,args.p_pdf_base64);
+      Object.assign(record,{status:'completed',revision:record.revision+1,submitted_at:new Date().toISOString(),current_section:8});
+      return {data:record};
+    }
+    throw new Error(name);
+  },
+  from() { return { select() { return { eq() { return { async single() { return {data:{school_name:'Test School',location_code:'1001'}}; } }; } }; } }; }
+} });
 const server = createServer(async (req, res) => {
   try {
+    if (req.url === '/api/supper-monitoring') {
+      let body = ''; for await (const chunk of req) body += chunk;
+      req.body = JSON.parse(body);
+      res.status = code => { res.statusCode = code; return res; };
+      res.json = value => { res.setHeader('Content-Type','application/json'); res.end(JSON.stringify(value)); };
+      res.send = value => res.end(value);
+      await reportHandler(req,res); return;
+    }
     const path = resolve(build, `.${decodeURIComponent(new URL(req.url, "http://localhost").pathname)}`);
     if (path !== build && !path.startsWith(build + sep)) { res.writeHead(403).end(); return; }
     const file = path === build ? resolve(build, "index.html") : path;
@@ -22,7 +51,6 @@ const server = createServer(async (req, res) => {
 await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({ channel: process.env.SPARK_TEST_BROWSER || "chrome", headless: true });
-const records = [];
 const pageErrors = [];
 try {
   for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
@@ -40,13 +68,13 @@ try {
       if (path.endsWith("/locations")) body = { id: 1, location_code: "1001", school_name: "Test School", active: true };
       else if (path.endsWith("/employees")) body = [{ id: 11, location_id: 1, employee_name: "Test Monitor", active: true }];
       else if (path.endsWith("/has_manager_pin") || path.endsWith("/verify_manager_pin")) body = true;
-      else if (path.endsWith("/open_supper_monitoring_session")) body = "TEST-SESSION-ONLY";
+      else if (path.endsWith("/open_supper_monitoring_session")) body = token;
       else if (path.endsWith("/close_supper_monitoring_session")) body = null;
       else if (path.endsWith("/list_supper_monitorings")) body = records.map(record => ({ ...record, monitor_name: record.payload.monitorName }));
       else if (path.endsWith("/get_supper_monitoring")) body = records.find(record => record.id === args.p_id);
       else if (path.endsWith("/save_supper_monitoring_draft")) {
         let record = records.find(record => record.id === args.p_id);
-        if (!record) { record = { id: `test-${records.length + 1}`, status: "draft", revision: 0 }; records.push(record); }
+        if (!record) { record = { id: randomUUID(), location_id: 1, status: "draft", revision: 0 }; records.push(record); }
         Object.assign(record, { payload: args.p_payload, current_section: args.p_section, revision: record.revision + 1, school_year: "2026-27", monitoring_date: args.p_payload.monitoringDate, updated_at: "2026-09-23T20:00:00Z" });
         body = record;
       } else body = [];
@@ -118,7 +146,7 @@ try {
     await page.getByLabel("Go to section").selectOption("8");
     await page.screenshot({ path: resolve(output, `review-${viewport.width}.png`), fullPage: true });
     await page.getByRole("button", { name: /○ Monitoring Questions/ }).click();
-    assert.equal(await page.locator(".sm-card h2").textContent(), "Monitoring Questions");
+    await expect(page.locator(".sm-card h2")).toHaveText("Monitoring Questions");
     await page.getByLabel("Go to section").selectOption("9");
     assert.equal(await page.getByRole("button", { name: "Submit Monitoring", exact: true }).isDisabled(), true);
     await page.getByLabel("Go to section").selectOption("6");
@@ -127,9 +155,40 @@ try {
     assert.equal(await page.getByText(/Signature accepted for both pages/).count(), 0, "Editing report content must invalidate accepted signatures");
     assert.equal(records[records.length - 1].payload.signatures.monitor, null);
     assert.equal(records[records.length - 1].payload.signatures.coordinator, null);
+    await page.getByRole('button', {name:'Save & Return to Monitorings',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'Drafts / In Progress',exact:true})).toBeVisible();
+    const complete = records[records.length - 1];
+    complete.payload = makeFixture(false);
+    complete.current_section = 4;
+    await page.getByRole('button', {name:'Resume',exact:true}).last().click();
+    await expect(page.getByRole('heading',{name:'Monitoring Questions',exact:true})).toBeVisible();
+    await page.getByRole('button',{name:'Save & Next Question',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'Question 2',exact:true})).toBeVisible();
+    assert.equal(complete.payload.questionCursor,1);
+    await page.getByLabel('Go to section').selectOption('9');
+    await expect(page.getByRole('button',{name:'Submit Monitoring',exact:true})).toBeEnabled();
+    const preview = page.waitForEvent('download');
+    await page.getByRole('button',{name:/Preview.*PDF/}).click();
+    await (await preview).saveAs(resolve(output,`browser-preview-${viewport.width}.pdf`));
+    assert.equal(complete.status,'draft');
+    await page.getByRole('button',{name:'Submit Monitoring',exact:true}).click();
+    await expect(page.getByText('Completed records cannot be edited.',{exact:false})).toBeVisible();
+    assert.equal(complete.status,'completed');
+    const download = page.waitForEvent('download');
+    await page.getByRole('button',{name:/Download.*PDF/}).click();
+    await (await download).saveAs(resolve(output,`browser-completed-${viewport.width}.pdf`));
+    assert.deepEqual(await readFile(resolve(output,`browser-completed-${viewport.width}.pdf`)),Buffer.from(documents.get(complete.id),'base64'));
+    await page.screenshot({path:resolve(output,`completed-${viewport.width}.png`),fullPage:true});
+    complete.school_year = '2025-26';
+    await page.getByRole('button',{name:'Return to Monitorings',exact:true}).click();
+    const previous = page.locator('section.sm-card').filter({has:page.getByRole('heading',{name:'Previous Monitorings',exact:true})});
+    await previous.getByRole('button',{name:'View',exact:true}).last().click();
+    await expect(page.getByRole('button',{name:'Download Official PDF',exact:true})).toBeVisible();
+    await page.getByLabel('Go to section').selectOption('0');
+    await expect(page.getByLabel('Monitoring date',{exact:true})).toBeDisabled();
     await context.close();
   }
   assert.deepEqual(pageErrors, []);
-  console.log("PASS: desktop/mobile login and Manager Hub, five-day validation, save/resume, signatures, landscape sizing, final review, no horizontal overflow, and submission gate.");
+  console.log("PASS: desktop/mobile login and Manager Hub, history validation, save/resume, mouse/touch signatures, landscape sizing, review, saved question navigation, preview, submission, byte-identical download, and read-only previous reports.");
   console.log(`Screenshots: ${output}`);
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
