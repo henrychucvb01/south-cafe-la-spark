@@ -1,3 +1,4 @@
+import { localDate } from "./model";
 import React, { useEffect, useRef, useState } from "react";
 
 // Store normalized vectors, not device-size pixels. Resizing/rotating does not
@@ -7,7 +8,7 @@ export default function SignaturePad({ name, value, onChange, disabled = false, 
   const drawing = useRef(null);
   const strokes = useRef(value?.strokes || []);
   const [hasInk, setHasInk] = useState(strokes.current.length > 0);
-  const [date, setDate] = useState(value?.date || "");
+  const [date, setDate] = useState(value?.date || localDate());
   const [applyBoth, setApplyBoth] = useState(value?.pages?.length === 2);
   const [message, setMessage] = useState("");
   const [expanded, setExpanded] = useState(false);
@@ -82,7 +83,7 @@ export default function SignaturePad({ name, value, onChange, disabled = false, 
     <canvas ref={canvas} className="sm-signature-canvas" aria-label={`${label} signature drawing area`} onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={() => { drawing.current = null; }} />
     <label>Signature date<input type="date" value={date} disabled={disabled || accepted} onChange={e => setDate(e.target.value)} /></label>
     <label className="sm-check"><input type="checkbox" checked={applyBoth} disabled={disabled || accepted} onChange={e => setApplyBoth(e.target.checked)} />I authorize this signature to be applied to the required {label} signature locations on both official pages.</label>
-    {accepted && <p role="status">✓ Signature accepted for both pages — {value.date}</p>}
+    {accepted && <p role="status">✓ Signature Complete — Signature accepted for both pages — {value.date}</p>}
     {message && <p className="sm-error" role="alert">{message}</p>}
     {!disabled && <div className="sm-actions"><button type="button" onClick={clear}>Clear</button><button type="button" onClick={accept} disabled={accepted || !hasInk}>Accept Signature</button></div>}
     </>}

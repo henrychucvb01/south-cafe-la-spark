@@ -1,4 +1,4 @@
-import { newDraft, weekDates, average, validate, requiresCorrectiveAction, findings, QUESTION_IDS, schoolYear, resumeDraft } from "./model";
+import { newDraft, weekDates, average, validate, requiresCorrectiveAction, findings, QUESTION_IDS, schoolYear, resumeDraft, historyKey, repeatedHistory, serviceEnd, changeDraft } from "./model";
 
 // Synthetic questionnaire exercises the renderer contract. It is deliberately
 // not the missing official questionnaire or an approved compliance definition.
@@ -6,11 +6,12 @@ const fixture = { ready: true, questions: QUESTION_IDS.map(id => ({ id, options:
 function completeDraft() {
   const data = newDraft("A Monitor");
   Object.assign(data, { unannounced: true, adultMeals: "0", approvedServiceTime: "14:30-15:30", followUpRequired: false, monitoringDate: "2026-09-23", arrivalTime: "14:00", departureTime: "16:00", serviceStart: "14:30", serviceEnd: "15:30", programName: "ASP", todayAttendance: "101", todayMeals: "100", weekStart: "2026-09-14", coordinatorName: "B Coordinator", comments: "No Findings" });
-  data.serviceTimes = [{program:"Beyond the Bell",day:"Wednesday",start:"14:30",end:"15:30",observed:true}];
+  data.serviceTimes = [{program:"Beyond the Bell",day:"Wednesday",start:"14:30",end:"15:00",observed:true}];
   data.history = weekDates(data.weekStart).map(date => ({ date, meals: "100", attendance: "101" }));
   data.menu = data.menu.map(row => ({ ...row, item: "Menu item", serving: "1 cup" }));
   data.answers = Object.fromEntries(QUESTION_IDS.map(id => [id, id === "18a" || id === "19" ? "no" : "yes"]));
   ["monitor", "coordinator"].forEach(role => { data.signatures[role] = { contentHash: "a".repeat(64), strokes: [[[0.1, 0.2], [0.4, 0.8]]], printedName: data[`${role}Name`], date: "2026-09-23", pages: [1, 2], acceptedAt: "2026-09-23T20:00:00Z" }; });
+  data.historyVerified = historyKey(data.history);
   return data;
 }
 
@@ -92,8 +93,8 @@ test("school-year boundary uses July and does not parse invalid dates", () => {
 
 test("service validation uses only observed programs on the monitoring weekday and strict boundaries", () => {
   const data = completeDraft();
-  data.serviceTimes.push({program:"Other program",day:"Wednesday",start:"15:00",end:"16:30",observed:true});
-  data.serviceTimes.push({program:"Beyond the Bell",day:"Tuesday",start:"12:00",end:"17:30",observed:true});
+  data.serviceTimes.push({program:"Other program",day:"Wednesday",start:"16:00",end:"16:30",observed:true});
+  data.serviceTimes.push({program:"Beyond the Bell",day:"Tuesday",start:"12:00",end:"12:30",observed:true});
   expect(validate(data,fixture).find(e=>e.field === "departureTime").message).toContain("4:30 PM");
   data.departureTime="16:31";
   expect(validate(data,fixture)).toEqual([]);
@@ -109,6 +110,7 @@ test("today and history equal counts require explicit confirmation tied to those
   expect(validate(data,fixture).map(e=>e.field)).toEqual(expect.arrayContaining(["todayAttendance","attendance-0"]));
   data.todayAttendanceConfirmed=`${data.monitoringDate}|100|100`;
   data.history[0].attendanceConfirmed=`${data.history[0].date}|100|100`;
+  data.historyVerified=historyKey(data.history);
   expect(validate(data,fixture)).toEqual([]);
   data.todayMeals="101";data.todayAttendance="101";
   expect(validate(data,fixture).some(e=>e.field === "todayAttendance")).toBe(true);
@@ -130,4 +132,32 @@ test("legacy drafts retain their work and require confirmation of copied approve
   expect(resumed.unannounced).toBe(true);expect(resumed.adultMeals).toBe("0");
   expect(resumed.signatures.monitor).toBeNull();
   expect(validate(resumed,fixture).some(e=>e.field === "service-0")).toBe(true);
+});
+
+
+test("30-minute end recalculates and coverage ignores tampered end", () => {
+  expect(serviceEnd("15:02")).toBe("15:32"); expect(serviceEnd("15:45")).toBe("16:15");
+  const data=completeDraft(); data.serviceTimes=[{program:"YDP",day:"Wednesday",start:"15:02",end:"15:06",observed:true}];data.departureTime="15:30";
+  expect(validate(data).find(e=>e.field==="departureTime").message).toContain("3:32 PM (YDP");
+});
+test("repeated history confirmation is bound to dates and counts; normal variation is not flagged", () => {
+  const data=completeDraft();data.historyVerified="";
+  expect(validate(data).some(e=>e.field==="historyVerified")).toBe(true);
+  data.historyVerified=historyKey(data.history);expect(validate(data).some(e=>e.field==="historyVerified")).toBe(false);
+  data.history[0].meals="99";expect(validate(data).some(e=>e.field==="historyVerified")).toBe(true);
+  data.history.forEach((d,i)=>{d.meals=String(51+i*3);d.attendance=String(70+i*4);});expect(repeatedHistory(data.history)).toBe(false);
+  data.history.forEach(d=>d.attendance="90");expect(repeatedHistory(data.history)).toBe(true);
+  expect(average([51,51,51,52,52].map(meals=>({meals})))).toBe(51);
+  expect(average([51,51,52,52,52].map(meals=>({meals})))).toBe(52);
+});
+test("both monitoring roles preserve the first signature when the second signer enters their name", () => {
+  for(const slot of ["manager_1","supervisor"]){
+    let data=completeDraft();data.monitoringSlot=slot;
+    const accepted=data.signatures.monitor;
+    data=changeDraft(data,"coordinatorName","New Coordinator");
+    expect(data.signatures.monitor).toBe(accepted);expect(data.signatures.coordinator).toBeNull();
+    expect(validate(data).filter(e=>e.field==="monitorSignature")).toEqual([]);
+    expect(resumeDraft(JSON.parse(JSON.stringify(data))).signatures.monitor).toEqual(accepted);
+    data=changeDraft(data,"comments","Changed");expect(data.signatures.monitor).toBeNull();
+  }
 });

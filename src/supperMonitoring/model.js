@@ -31,7 +31,7 @@ export function weekDates(date) {
   });
 }
 export function newDraft(monitor = "", role = "manager") {
-  return { schemaVersion: 1, guidedVersion: 2, schoolYear: schoolYear(localDate()), monitoringSlot: role === "supervisor" ? "supervisor" : "manager_1", unannounced: true, adultMeals: "0", serviceTimes: [], todayAttendanceConfirmed: "", correctiveActionDue: "", followUpRequired: null, extraFollowUp: "", approvedServiceTime: "", monitoringDate: "", arrivalTime: "", departureTime: "", serviceStart: "", serviceEnd: "", programName: "", programType: "", todayAttendance: "", todayMeals: "", weekStart: "", history: [], menu: MENU.map(category => ({ category, applicable: true, item: "", serving: "" })), answers: {}, correctiveActions: {}, repeatedFindings: "", repeatedAction: "", comments: "", monitorName: monitor, coordinatorName: "", signatures: { monitor: null, coordinator: null } };
+  return { schemaVersion: 1, guidedVersion: 3, schoolYear: schoolYear(localDate()), monitoringSlot: role === "supervisor" ? "supervisor" : "manager_1", unannounced: true, adultMeals: "0", serviceTimes: [], todayAttendanceConfirmed: "", historyVerified: "", correctiveActionDue: "", followUpRequired: null, extraFollowUp: "", approvedServiceTime: "", monitoringDate: "", arrivalTime: "", departureTime: "", serviceStart: "", serviceEnd: "", programName: "", programType: "", todayAttendance: "", todayMeals: "", weekStart: "", history: [], menu: MENU.map(category => ({ category, applicable: true, item: "", serving: "" })), answers: {}, correctiveActions: {}, repeatedFindings: "", repeatedAction: "", comments: "", monitorName: monitor, coordinatorName: "", signatures: { monitor: null, coordinator: null } };
 }
 export const SERVICE_DAYS = [...DAYS, "Saturday", "Sunday"];
 export const timeValid = value => /^([01]\d|2[0-3]):[0-5]\d$/.test(value || "");
@@ -44,6 +44,27 @@ export function displayTime(value) {
   return `${Number(hour) % 12 || 12}:${minute} ${Number(hour) < 12 ? "AM" : "PM"}`;
 }
 export function attendanceKey(date, meals, attendance) { return `${date}|${meals}|${attendance}`; }
+export function serviceEnd(start) {
+  if (!timeValid(start)) return "";
+  const [h, m] = start.split(":").map(Number);
+  const end = h * 60 + m + 30;
+  return `${String(Math.floor(end / 60) % 24).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`;
+}
+export function historyKey(history) { return JSON.stringify(history.map(({date, meals, attendance}) => [date, String(meals), String(attendance)])); }
+export function repeatedHistory(history) {
+  if (history?.length !== 5 || !history.every(d => countValid(d.meals) && Number(d.meals) > 0 && countValid(d.attendance))) return false;
+  const columns = ["meals", "attendance"].map(key => history.map(d => Number(d[key])));
+  return columns.some(values => values.some(v => values.filter(n => n === v).length >= 4)) || columns.every(values => Math.max(...values) - Math.min(...values) <= 1);
+}
+export function changeDraft(current, field, value) {
+  const next = { ...current, [field]: value };
+  if (["todayMeals", "todayAttendance", "monitoringDate"].includes(field)) next.todayAttendanceConfirmed = "";
+  if (field === "monitorName" || field === "coordinatorName") {
+    const role = field === "monitorName" ? "monitor" : "coordinator";
+    next.signatures = {...current.signatures, [role]: null};
+  } else if (field !== "signatures" && field !== "questionCursor") next.signatures = {monitor:null, coordinator:null};
+  return next;
+}
 export function observedServices(data) {
   return (data.serviceTimes || []).filter(row => row.day === monitoringDay(data.monitoringDate) && row.observed === true);
 }
@@ -55,14 +76,16 @@ export function resumeDraft(payload) {
     data.legacyServiceTime = payload.approvedServiceTime || "";
     data.signatures = { monitor: null, coordinator: null };
   }
-  return { ...data, schemaVersion: 1, guidedVersion: 2, unannounced: true, adultMeals: "0" };
+  data.serviceTimes = data.serviceTimes.map(row => ({...row, end: serviceEnd(row.start)}));
+  if (payload.guidedVersion !== 3) data.signatures = { monitor: null, coordinator: null };
+  return { ...data, schemaVersion: 1, guidedVersion: 3, unannounced: true, adultMeals: "0" };
 }
 export const ZERO_HISTORY_MESSAGE = "This week cannot be used because one or more days has a Supper meal count of 0. Select a different Monday-Friday week with five days of Supper meal history.";
 export function countValid(value) {
   return /^(0|[1-9]\d*)$/.test(String(value)) && Number.isSafeInteger(Number(value)) && Number(value) <= 1000000;
 }
 export function average(history) {
-  return history?.length === 5 && history.every(day => countValid(day.meals)) ? history.reduce((sum, day) => sum + Number(day.meals), 0) / 5 : null;
+  return history?.length === 5 && history.every(day => countValid(day.meals)) ? Math.round(history.reduce((sum, day) => sum + Number(day.meals), 0) / 5) : null;
 }
 export function requiresCorrectiveAction(id, answer) {
   return id === "19" ? answer === "yes" : id !== "18a" && answer === "no";
@@ -89,13 +112,14 @@ export function validate(data, form = OFFICIAL_FORM) {
     if (!row.program?.trim()) add(0, `program-${i}`, "Enter the After School Program name.");
     if (!SERVICE_DAYS.includes(row.day)) add(0, `day-${i}`, "Choose the day of week for this approved service time.");
     if (!timeValid(row.start)) add(0, `start-${i}`, "Enter the CDE-approved service start time.");
-    if (!timeValid(row.end)) add(0, `end-${i}`, "Enter the CDE-approved service end time.");
+    if (row.end !== serviceEnd(row.start)) add(0, `end-${i}`, "Service end must be exactly 30 minutes after its start. Reopen this draft to recalculate.");
     if (timeValid(row.start) && timeValid(row.end) && row.end <= row.start) add(0, `end-${i}`, "CDE-approved service end must be after its start time.");
     if (row.needsConfirmation) add(0, `service-${i}`, "Confirm the CDE-approved times copied from this older draft.");
   });
   const observed = observedServices(data);
   if (validDate(data.monitoringDate) && !observed.length) add(0, "serviceTimes", `Select at least one After School Program observed on ${monitoringDay(data.monitoringDate)}. Add that day's approved times if needed.`);
-  observed.forEach(row => {
+  observed.forEach(service => {
+    const row = {...service, end: serviceEnd(service.start)};
     if (timeValid(row.start) && timeValid(data.arrivalTime) && data.arrivalTime >= row.start) add(0, "arrivalTime", `Arrival must be before the approved Supper service start time of ${displayTime(row.start)} (${row.program}, ${row.day}).`);
     if (timeValid(row.end) && timeValid(data.departureTime) && data.departureTime <= row.end) add(0, "departureTime", `Departure must be after the approved Supper service end time of ${displayTime(row.end)} (${row.program}, ${row.day}).`);
   });
@@ -111,6 +135,7 @@ export function validate(data, form = OFFICIAL_FORM) {
     else if (countValid(day.meals) && Number(day.attendance) < Number(day.meals)) add(1, `attendance-${i}`, "Attendance cannot be lower than the Supper meal count. Verify the attendance and Community Roster.");
     if (countValid(day.meals) && Number(day.meals) > 0 && Number(day.attendance) === Number(day.meals) && day.attendanceConfirmed !== attendanceKey(day.date, day.meals, day.attendance)) add(1, `attendance-${i}`, "Verify the attendance and Community Roster, then confirm these equal numbers are correct.");
   });
+  if (repeatedHistory(data.history) && data.historyVerified !== historyKey(data.history)) add(1, "historyVerified", "Double-check the repeated 5-Day History counts, then select I Verified These Numbers.");
   if (new Set(data.history.map(d => d.date)).size !== data.history.length) add(1, "weekStart", "History dates must not repeat. Select the week again.");
   ["todayAttendance", "todayMeals"].forEach(field => { if (!countValid(data[field])) add(2, field, `Enter today's ${field === "todayMeals" ? "Supper Meal Count" : "attendance"} as a whole number.`); });
   if (countValid(data.todayMeals) && countValid(data.todayAttendance)) {
@@ -137,7 +162,7 @@ export function validate(data, form = OFFICIAL_FORM) {
   });
   if (!data.comments.trim()) add(6, "comments", 'A comment is always required. If there are no findings, enter "No Findings".');
   for (const role of ["monitor", "coordinator"]) {
-    const name = role === "monitor" ? "Manager / Monitor" : "After School Program Coordinator";
+    const name = role === "monitor" ? (data.monitoringSlot === "supervisor" ? "Supervisor / AFSS" : "Manager / Monitor") : "After School Program Coordinator";
     if (!data[`${role}Name`].trim()) add(7, `${role}Name`, `Enter the ${name}'s printed name.`);
     const signature = data.signatures[role];
     if (!signature?.strokes?.some(stroke => stroke.length > 1) || !signature.acceptedAt || signature.printedName !== data[`${role}Name`].trim()) add(7, `${role}Signature`, `${name}: draw and accept your signature after confirming your printed name.`);

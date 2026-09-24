@@ -43,7 +43,7 @@ const server = createServer(async (req, res) => {
     const path = resolve(build, `.${decodeURIComponent(new URL(req.url, "http://localhost").pathname)}`);
     if (path !== build && !path.startsWith(build + sep)) { res.writeHead(403).end(); return; }
     const file = path === build ? resolve(build, "index.html") : path;
-    const types = { ".html": "text/html", ".js": "application/javascript", ".css": "text/css", ".png": "image/png", ".gif": "image/gif", ".json": "application/json" };
+    const types = { ".html": "text/html", ".js": "application/javascript", ".mjs":"application/javascript", ".wasm":"application/wasm", ".css": "text/css", ".png": "image/png", ".gif": "image/gif", ".json": "application/json" };
     res.setHeader("Content-Type", types[extname(file)] || "application/octet-stream");
     res.end(await readFile(file));
   } catch { res.writeHead(404).end(); }
@@ -114,16 +114,16 @@ try {
     assert.equal(await page.getByText("Was this visit unannounced?",{exact:true}).count(),0);
     await page.getByRole('button',{name:'+ Add Service Time',exact:true}).click();
     await page.locator('#program-0').fill('Beyond the Bell');
-    await page.locator('#start-0').fill('14:30');await page.locator('#end-0').fill('15:30');
+    await page.locator('#start-0').fill('15:02');await expect(page.locator('#end-0')).toHaveValue('15:32');await expect(page.locator('#end-0')).toHaveAttribute('readonly','');await page.locator('#start-0').fill('14:30');await expect(page.locator('#end-0')).toHaveValue('15:00');
     await page.getByRole("button", { name: "Save & Continue →", exact: true }).click();
     await page.getByLabel("Go to section").selectOption("0");
     await page.getByRole('button',{name:'+ Add Service Time',exact:true}).click();
     await page.locator('#program-1').fill('Community Learning');
-    await page.locator('#start-1').fill('15:00');await page.locator('#end-1').fill('16:30');
+    await page.locator('#start-1').fill('16:00');await expect(page.locator('#end-1')).toHaveValue('16:30');
     await page.getByRole('button',{name:'+ Add Service Time',exact:true}).click();
     await page.locator('#program-2').fill('Beyond the Bell');
     await page.getByLabel('Day for service 3',{exact:true}).selectOption('Tuesday');
-    await page.locator('#start-2').fill('12:00');await page.locator('#end-2').fill('17:00');
+    await page.locator('#start-2').fill('12:00');await expect(page.locator('#end-2')).toHaveValue('12:30');
     await page.getByLabel('Arrival time',{exact:true}).fill('14:30');
     await page.getByRole('button',{name:'Save & Continue →',exact:true}).click();
     await expect(page.locator('#arrivalTime-error')).toContainText('before the approved Supper service start time of 2:30 PM');
@@ -151,6 +151,7 @@ try {
     await expect(page.locator('#weekStart')).toBeFocused();
     await page.getByLabel("Monday Supper Meal Count",{exact:true}).fill("100");
 
+    await page.getByLabel("I Verified These Numbers",{exact:true}).check();
     assert.ok((await page.locator(".sm-summary").textContent()).includes("100"));
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "History must fit the viewport without horizontal scrolling");
     assert.equal(await page.evaluate(() => document.querySelector('.login-header').getBoundingClientRect().bottom <= document.querySelector('.sm-main').getBoundingClientRect().top), true, "Wrapped header must not overlap the page");
@@ -192,8 +193,9 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),true,'Question list fits desktop/mobile');
     await page.screenshot({path:resolve(output,`questions-${viewport.width}.png`),fullPage:true});
     await page.getByLabel("Go to section").selectOption("7");
-    await page.getByLabel("After School Program Coordinator printed name", { exact: true }).fill("Test Coordinator");
+
     for (const index of [0, 1]) {
+      if(index===1) {await page.getByLabel("After School Program Coordinator printed name", { exact: true }).fill("Test Coordinator");await expect(page.getByText(/Signature accepted for both pages/)).toHaveCount(1);}
       const pad = page.locator(".sm-signature").nth(index);
       await expect(pad.locator('canvas')).toHaveCount(0);
       await pad.getByRole('button',{name:'Sign with Finger',exact:true}).click();
@@ -235,6 +237,7 @@ try {
     await page.getByLabel("Go to section").selectOption("6");
     await page.getByLabel("Comments", { exact: true }).fill("No Findings");
     await page.getByLabel("Go to section").selectOption("7");
+    await expect(page.getByRole("heading",{name:"Names & Signatures",exact:true})).toBeVisible();
     assert.equal(await page.getByText(/Signature accepted for both pages/).count(), 0, "Editing report content must invalidate accepted signatures");
     assert.equal(records[records.length - 1].payload.signatures.monitor, null);
     assert.equal(records[records.length - 1].payload.signatures.coordinator, null);
@@ -260,9 +263,10 @@ try {
     assert.equal(await page.locator(".sm-question-row").count(),20);
     await page.getByLabel('Go to section').selectOption('9');
     await expect(page.getByRole('button',{name:'Submit Monitoring',exact:true})).toBeEnabled();
-    const preview = page.waitForEvent('download');
-    await page.getByRole('button',{name:/Preview.*PDF/}).click();
-    await (await preview).saveAs(resolve(output,`browser-preview-${viewport.width}.pdf`));
+    await expect(page.getByRole('button',{name:/Preview.*PDF/})).toHaveCount(0);
+    await page.getByLabel('PDF page',{exact:true}).selectOption('2');await page.getByLabel('PDF zoom',{exact:true}).selectOption('0.75');
+    await expect(page.getByRole('button',{name:'Submit Monitoring',exact:true})).toBeEnabled();
+    await page.screenshot({path:resolve(output,`embedded-review-${viewport.width}.png`),fullPage:true});
     assert.equal(complete.status,'draft');
     await page.getByRole('button',{name:'Submit Monitoring',exact:true}).click();
     await expect(page.getByText('This record is read-only until returned or unlocked for correction.',{exact:false})).toBeVisible();

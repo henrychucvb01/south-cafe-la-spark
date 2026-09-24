@@ -79,7 +79,7 @@ export function createHandler({ database, templateLoader = () => readFile(resolv
       if (schoolError || !school) throw new Error("The authorized school could not be loaded.");
       const template = await templateLoader();
       if (createHash("sha256").update(template).digest("hex") !== TEMPLATE_SHA256) throw new Error("The official PDF template does not match the verified version.");
-      const bytes = await generateOfficialPdf(template, record.payload, school, { monitorRole: record.monitor_role || "manager" });
+      const bytes = await generateOfficialPdf(template, record.payload, {...school, monitoring_site_name: record.monitoring_site_name || "Main Site"}, { monitorRole: record.monitor_role || "manager" });
       if (action === "preview") return pdfResponse(bytes);
       const hash = createHash("sha256").update(bytes).digest("hex");
       const completed = await rpc("finalize_supper_monitoring", { p_token: token, p_id: id, p_revision: revision, p_template_version: TEMPLATE_VERSION, p_pdf_base64: Buffer.from(bytes).toString("base64"), p_pdf_sha256: hash });

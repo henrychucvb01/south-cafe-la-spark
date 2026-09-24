@@ -3,7 +3,7 @@ import { loadPdfLibrary } from './pdfViewerLoader';
 
 // Coordinates are fractions of the displayed page (including its PDF rotation).
 // Re-rendering at another zoom never changes a saved marker's PDF location.
-export default function PdfMarkupViewer({ bytes, annotations, onChange, editable=false }) {
+export default function PdfMarkupViewer({ bytes, annotations, onChange, editable=false, onReady }) {
   const canvas = useRef(null);
   const drawing = useRef(null);
   const [document,setDocument] = useState(null);
@@ -31,7 +31,7 @@ export default function PdfMarkupViewer({ bytes, annotations, onChange, editable
   useEffect(()=>{
     if(!document)return;
     let cancelled=false,render;
-    setReady(false);setMarker(null);setStroke([]);drawing.current=null;
+    setReady(false);onReady?.(false);setMarker(null);setStroke([]);drawing.current=null;
     (async()=>{
       const pdfPage=await document.getPage(page);
       if(cancelled)return;
@@ -41,10 +41,10 @@ export default function PdfMarkupViewer({ bytes, annotations, onChange, editable
       canvas.current.width=Math.ceil(viewport.width*ratio);canvas.current.height=Math.ceil(viewport.height*ratio);
       setSize({width:viewport.width,height:viewport.height});
       render=pdfPage.render({canvasContext:canvas.current.getContext('2d'),viewport,transform:ratio===1?null:[ratio,0,0,ratio,0,0]});
-      await render.promise;if(!cancelled)setReady(true);
+      await render.promise;if(!cancelled){setReady(true);onReady?.(true);}
     })().catch(e=>{if(!cancelled && e.name!=='RenderingCancelledException')setError('This PDF page could not be displayed: '+e.message);});
     return ()=>{cancelled=true;render?.cancel();};
-  },[document,page,zoom]);
+  },[document,page,zoom,onReady]);
   function position(event){const b=event.currentTarget.getBoundingClientRect();return [Math.max(0,Math.min(1,(event.clientX-b.left)/b.width)),Math.max(0,Math.min(1,(event.clientY-b.top)/b.height))];}
   function pointerDown(event){
     if(!editable || !ready || event.button!==0 || annotations.length>=200)return;

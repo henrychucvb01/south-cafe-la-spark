@@ -1,0 +1,22 @@
+import React, { act } from "react";
+import { createRoot } from "react-dom/client";
+import FinalPdfReview from "./FinalPdfReview";
+import { previewReport } from "./service";
+jest.mock("./service", () => ({ previewReport: jest.fn() }));
+jest.mock("./PdfMarkupViewer", () => function Viewer({bytes}) { return <div>PDF revision {bytes[0]}</div>; });
+test("a delayed old preview cannot replace a newer saved revision; failed previews remain retryable", async () => {
+  globalThis.IS_REACT_ACT_ENVIRONMENT=true;
+  const container=document.createElement("div"),root=createRoot(container);
+  const ready=jest.fn(),issues=jest.fn();let oldResolve,newResolve;
+  previewReport.mockImplementationOnce(()=>new Promise(r=>{oldResolve=r;})).mockImplementationOnce(()=>new Promise(r=>{newResolve=r;}));
+  const render=revision=>root.render(<FinalPdfReview token="session" record={{id:"report",revision}} onReady={ready} onIssues={issues}/>);
+  await act(async()=>render(1));await act(async()=>render(2));
+  await act(async()=>newResolve(new Uint8Array([2])));expect(container.textContent).toContain("PDF revision 2");
+  await act(async()=>oldResolve(new Uint8Array([1])));expect(container.textContent).not.toContain("PDF revision 1");
+  previewReport.mockRejectedValueOnce(new Error("Connection unavailable"));
+  await act(async()=>render(3));expect(container.textContent).toContain("Connection unavailable");expect(container.textContent).not.toContain("PDF revision 2");
+  expect(ready).toHaveBeenLastCalledWith(false);
+  previewReport.mockResolvedValueOnce(new Uint8Array([3]));
+  await act(async()=>container.querySelector("button").click());expect(container.textContent).toContain("PDF revision 3");
+  act(()=>root.unmount());globalThis.IS_REACT_ACT_ENVIRONMENT=false;
+});

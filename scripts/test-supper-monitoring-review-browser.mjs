@@ -5,6 +5,7 @@ import {resolve,extname,sep} from 'node:path';
 import {chromium,expect} from '@playwright/test';
 import {PGlite} from '@electric-sql/pglite';
 import {createHandler} from '../api/supper-monitoring.js';
+import {makeFixture} from './supper-monitoring-fixture.mjs';
 const db=new PGlite();
 await db.exec(`create role anon;create role authenticated;create role service_role;
 create table locations(id bigint primary key,active boolean,school_name text,location_code text);
@@ -111,13 +112,49 @@ try{
  await supervisor.getByLabel('Monitoring date',{exact:true}).fill('2026-09-24');await supervisor.getByLabel('Go to section').selectOption('1');
  await expect(supervisor.getByRole('heading',{name:'Five-Day History',exact:true})).toBeVisible();await supervisor.getByLabel('Go to section').selectOption('7');
  await expect(supervisor.getByLabel('Supervisor / AFSS printed name',{exact:true})).toBeVisible();await expect(supervisor.getByRole('button',{name:'Sign with Finger',exact:true})).toHaveCount(2);
+ // Seed only the other report sections in the isolated database; sign through the actual UI.
+ await supervisor.getByRole('button',{name:'Save & Return to Monitorings',exact:true}).click();
+ const afssToken=await rpc('open_supper_supervisor_session',{p_location_id:1,p_pin:'9999'});
+ const afssList=await rpc('list_supper_monitorings',{p_token:afssToken});
+ const afssRecord=await rpc('get_supper_monitoring',{p_token:afssToken,p_id:afssList.find(r=>r.monitor_role==='supervisor').id});
+ const afssPayload={...afssRecord.payload,...makeFixture(),monitoringSlot:'supervisor',monitorName:'',coordinatorName:'',signatures:{monitor:null,coordinator:null}};
+ await rpc('save_supper_monitoring_draft',{p_token:afssToken,p_id:afssRecord.id,p_revision:afssRecord.revision,p_section:7,p_payload:afssPayload});
+ await supervisor.getByRole('button',{name:'Refresh',exact:true}).click();
+ await supervisor.locator('section.sm-card').filter({has:supervisor.getByRole('heading',{name:'Drafts / In Progress',exact:true})}).getByRole('button',{name:'View',exact:true}).click();
+ await supervisor.getByRole('button',{name:'Resume Guided Monitoring',exact:true}).click();
+ for (const [index,name] of [[0,'Test AFSS'],[1,'Test Coordinator']]) {
+   await supervisor.getByLabel(index===0?'Supervisor / AFSS printed name':'After School Program Coordinator printed name',{exact:true}).fill(name);
+   if(index===1) await expect(supervisor.getByText(/Signature accepted for both pages/)).toHaveCount(1);
+   const pad=supervisor.locator('.sm-signature').nth(index);
+   await pad.getByRole('button',{name:'Sign with Finger',exact:true}).click();
+   const canvas=pad.locator('canvas');await canvas.scrollIntoViewIfNeeded();const b=await canvas.boundingBox();
+   await supervisor.mouse.move(b.x+20,b.y+40);await supervisor.mouse.down();await supervisor.mouse.move(b.x+100,b.y+80,{steps:8});await supervisor.mouse.up();
+   await pad.getByLabel('Signature date',{exact:true}).fill('2026-09-24');await pad.getByRole('checkbox').check();await pad.getByRole('button',{name:'Accept Signature',exact:true}).click();
+ }
+ await supervisor.getByRole('button',{name:'Save & Continue →',exact:true}).click();
+ await expect(supervisor.getByRole('button',{name:/✓ Names & Signatures/})).toBeVisible();
+ await supervisor.getByLabel('Go to section').selectOption('7');await expect(supervisor.getByText(/Signature accepted for both pages/)).toHaveCount(2);
  await supervisor.getByRole('button',{name:'Save & Return to Monitorings',exact:true}).click();
  const drafts=supervisor.locator('section.sm-card').filter({has:supervisor.getByRole('heading',{name:'Drafts / In Progress',exact:true})});
  await drafts.getByRole('button',{name:'View',exact:true}).click();await expect(supervisor.getByRole('button',{name:'Delete Monitoring',exact:true})).toBeVisible();await supervisor.getByRole('button',{name:'Resume Guided Monitoring',exact:true}).click();
  await expect(supervisor.getByRole('heading',{name:'Names & Signatures',exact:true})).toBeVisible();
+ await expect(supervisor.getByText(/Signature accepted for both pages/)).toHaveCount(2);
+ await expect(supervisor.locator('.sm-signature input[type=date]').first()).toHaveValue('2026-09-24');
+ await expect(supervisor.locator('.sm-signature input[type=checkbox]').first()).toBeChecked();
+
+ await supervisor.getByLabel('Go to section').selectOption('9');
+ await expect(supervisor.getByRole('button',{name:'Submit Monitoring',exact:true})).toBeEnabled();
+ await supervisor.getByLabel('PDF page',{exact:true}).selectOption('2');
+ await expect(supervisor.getByRole('button',{name:'Submit Monitoring',exact:true})).toBeEnabled();
+ await supervisor.screenshot({path:'test-results/supper-review/afss-final-review.png',fullPage:true});
+ await supervisor.getByRole('button',{name:'Submit Monitoring',exact:true}).click();
+ await expect(supervisor.getByText('Supervisor monitoring completed and locked. The official PDF is stored.',{exact:true})).toBeVisible();
+ const afssComplete=await rpc('get_supper_monitoring',{p_token:afssToken,p_id:afssRecord.id});
+ assert.equal(afssComplete.status,'completed');assert.equal(afssComplete.payload.signatures.monitor.printedName,'Test AFSS');
+ await rpc('close_supper_monitoring_session',{p_token:afssToken});
 
  // Minimal site setup and Manager restart use the same authorized school session.
- await supervisor.getByRole('button',{name:'Save & Return to Monitorings',exact:true}).click();
+ await supervisor.getByRole('button',{name:'Return to Monitorings',exact:true}).click();
  await supervisor.getByRole('button',{name:'Add Site / Program',exact:true}).click();
  await supervisor.getByLabel('Site / program name',{exact:true}).fill('North Offsite');
  await supervisor.getByLabel('Site kind',{exact:true}).selectOption('offsite');

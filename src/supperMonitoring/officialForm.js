@@ -43,5 +43,7 @@ export function canonicalReport(data) {
     return value;
   }
   const { signatures, questionCursor, ...report } = data;
+  // Each signer attests their own printed name independently.
+  if (data.guidedVersion >= 3) { delete report.monitorName; delete report.coordinatorName; }
   return JSON.stringify(ordered(report));
 }

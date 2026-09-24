@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import RestartMonitoringButton from "../monitoring/RestartMonitoringButton";
 import { typeLabel, siteLabel, hasCurrentPdf } from "../monitoring/types";
+import FinalPdfReview from "./FinalPdfReview";
 import GuidedSections from "./GuidedSections";
 import MonitoringHome from "./MonitoringHome";
 import { editableGuided, canRestart, SLOTS, STATUSES } from "./workflow";
 import SignaturePad from "./SignaturePad";
-import { SECTIONS, OFFICIAL_FORM, newDraft, resumeDraft, weekDates, validate, findings } from "./model";
+import { SECTIONS, OFFICIAL_FORM, changeDraft, newDraft, resumeDraft, weekDates, validate, findings } from "./model";
 import { openSession, openSupervisorSession, getContext, closeSession, listMonitorings, getMonitoring, saveDraft, restartMonitoring, submitMonitoring, downloadReport } from "./service";
 import "./supperMonitoring.css";
 import { canonicalReport } from "./officialForm";
@@ -34,6 +35,7 @@ export default function SupperMonitoringPage({ location, employee, managerPin, s
   const [showErrors, setShowErrors] = useState(false);
   const heading = useRef(null);
   const readonly = !!record && !editableGuided(record, context);
+  const [pdfReady, setPdfReady] = useState(false);
   const [serverIssues, setServerIssues] = useState([]);
   const errors = data ? [...validate(data), ...serverIssues] : [];
   const visibleErrors = showErrors ? errors : [];
@@ -73,12 +75,14 @@ export default function SupperMonitoringPage({ location, employee, managerPin, s
   }
   function change(field, value) {
     setServerIssues([]);
-    const invalidatesSignatures = field !== "signatures" && field !== "questionCursor" && (data.signatures.monitor || data.signatures.coordinator);
-    setData(current => ({ ...current, [field]: value, ...(["todayMeals", "todayAttendance", "monitoringDate"].includes(field) ? { todayAttendanceConfirmed: "" } : {}), ...(invalidatesSignatures ? { signatures: { monitor: null, coordinator: null } } : {}) }));
-    setDirty(true); setNotice(invalidatesSignatures ? "Report changed. Both signers must review and accept their signatures again. Save Draft to preserve these changes." : "Unsaved changes — choose Save Draft or Continue.");
+    setPdfReady(false);
+    setData(current => changeDraft(current, field, value));
+    setDirty(true); setNotice(field === "monitorName" || field === "coordinatorName" ? "Printed name updated. Only this signer needs to accept their signature." : field !== "signatures" && field !== "questionCursor" && (data.signatures.monitor || data.signatures.coordinator) ? "Report changed. Both signers must review and accept their signatures again." : "Unsaved changes — choose Save Draft or Continue.");
   }
+
   async function navigate(next, enforce = false) {
     if (enforce && !readonly && errors.some(e => e.section === section)) { setShowErrors(true); return; }
+    setPdfReady(false);
     await run(async () => {
       if (!readonly) await save(next);
       setSection(next); setShowErrors(false);
@@ -106,7 +110,7 @@ export default function SupperMonitoringPage({ location, employee, managerPin, s
   }
   function openRecord(loaded) {
     setRecord(loaded); setData({ ...(editableGuided(loaded, context) ? resumeDraft(loaded.payload) : { ...newDraft(), ...loaded.payload }), schoolYear: loaded.school_year, monitoringSlot: loaded.monitoring_slot });
-    setSection(editableGuided(loaded, context) ? loaded.current_section : 8); setDirty(false); setNotice(""); setShowErrors(false);
+    setSection(editableGuided(loaded, context) ? loaded.current_section : 8); setDirty(false); setNotice(editableGuided(loaded, context) && loaded.payload.guidedVersion !== 3 ? "Service times have been updated to 30 minutes. Review the report and accept both signatures again." : ""); setShowErrors(false);
   }
   async function acceptSignature(role, value) {
     if (!value) { change("signatures", { ...data.signatures, [role]: null }); return; }
@@ -114,7 +118,8 @@ export default function SupperMonitoringPage({ location, employee, managerPin, s
       const bytes = new TextEncoder().encode(canonicalReport(data));
       const digest = await crypto.subtle.digest("SHA-256", bytes);
       const contentHash = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, "0")).join("");
-      change("signatures", { ...data.signatures, [role]: { ...value, contentHash } });
+      setData(current => ({...current, signatures: {...current.signatures, [role]: {...value, contentHash}}}));
+      setDirty(true); setPdfReady(false); setNotice("Signature accepted. Save Draft or Continue to preserve it.");
     });
   }
   function choices(id, label, value, update) {
@@ -136,7 +141,7 @@ export default function SupperMonitoringPage({ location, employee, managerPin, s
     if (section === 6) return <><p>A comment is always required. If there are no findings, you may enter “No Findings”.</p>{field("comments", "Comments", { multiline: true })}<button type="button" onClick={() => change("comments", "No Findings")} disabled={!!data.comments || findings(data).length > 0}>Use “No Findings”</button></>;
     if (section === 7) return <><p>Each signer should confirm their printed name, sign, and explicitly accept applying the signature to both official pages.</p>{["monitor", "coordinator"].map(role => <section className="sm-subcard" key={role}><h3>{role === "monitor" ? ((record?.monitor_role || context?.actor_role) === "supervisor" ? "Supervisor / AFSS" : "Manager / Monitor") : "After School Program Coordinator"}</h3>{field(`${role}Name`, `${role === "monitor" ? ((record?.monitor_role || context?.actor_role) === "supervisor" ? "Supervisor / AFSS" : "Manager / Monitor") : "After School Program Coordinator"} printed name`)}<SignaturePad key={`${record?.id}-${role}-${data.signatures[role]?.acceptedAt || "unsigned"}`} label={role === "monitor" ? ((record?.monitor_role || context?.actor_role) === "supervisor" ? "Supervisor / AFSS" : "Manager / Monitor") : "After School Program Coordinator"} name={data[`${role}Name`]} value={data.signatures[role]} disabled={readonly} onChange={value => acceptSignature(role, value)} />{visibleErrors.filter(e => e.field === `${role}Signature`).map((e, i) => <p className="sm-error" key={i}>{e.message}</p>)}</section>)}</>;
     if (section === 8) return <><p>Review each section. Select an item to see its details or fix a problem.</p><ul className="sm-review">{SECTIONS.slice(0, 8).map((label, i) => { const issues = errors.filter(e => e.section === i); return <li key={label}><button type="button" onClick={() => navigate(i)}>{issues.length ? "○" : "✓"} {label}<span>{issues.length ? `${issues.length} item(s) to review` : "Complete"}</span></button>{issues.length > 0 && <p>{issues[0].message}</p>}</li>; })}</ul><p><strong>School:</strong> {location.school_name}<br /><strong>Monitoring:</strong> {data.monitoringDate || "Not entered"}<br /><strong>Comments:</strong> {data.comments || "Not entered"}</p>{readonly && <><p>This monitoring is read-only. Status: {STATUSES[record.status]}.</p>{hasCurrentPdf(record) && <button type="button" onClick={() => reportAction("download")}>Download Official PDF</button>}</>}</>;
-    return <><p>{(record?.monitor_role || context?.actor_role) === "supervisor" ? "Submission completes and locks your Supervisor monitoring." : "Submission sends this monitoring to the Supervisor for review."} SPARK stores the official two-page report. Leave a copy with the Food Services Manager and After School Program coordinator at the time of the review.</p>{errors.length > 0 && <p className="sm-notice">{errors.length} item(s) need attention. Return to Final Review to correct them.</p>}<div className="sm-actions"><button type="button" disabled={busy || errors.length > 0 || readonly} onClick={() => reportAction("preview")}>Preview Official PDF</button><button className="sm-primary" type="button" disabled={busy || errors.length > 0 || readonly} onClick={() => reportAction("submit")}>Submit Monitoring</button><button type="button" onClick={() => navigate(8)}>Return to Final Review</button></div></>;
+    return <><p>{(record?.monitor_role || context?.actor_role) === "supervisor" ? "Submission completes and locks your Supervisor monitoring." : "Submission sends this monitoring to the Supervisor for review."} Review the official report below before submitting.</p>{errors.length > 0 ? <div className="sm-notice"><h3>Needs Attention</h3><ul>{[...new Map(errors.map(e => [`${e.section}:${e.message}`,e])).values()].map((e,i) => <li key={i}><button type="button" onClick={() => navigate(e.section)}>{e.message}</button></li>)}</ul></div> : <><p role="status">✓ Monitoring Ready to Submit</p>{record && !dirty && !readonly && <FinalPdfReview key={`${record.id}-${record.revision}`} token={token} record={record} onReady={setPdfReady} onIssues={setServerIssues}/>}</>}<div className="sm-actions"><button className="sm-primary" type="button" disabled={busy || errors.length > 0 || readonly || dirty || !pdfReady} onClick={() => reportAction("submit")}>Submit Monitoring</button><button type="button" onClick={() => navigate(8)}>Return to Final Review</button></div></>;
 
   }
 

@@ -11,7 +11,7 @@ const shortDate = value => value ? `${value.slice(5, 7)}/${value.slice(8, 10)}/$
 // are static: remove empty interactive widgets and overlay verified locations.
 // The original PDF bytes and its printed page content are never redesigned.
 export async function generateOfficialPdf(template, data, school, { monitorRole = "manager" } = {}) {
-  const pdf = await PDFDocument.load(template);
+  const pdf = await PDFDocument.load(template, { updateMetadata: false });
   if (pdf.getPageCount() !== 2) throw new Error("The official template must have two pages.");
   // Preserve the exact blank Off appearance streams. Generic flattening fails
   // on this template's missing Off states and duplicate radio export values.
@@ -99,7 +99,7 @@ export async function generateOfficialPdf(template, data, school, { monitorRole 
     text(0, day.meals, x, 543, 27, "History meal count", 1, 9);
     text(0, day.attendance, x, 521, 27, "History attendance", 1, 9);
   });
-  text(0, average(data.history).toFixed(1), 322, 543, 26, "Five-day average", 1, 9);
+  text(0, String(average(data.history)), 322, 543, 26, "Five-day average", 1, 9);
   const menuRows = [635, 618, 601, 583, 564, 543, 521];
   const menuX = [374, 400, 397, 378, 389, 400, 382];
   data.menu.forEach((item, i) => {
@@ -126,7 +126,7 @@ export async function generateOfficialPdf(template, data, school, { monitorRole 
     const a = data.correctiveActions[q.id];
     return `Q${q.id} follow-up by ${shortDate(a.followUpDue)} (${a.operatingDays} operating days, calendar checked): ${a.followUpPlan}${a.followUpComplete ? ` Completed ${shortDate(a.followUpDate)}: ${a.followUpNotes}` : ""}`;
   });
-  const comments = [data.comments, ...observed.map(row => `After School Program: ${row.program}; ${row.day} CDE-approved service: ${displayTime(row.start)}-${displayTime(row.end)}.`), data.followUpRequired && !required.length ? data.extraFollowUp : "", ...detail].filter(Boolean).join("\n");
+  const comments = [school.monitoring_site_name ? `Monitoring: Supper; Site / Program: ${school.monitoring_site_name}.` : "", data.comments, ...observed.map(row => `After School Program: ${row.program}; ${row.day} CDE-approved service: ${displayTime(row.start)}-${displayTime(row.end)}.`), data.followUpRequired && !required.length ? data.extraFollowUp : "", ...detail].filter(Boolean).join("\n");
   const commentLines = lines(comments, 548, 8, "Comments and follow-up", 6);
   if (commentLines.length > 8) throw new ReportFitError("Comments and follow-up", 6);
   commentLines.forEach((line, i) => text(1, line, 31, 671 - i * 10.85, 548, "Comments and follow-up", 6, 8));
