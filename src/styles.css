@@ -2760,68 +2760,6 @@ tbody tr.selected-row {
 ========================================================= */
 
 @media (max-width: 760px) {
-  .command-app {
-    display: block;
-    width: 100%;
-  }
-
-  .command-sidebar {
-    position: relative;
-    top: auto;
-    left: auto;
-    bottom: auto;
-    width: 100%;
-    min-height: auto;
-    padding: 12px;
-  }
-
-  .command-brand {
-    padding: 4px 6px 14px;
-  }
-
-  .command-nav {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 7px;
-  }
-
-  .command-nav-label {
-    display: none;
-  }
-
-  .command-nav-button {
-    min-width: 0;
-    min-height: 46px;
-    padding: 8px 5px;
-    border-radius: 8px;
-    justify-content: center;
-    text-align: center;
-    gap: 5px;
-    font-size: 10px;
-    white-space: nowrap;
-  }
-
-  .command-nav-button span {
-    flex-shrink: 0;
-  }
-
-  /* Exit is part of row 2 */
-  .command-nav-exit {
-    background: #ffffff;
-    color: #0b2a55;
-    border: 1px solid #dce3ea;
-  }
-
-  .command-nav-exit:hover {
-    background: #f3f6fa;
-    color: #0b2a55;
-  }
-
-  .command-main {
-    margin-left: 0;
-    width: 100%;
-  }
-
   .command-topbar {
     height: auto;
     min-height: 74px;
@@ -2849,17 +2787,6 @@ tbody tr.selected-row {
   .command-attention-item {
     border-right: none;
     border-bottom: 1px solid #e6ebf0;
-  }
-}
-
-@media (max-width: 500px) {
-  .command-nav {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .command-nav-button {
-    font-size: 9px;
-    padding: 8px 3px;
   }
 }
 
@@ -5933,106 +5860,7 @@ button.homebase-card:hover {
   background: #f5f8fb !important;
   color: #0b2a55 !important;
 }
-/* =========================================================
-   COMMAND CENTER - MOBILE NAVIGATION
-========================================================= */
 
-@media (max-width: 760px) {
-  .command-app {
-    display: flex !important;
-    flex-direction: column !important;
-    width: 100% !important;
-    min-width: 0 !important;
-  }
-
-  /* Mobile sidebar becomes top control area */
-  .command-sidebar {
-    position: relative !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    height: auto !important;
-    min-height: 0 !important;
-    padding: 14px 14px 12px !important;
-    box-sizing: border-box !important;
-  }
-
-  /* Give logo some breathing room */
-  .command-brand {
-    margin-bottom: 16px !important;
-  }
-
-  /* Hide OPERATIONS heading */
-  .command-nav-label {
-    display: none !important;
-  }
-
-  /* TWO ROW MOBILE MENU */
-  .command-nav {
-    display: grid !important;
-    grid-template-columns: repeat(4, 1fr) !important;
-    justify-content: start !important;
-    gap: 8px !important;
-
-    width: 100% !important;
-    overflow-x: auto !important;
-    overflow-y: hidden !important;
-
-    padding: 4px 0 12px !important;
-    box-sizing: border-box !important;
-
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-  .command-nav-button {
-    width: 100% !important;
-    min-width: 0 !important;
-    white-space: nowrap !important;
-    padding: 10px 8px !important;
-    border-radius: 8px !important;
-    font-size: 11px !important;
-    justify-content: center !important;
-  }
-
-  .command-nav::-webkit-scrollbar {
-    display: none;
-  }
-
-  .command-nav-button {
-    width: auto !important;
-    min-width: 0 !important;
-    white-space: nowrap !important;
-
-    padding: 10px 13px !important;
-    border-radius: 8px !important;
-
-    font-size: 12px !important;
-  }
-
-  /* Smaller exit button */
-  .command-sidebar-exit {
-    width: auto !important;
-    min-width: 0 !important;
-    margin: 4px 0 2px !important;
-    padding: 9px 14px !important;
-
-    align-self: flex-start !important;
-    border-radius: 7px !important;
-  }
-
-  /* Main content */
-  .command-main {
-    margin-left: 0 !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
-  }
-
-  .command-content {
-    width: 100% !important;
-    min-width: 0 !important;
-    box-sizing: border-box !important;
-  }
-}
 /* DAILY COUNTS TABLE - LARGER TEXT */
 
 .command-table th {
@@ -9023,3 +8851,63 @@ a.manager-resource-card:hover { transform: translateY(-2px); box-shadow: 0 9px 2
 .feedback-category.suggestion { color: #6d5820; background: #fff3cf; }
 .supervisor-feedback-empty { padding: 30px; color: #738591; text-align: center; }
 @media (max-width: 700px) { .spark-feedback-trigger { top: 68px; right: 12px; padding: 7px 11px; } .spark-feedback-modal { padding: 24px 20px; } .supervisor-feedback-card-top, .supervisor-feedback-card footer { flex-direction: column; } .supervisor-feedback-card select { width: 100%; } }
+
+/* Supervisor navigation: one vertical, independently scrollable menu at every size. */
+.command-sidebar {
+  box-sizing: border-box;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  z-index: 100;
+}
+.command-sidebar[hidden] { display: none; }
+.command-sidebar .command-brand { flex-shrink: 0; }
+.command-nav {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.command-nav-button {
+  flex-shrink: 0;
+  width: 100%;
+  min-height: 48px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.command-nav-button > span { flex-shrink: 0; }
+.command-nav-exit { margin-top: auto; }
+.command-main { min-width: 0; }
+.command-menu-toggle, .command-menu-close {
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1px solid #9dafc1;
+  border-radius: 8px;
+  background: white;
+  color: #062642;
+  font: inherit;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.command-menu-close { align-self: flex-end; margin-bottom: 8px; }
+.command-sidebar button:focus-visible, .command-menu-toggle:focus-visible {
+  outline: 3px solid #f3b545;
+  outline-offset: -3px;
+}
+.command-nav-backdrop { position: fixed; inset: 0; background: #0008; z-index: 99; }
+@media (max-width: 760px) {
+  .command-app { display: block; width: 100%; min-width: 0; }
+  .command-sidebar { width: min(320px, calc(100% - 24px)); padding: 12px; }
+  .command-brand { padding-bottom: 14px; }
+  .command-main { margin-left: 0; width: 100%; max-width: 100%; }
+  .command-topbar > div { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+  .command-topbar h2 { overflow-wrap: anywhere; }
+  .command-content { width: 100%; min-width: 0; box-sizing: border-box; }
+}
+/* Keep the existing dashboard cards inside the available content width. */
+@media (max-width: 1100px) {
+  .command-stats { grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); }
+}

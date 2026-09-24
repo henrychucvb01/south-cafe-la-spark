@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   LineChart,
   Line,
@@ -63,6 +63,42 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("all");
   const [view, setView] = useState("dashboard");
+  const [mobileNavigation, setMobileNavigation] = useState(() => window.matchMedia('(max-width: 760px)').matches);
+  const [navigationOpen, setNavigationOpen] = useState(false);
+  const navigationRef = useRef(null);
+  const menuButtonRef = useRef(null);
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 760px)');
+    const update = () => { setMobileNavigation(media.matches); setNavigationOpen(false); };
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  useEffect(() => {
+    if (!mobileNavigation || !navigationOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const sidebar = navigationRef.current;
+    sidebar.querySelector('button')?.focus();
+    function keyboard(event) {
+      if (event.key === 'Escape') { event.preventDefault(); setNavigationOpen(false); }
+      if (event.key === 'Tab') {
+        const buttons = [...sidebar.querySelectorAll('button:not(:disabled)')];
+        const first = buttons[0], last = buttons[buttons.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      }
+    }
+    sidebar.addEventListener('keydown', keyboard);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      sidebar.removeEventListener('keydown', keyboard);
+      requestAnimationFrame(() => {
+        if (window.matchMedia('(max-width: 760px)').matches) menuButtonRef.current?.focus();
+        else navigationRef.current?.querySelector('.active')?.focus();
+      });
+    };
+  }, [mobileNavigation, navigationOpen]);
+
 
   // =========================================
   // SPARK POINTS SUPERVISOR CONTROLS
@@ -1177,7 +1213,13 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
           SIDEBAR
       ===================================== */}
 
-      <aside className="command-sidebar">
+      {mobileNavigation && navigationOpen && <div className="command-nav-backdrop" onClick={() => setNavigationOpen(false)} aria-hidden="true" />}
+      <aside id="supervisor-navigation" ref={navigationRef} className="command-sidebar"
+        hidden={mobileNavigation && !navigationOpen}
+        role={mobileNavigation && navigationOpen ? 'dialog' : undefined}
+        aria-modal={mobileNavigation && navigationOpen ? true : undefined}
+        aria-label="Supervisor navigation">
+        {mobileNavigation && <button type="button" className="command-menu-close" onClick={() => setNavigationOpen(false)}>Close menu ×</button>}
         <div className="command-brand">
           <div className="command-brand-icon spark-command-logo">
             <img src="/spark-clear.png" alt="Spark" />
@@ -1190,7 +1232,9 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
           </div>
         </div>
 
-        <nav className="command-nav">
+        <nav className="command-nav" aria-label="Supervisor pages" onClick={event => {
+          if (event.target.closest('button')) setNavigationOpen(false);
+        }}>
           <button
             className={`command-nav-button ${
               view === "dashboard" ? "active" : ""
@@ -1334,10 +1378,13 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
           MAIN
       ===================================== */}
 
-      <main className="command-main">
+      <main className="command-main" inert={mobileNavigation && navigationOpen ? true : undefined}>
         {/* TOP BAR */}
 
         <header className="command-topbar">
+          {mobileNavigation && <button type="button" ref={menuButtonRef} className="command-menu-toggle"
+            aria-label="Open Supervisor menu" aria-expanded={navigationOpen} aria-controls="supervisor-navigation"
+            onClick={() => setNavigationOpen(true)}><span aria-hidden="true">☰</span> Menu</button>}
           <div>
             <h2>
               {view === "meal-trends"
