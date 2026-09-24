@@ -1,0 +1,64 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { PGlite } from "@electric-sql/pglite";
+
+// Ephemeral PostgreSQL only: no credentials or connections to production.
+const db = new PGlite();
+try {
+  await db.exec(`
+    create role anon; create role authenticated;
+    create table public.locations(id bigint primary key, active boolean);
+    create table public.employees(id bigint primary key, location_id bigint, employee_name text, active boolean);
+    insert into public.locations values(1,true),(2,true);
+    insert into public.employees values(11,1,'Monitor One',true),(22,2,'Monitor Two',true);
+    create function public.verify_manager_pin(p_employee_id text,p_pin text) returns boolean language sql as $$ select p_pin='1234' $$;
+    create function public.verify_covering_pin(p_pin text) returns boolean language sql as $$ select p_pin='5678' $$;
+  `);
+  await db.exec(await readFile(new URL("../supabase/migrations/202609230001_supper_monitoring.sql", import.meta.url), "utf8"));
+  const query = async (sql, params = []) => (await db.query(sql, params)).rows;
+  await db.exec("set role anon");
+  const open = async (location, employee, pin = "1234") => (await query("select public.open_supper_monitoring_session($1,$2,$3,null) as token", [location, employee, pin]))[0].token;
+  assert.equal(await open(2, 11), null, "A correct PIN must not grant another school's access");
+  const token = await open(1, 11);
+  const tokenTwo = await open(2, 22);
+  assert.ok(token && tokenTwo && token !== tokenTwo);
+  await assert.rejects(() => query("select * from public.supper_monitorings"), /permission denied/);
+  await assert.rejects(() => query("select * from public.supper_monitoring_sessions"), /permission denied/);
+  await assert.rejects(() => query("select public.require_supper_monitoring_session($1)", [token]), /permission denied/);
+  const payload = { schemaVersion: 1, monitoringDate: "2026-09-23", comments: "Draft", monitorName: "Monitor One" };
+  for (const field of ['arrivalTime','departureTime','serviceStart','serviceEnd','programName','programType','todayAttendance','todayMeals','weekStart','repeatedFindings','repeatedAction','coordinatorName']) payload[field] = '';
+  Object.assign(payload, { answers: {}, correctiveActions: {}, signatures: { monitor: null, coordinator: null }, history: [], menu: ['Milk','Meat/Alternate','Grains/Breads','Fruit','Vegetable','Additional Meat/Alternate','Other'].map(category => ({ category, applicable: true, item: '', serving: '' })) });
+  await assert.rejects(() => query("select * from public.save_supper_monitoring_draft($1,null,null,6,$2::jsonb)", [token, JSON.stringify({ ...payload, history: null })]), /History and menu/);
+  const saved = (await query("select * from public.save_supper_monitoring_draft($1,null,null,6,$2::jsonb)", [token, JSON.stringify(payload)]))[0];
+  assert.equal(saved.current_section, 6);
+  assert.equal(saved.school_year, "2026-27");
+  assert.equal(saved.location_id, 1);
+  assert.equal(saved.revision, 1);
+  assert.equal((await query("select * from public.list_supper_monitorings($1)", [tokenTwo])).length, 0);
+  await assert.rejects(() => query("select * from public.get_supper_monitoring($1,$2)", [tokenTwo, saved.id]), /not found for this school/);
+  await assert.rejects(() => query("select * from public.save_supper_monitoring_draft($1,$2,1,6,$3::jsonb)", [tokenTwo, saved.id, JSON.stringify(payload)]), /unavailable/);
+  const resumed = (await query("select * from public.get_supper_monitoring($1,$2)", [await open(1,11), saved.id]))[0];
+  assert.equal(resumed.current_section, 6);
+  assert.deepEqual(resumed.payload, payload);
+  await query("select * from public.save_supper_monitoring_draft($1,$2,1,7,$3::jsonb)", [token, saved.id, JSON.stringify(payload)]);
+  await assert.rejects(() => query("select * from public.save_supper_monitoring_draft($1,$2,1,6,$3::jsonb)", [token, saved.id, JSON.stringify(payload)]), /another session/);
+  await assert.rejects(() => query("select public.submit_supper_monitoring($1,$2,2)", [token, saved.id]), /official two-page form/);
+  await db.exec("reset role");
+  await query("update public.supper_monitorings set status='completed',template_version='TEST ONLY',submitted_at=now(),pdf_storage_path='test-only.pdf',pdf_sha256='test-only' where id=$1", [saved.id]);
+  await db.exec("set role anon");
+  await assert.rejects(() => query("select * from public.save_supper_monitoring_draft($1,$2,2,6,$3::jsonb)", [token, saved.id, JSON.stringify(payload)]), /completed/);
+  assert.equal((await query("select * from public.get_supper_monitoring($1,$2)", [token, saved.id]))[0].status, "completed");
+  await query("select public.close_supper_monitoring_session($1)", [token]);
+  await assert.rejects(() => query("select * from public.list_supper_monitorings($1)", [token]), /Session expired/);
+  const expiring = await open(1,11);
+  await db.exec("reset role; update public.supper_monitoring_sessions set expires_at=now()-interval '1 second'; set role anon;");
+  await assert.rejects(() => query("select * from public.list_supper_monitorings($1)", [expiring]), /Session expired/);
+  await db.exec("reset role; delete from public.supper_monitoring_attempts; set role anon;");
+  for (let i = 0; i < 10; i++) assert.equal(await open(1,11,"0000"), null);
+  assert.equal(await open(1,11), null, "Rate limit includes failed attempts without rolling them back");
+  await db.exec("reset role; delete from public.supper_monitoring_attempts; set role anon;");
+  const revoked = await open(1,11);
+  await db.exec("reset role; update public.employees set active=false where id=11; set role anon;");
+  await assert.rejects(() => query("select * from public.list_supper_monitorings($1)", [revoked]), /no longer assigned/);
+  console.log("PASS: migration, school isolation, PIN throttling, token expiry/revocation, draft resume, revision conflicts, immutable completed records, and submission gate.");
+} finally { await db.close(); }

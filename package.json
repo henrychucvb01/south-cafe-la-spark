@@ -14,6 +14,8 @@
     "recharts": "^2.15.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "@playwright/test": "1.63.0",
     "@types/react": "19.0.0",
     "@types/react-dom": "19.0.0",
     "exceljs": "^4.4.0",
@@ -27,6 +29,8 @@
     "staffing:import-pwi": "node scripts/import-pwi-staffing.mjs",
     "test:ask-spark-route": "node scripts/test-ask-spark-route.mjs",
     "test:ar-training-bank": "node scripts/validate-ar-training-bank.mjs",
+    "test:supper-db": "node scripts/test-supper-monitoring-db.mjs",
+    "test:supper-browser": "node scripts/test-supper-monitoring-browser.mjs",
     "test": "react-scripts test --env=jsdom",
     "eject": "react-scripts eject"
   },

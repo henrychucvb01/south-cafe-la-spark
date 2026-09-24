@@ -1,0 +1,67 @@
+.sm-app { color: #172d4a; }
+.sm-app .login-header { height: auto; min-height: 78px; flex-shrink: 0; }
+.sm-app * { box-sizing: border-box; }
+.sm-app button, .sm-app input, .sm-app select, .sm-app textarea { font: inherit; }
+.sm-app button { min-height: 46px; padding: 10px 18px; border: 1px solid #aebdcd; border-radius: 10px; background: white; color: #172d4a; cursor: pointer; line-height: 1.4; }
+.sm-app button:disabled { cursor: default; opacity: .6; }
+.sm-app button:focus-visible, .sm-app input:focus-visible, .sm-app select:focus-visible, .sm-app textarea:focus-visible { outline: 3px solid #b97800; outline-offset: 3px; }
+.sm-app .sm-primary { background: #172d4a; color: white; border-color: #172d4a; }
+.sm-main { width: min(100% - 40px, 1050px); margin: 28px auto 60px; }
+.sm-title, .sm-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.sm-title h1 { font-size: clamp(26px, 4vw, 36px); margin: 6px 0 22px; }
+.sm-card { background: white; border: 1px solid #dfe6ed; border-radius: 14px; padding: 26px; margin: 20px 0; box-shadow: 0 5px 16px #172d4a08; }
+.sm-card h2 { margin-top: 0; font-size: 23px; }
+.sm-card p, .sm-card label { line-height: 1.6; }
+.sm-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.sm-field { min-width: 0; margin-bottom: 14px; }
+.sm-app label { display: block; font-weight: 600; margin-bottom: 6px; }
+.sm-app input:not([type=checkbox]), .sm-app select, .sm-app textarea { display: block; width: 100%; min-width: 0; min-height: 46px; padding: 10px 12px; border: 1px solid #aebdcd; border-radius: 8px; color: #172d4a; background: white; font-size: 16px; }
+.sm-app textarea { resize: vertical; }
+.sm-app input[aria-invalid=true], .sm-app textarea[aria-invalid=true] { border-color: #af2929; }
+.sm-app .sm-check { display: flex; gap: 10px; align-items: center; min-height: 46px; font-weight: 400; }
+.sm-app input[type=checkbox] { width: 24px; height: 24px; flex-shrink: 0; }
+.sm-error, .sm-errors { color: #9f2020; font-size: 15px; line-height: 1.6; }
+.sm-error { margin-top: 8px; }
+.sm-notice, .sm-summary { background: #fff7e5; padding: 18px; border-radius: 10px; border: 1px solid #e7cb8b; margin: 16px 0; line-height: 1.6; }
+.sm-save-status { color: #405671; font-size: 14px; }
+.sm-editor { padding: 0; margin: 0; border: 0; min-width: 0; }
+.sm-progress { display: grid; gap: 12px; margin: 16px 0; }
+.sm-progress p { margin: 0; font-weight: 600; }
+.sm-progress progress { width: 100%; accent-color: #b97800; height: 12px; }
+.sm-history-heading, .sm-history-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; align-items: start; }
+.sm-history-heading { font-weight: 700; padding: 12px; }
+.sm-history-row { border-top: 1px solid #dfe6ed; padding: 16px 12px; }
+.sm-history-row .sm-field label { font-size: 13px; }
+.sm-history-row small { display: block; margin-top: 8px; font-weight: 400; }
+.sm-subcard { border: 1px solid #dfe6ed; border-radius: 10px; padding: 20px; margin: 18px 0; }
+.sm-answers { display: flex; flex-wrap: wrap; gap: 12px; }
+.sm-answers button { flex: 1; min-width: 75px; min-height: 56px; font-weight: 700; }
+.sm-answers button[aria-pressed=true] { background: #172d4a; color: white; }
+.sm-signature-canvas { display: block; width: 100%; height: 210px; background: #f7f9fc; border: 2px dashed #6d8098; border-radius: 8px; touch-action: none; margin-bottom: 16px; }
+.sm-signature .sm-actions { justify-content: flex-start; margin-bottom: 14px; }
+.sm-review, .sm-records { list-style: none; padding: 0; }
+.sm-review li { margin: 12px 0; }
+.sm-review button { display: flex; width: 100%; text-align: left; justify-content: space-between; gap: 16px; }
+.sm-review button span { font-size: 14px; }
+.sm-review p { margin: 6px 0 18px; color: #7d3b19; }
+.sm-records li { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 18px 0; border-top: 1px solid #dfe6ed; }
+.sm-records span { display: block; margin-top: 6px; font-size: 14px; }
+.sm-unlock { max-width: 520px; }
+.sm-unlock button { margin-top: 18px; }
+@media(max-width: 600px) {
+  .sm-main { width: calc(100% - 24px); margin-top: 18px; }
+  .sm-app .login-header { flex-wrap: wrap; gap: 12px; padding: 16px; }
+  .sm-title { align-items: stretch; }
+  .sm-title > button { width: 100%; }
+  .sm-card { padding: 18px 14px; }
+  .sm-grid { grid-template-columns: 1fr; gap: 6px; }
+  .sm-history-heading { display: none; }
+  .sm-history-row { grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px 0; }
+  .sm-history-row > strong { grid-column: 1 / -1; }
+  .sm-history-row small { display: inline; margin-left: 12px; }
+  .sm-subcard { padding: 14px 10px; }
+  .sm-review button { flex-direction: column; gap: 4px; }
+  .sm-signature-canvas { height: 220px; }
+  .sm-bottom button { flex: 1; }
+}
+@media(orientation: landscape) and (max-height: 600px) { .sm-signature-canvas { height: 65vh; min-height: 260px; } }
