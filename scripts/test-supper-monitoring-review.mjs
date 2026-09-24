@@ -1,3 +1,4 @@
+import {PDFDocument, PDFArray, degrees} from 'pdf-lib';
 import assert from 'node:assert/strict';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {PGlite} from '@electric-sql/pglite';
@@ -43,7 +44,7 @@ try {
  const handler=createHandler({database,templateLoader:async()=>template});
  async function request(token,body){const res={code:0,headers:{},setHeader(k,v){this.headers[k]=v;},status(n){this.code=n;return this;},json(b){this.body=b;return this;},send(b){this.body=b;return this;}};await handler({method:'POST',headers:{authorization:'Bearer '+token},body},res);return res;}
  const metadata={monitoringDate:'2026-09-23',schoolYear:'2026-27',monitoringSlot:'manager_1',monitorName:'Monitor One'};
- async function upload(token,record=null,meta=metadata,bytes=template){return request(token,{action:'upload',id:record?.id,revision:record?.revision,metadata:meta,pdfBase64:bytes.toString('base64')});}
+ async function upload(token,record=null,meta=metadata,bytes=template){return request(token,{action:'upload',id:record?.id,revision:record?.revision,metadata:meta,...(Array.isArray(bytes)?{pdfs:bytes.map(b=>b.toString('base64'))}:{pdfBase64:bytes.toString('base64')})});}
  const okay=res=>{assert.equal(res.code,200,JSON.stringify(res.body));return res.body.record;};
  const review=(token,r,action,comment='')=>rpc('supper_review_action',{p_token:token,p_id:r.id,p_revision:r.revision,p_action:action,p_comment:comment});
  const get=(token,id)=>rpc('get_supper_monitoring',{p_token:token,p_id:id});
@@ -64,10 +65,29 @@ try {
  assert.notEqual((await upload(manager,null,{...metadata,monitoringSlot:'manager_2'})).code,200,'OFF rejects new uploads');
  assert.deepEqual((await request(manager,{action:'download',id:r.id})).body,template,'OFF retains old documents');
  r=okay(await upload(manager,r));assert.equal(r.document_version,2);assert.equal(r.status,'corrections_requested');
+
+ const first=await PDFDocument.create();first.addPage([420,595]).drawText('First PDF - portrait');
+ const second=await PDFDocument.create();second.addPage([800,600]).setRotation(degrees(90));second.getPage(0).drawText('Second PDF - rotated');
+ const pair=[Buffer.from(await first.save()),Buffer.from(await second.save())];
+ assert.equal((await upload(manager,r,metadata,[])).code,422);
+ assert.equal((await upload(manager,r,metadata,[...pair,pair[0]])).code,422);
+ assert.equal((await upload(manager,r,metadata,[pair[0],Buffer.from('bad')])).code,422);
+ r=okay(await upload(manager,r,metadata,pair));
+ const combinedDownload=await request(manager,{action:'download',id:r.id});
+ const combined=await PDFDocument.load(combinedDownload.body);
+ assert.equal(combined.getPageCount(),2);
+ assert.deepEqual(combined.getPage(0).getSize(),{width:420,height:595});
+ assert.deepEqual(combined.getPage(1).getSize(),{width:800,height:600});
+ assert.equal(combined.getPage(1).getRotation().angle,90);
+ function pageStreams(doc,index){const contents=doc.getPage(index).node.Contents();return (contents instanceof PDFArray?contents.asArray():[contents]).map(ref=>Buffer.from(doc.context.lookup(ref).getContents()));}
+ assert.deepEqual(pageStreams(combined,0),pageStreams(first,0),'Original vector/text streams survive merging unchanged');
+ assert.deepEqual(pageStreams(combined,1),pageStreams(second,0),'Rotated page content survives unchanged');
+
+ assert.deepEqual((await request(supervisor,{action:'download',id:r.id})).body,combinedDownload.body);
  r=await review(manager,r,'resubmit');assert.equal(r.status,'submitted');
  await assert.rejects(()=>review(supervisor,{...r,revision:r.revision-1},'accept'),/revision/);
  r=await review(supervisor,r,'accept');assert.equal(r.status,'accepted');assert.equal(r.locked,true);assert.ok(r.accepted_at);
- assert.notEqual((await upload(manager,r)).code,200);
+ assert.notEqual((await upload(manager,r,metadata,pair)).code,200);
  await assert.rejects(()=>save(manager,r,makeFixture()),/read-only/);
  for(const action of ['unlock','delete','accept']) await assert.rejects(()=>review(manager,r,action,'Attempt'),/Supervisor authorization/);
  assert.notEqual((await upload(supervisor,r)).code,200,'Supervisor must intentionally unlock before replacement');

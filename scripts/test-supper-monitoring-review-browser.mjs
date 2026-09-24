@@ -1,3 +1,4 @@
+import {PDFDocument} from 'pdf-lib';
 import assert from 'node:assert/strict';
 import {createServer} from 'node:http';
 import {readFile,mkdir} from 'node:fs/promises';
@@ -32,9 +33,21 @@ await page.goto(origin);if(role==='manager'){await page.getByLabel('Location Cod
 await page.getByRole('button',{name:role==='manager'?/Monitoring/:'Monitoring',exact:role==='supervisor'}).click();return page;}
 try{
  const manager=await pageFor('manager'),supervisor=await pageFor('supervisor');
+ const original=await PDFDocument.load(await readFile('public/supper-monitoring-2022-09-08.pdf'));
+ const split=[];
+ for(let i=0;i<2;i++){const doc=await PDFDocument.create();const [p]=await doc.copyPages(original,[i]);doc.addPage(p);split.push({name:`Monitoring Page ${i+1}.pdf`,mimeType:'application/pdf',buffer:Buffer.from(await doc.save())});}
+
  await manager.getByRole('button',{name:'Upload Existing Monitoring',exact:true}).click();
  await manager.getByLabel('Monitoring date',{exact:true}).fill('2026-09-23');
- await manager.getByLabel('Choose PDF').setInputFiles('public/supper-monitoring-2022-09-08.pdf');
+ await expect(manager.getByLabel('Upload PDF(s)')).toHaveAttribute('multiple','');
+ await manager.getByLabel('Upload PDF(s)').setInputFiles([split[1],split[0]]);
+ await expect(manager.getByRole('list',{name:'PDF upload order'}).locator('li').first()).toContainText('Monitoring Page 2.pdf');
+ await manager.getByRole('button',{name:'Swap PDF order'}).click();
+ await expect(manager.getByRole('list',{name:'PDF upload order'}).locator('li').first()).toContainText('Monitoring Page 1.pdf');
+ await manager.getByLabel('Upload PDF(s)').setInputFiles(split[0]);
+ await expect(manager.getByRole('alert')).toContainText('no more than 2 PDFs');
+ await expect(manager.getByRole('list',{name:'PDF upload order'}).locator('li')).toHaveCount(2);
+
  await manager.getByRole('button',{name:'Upload & Submit for Review',exact:true}).click();
  await expect(manager.getByText('Submitted for Review',{exact:true})).toBeVisible();
  await supervisor.getByRole('button',{name:'Refresh Overview'}).click();
@@ -81,8 +94,19 @@ try{
  await expect(manager.getByText('Loading PDF page…',{exact:true})).toHaveCount(0);
  await manager.screenshot({path:'test-results/supper-review/manager-markup.png',fullPage:true});
  await manager.getByRole('button',{name:'Back to Monitorings',exact:true}).click();await manager.getByRole('button',{name:'View',exact:true}).click();
- await manager.getByRole('button',{name:'Replace PDF',exact:true}).click();await manager.getByLabel('Choose PDF').setInputFiles('public/supper-monitoring-2022-09-08.pdf');
- await manager.getByRole('button',{name:'Save Replacement PDF'}).click();await manager.getByRole('button',{name:'Resubmit for Supervisor Review'}).click();await expect(manager.getByText('Submitted for Review',{exact:true})).toBeVisible();
+ await manager.getByRole('button',{name:'Replace PDF',exact:true}).click();await manager.getByLabel('Upload PDF(s)').setInputFiles('public/supper-monitoring-2022-09-08.pdf');
+ await manager.getByRole('button',{name:'Save Replacement PDF'}).click();
+ await manager.getByRole('button',{name:'Replace PDF',exact:true}).click();
+ await manager.getByLabel('Upload PDF(s)').setInputFiles(split[0]);
+ await manager.getByLabel('Upload PDF(s)').setInputFiles(split[1]);
+ await expect(manager.getByRole('list',{name:'PDF upload order'}).locator('li')).toHaveCount(2);
+ await manager.getByRole('button',{name:'Save Replacement PDF'}).click();
+ const downloadEvent=manager.waitForEvent('download');
+ await manager.getByRole('button',{name:'View / Download PDF',exact:true}).click();
+ const download=await downloadEvent;
+ const downloaded=await PDFDocument.load(await readFile(await download.path()));
+ assert.equal(downloaded.getPageCount(),2,'One downloaded PDF contains both uploaded pages');
+ await manager.getByRole('button',{name:'Resubmit for Supervisor Review'}).click();await expect(manager.getByText('Submitted for Review',{exact:true})).toBeVisible();
  await supervisor.getByRole('button',{name:'Refresh Overview'}).click();await supervisor.locator('.sm-review-queue').getByRole('button',{name:'Review',exact:true}).click();
  await expect(supervisor.getByText('Opening the stored PDF and review…',{exact:true})).toHaveCount(0);
  await expect(supervisor.locator('.sm-mark-list li')).toHaveCount(0);
@@ -98,7 +122,10 @@ try{
  await supervisor.getByLabel('Monitoring slot').selectOption('manager_2');
  await supervisor.getByLabel('Monitoring date',{exact:true}).fill('2026-09-24');
  await supervisor.getByLabel('Manager responsible for corrections').selectOption('11');
- await supervisor.getByLabel('Choose PDF').setInputFiles('public/supper-monitoring-2022-09-08.pdf');
+ const dropped=await supervisor.evaluateHandle(files=>{const transfer=new DataTransfer();for(const f of files)transfer.items.add(new File([Uint8Array.from(atob(f.base64),c=>c.charCodeAt(0))],f.name,{type:'application/pdf'}));return transfer;},split.map(f=>({name:f.name,base64:f.buffer.toString('base64')})));
+ await supervisor.locator('.sm-dropzone').dispatchEvent('drop',{dataTransfer:dropped});
+ await dropped.dispose();
+ await expect(supervisor.getByRole('list',{name:'PDF upload order'}).locator('li')).toHaveCount(2);
  await supervisor.getByRole('button',{name:'Upload Manager Monitoring',exact:true}).click();
  await expect(supervisor.getByRole('heading',{name:'Supervisor PDF Review',exact:true})).toBeVisible();
  await expect(supervisor.getByText('Submitted for Review',{exact:true})).toBeVisible();
@@ -194,7 +221,7 @@ try{
  await supervisor.getByLabel('Monitoring number',{exact:true}).fill('7');
  await supervisor.getByLabel('Monitoring date',{exact:true}).fill('2026-09-24');
  await supervisor.getByLabel('Manager / monitor printed name',{exact:true}).fill('Snack Monitor');
- await supervisor.getByLabel('Choose PDF',{exact:true}).setInputFiles('public/supper-monitoring-2022-09-08.pdf');
+ await supervisor.getByLabel('Upload PDF(s)',{exact:true}).setInputFiles('public/supper-monitoring-2022-09-08.pdf');
  await supervisor.getByRole('button',{name:'Upload Monitoring',exact:true}).click();
  await expect(supervisor.getByRole('heading',{name:'Supervisor PDF Review',exact:true})).toBeVisible();
  await expect(supervisor.getByText(/Snack 7 - North Offsite/)).toBeVisible();

@@ -29,21 +29,36 @@ export function createHandler({ database, templateLoader = () => readFile(resolv
     if (request.method !== "POST") return response.status(405).json({ error: "Use POST." });
     const token = String(request.headers.authorization || "").replace(/^Bearer /, "");
     if (!/^[a-f0-9-]{72}$/.test(token)) return response.status(401).json({ error: "Re-enter your SPARK PIN to continue." });
-    const { action, id, revision, metadata, pdfBase64, version, annotations, comment, reviewAction } = request.body || {};
+    const { action, id, revision, metadata, pdfBase64, pdfs, version, annotations, comment, reviewAction } = request.body || {};
     if (!["preview", "submit", "download", "upload", "review"].includes(action) || (!(action === "upload" && !id) && !/^[a-f0-9-]{36}$/.test(id || ""))) return response.status(400).json({ error: "Choose a saved monitoring and a valid action." });
     async function rpc(name, params) { const { data, error } = await database.rpc(name, params); if (error) throw new Error(error.message); return data; }
     function pdfResponse(bytes) { response.setHeader("Content-Type", "application/pdf"); response.setHeader("Content-Disposition", `attachment; filename="Monitoring-${id}.pdf"`); return response.status(200).send(Buffer.from(bytes)); }
     try {
       if (action === "upload") {
         await rpc("supper_context", { p_token: token });
-        if (typeof pdfBase64 !== "string" || pdfBase64.length > 2800000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(pdfBase64)) return response.status(422).json({error:"Select a PDF no larger than 2 MB."});
-        const bytes = Buffer.from(pdfBase64,"base64");
-        if (bytes.length > 2097152 || bytes.length < 100 || bytes.subarray(0,5).toString() !== "%PDF-") return response.status(422).json({error:"Select a valid PDF no larger than 2 MB."});
+        // Accept the legacy one-PDF request as well as ordered one/two-file uploads.
+        const inputs = pdfs === undefined ? [pdfBase64] : pdfs;
+        if (!Array.isArray(inputs) || inputs.length < 1 || inputs.length > 2) return response.status(422).json({error:"Select 1 or 2 PDFs."});
+        if (inputs.some(value => typeof value !== "string" || value.length > 2800000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(value))) return response.status(422).json({error:"Select valid PDFs totaling no more than 2 MB."});
+        const sources = inputs.map(value=>Buffer.from(value,"base64"));
+        if (sources.reduce((size,bytes)=>size+bytes.length,0)>2097152 || sources.some(bytes=>bytes.length<100 || bytes.subarray(0,5).toString()!=="%PDF-")) return response.status(422).json({error:"Select valid PDFs totaling no more than 2 MB."});
+        let bytes = sources[0];
         try {
-          const uploaded = await PDFDocument.load(bytes);
-          if (uploaded.isEncrypted || uploaded.getPageCount() < 1 || uploaded.getPageCount() > 20) throw Error();
-        } catch { return response.status(422).json({error:"Use an unencrypted PDF with 1-20 pages. The Supervisor will review its contents."}); }
-        const saved = await rpc("upload_supper_pdf", {p_token:token,p_id:id || null,p_revision:revision || null,p_metadata:metadata,p_pdf_base64:pdfBase64,p_pdf_sha256:createHash("sha256").update(bytes).digest("hex")});
+          const documents = await Promise.all(sources.map(source=>PDFDocument.load(source)));
+          if (documents.some(doc=>doc.isEncrypted || doc.getPageCount()<1) || documents.reduce((pages,doc)=>pages+doc.getPageCount(),0)>20) throw Error();
+          if (documents.length===2) {
+            const combined = await PDFDocument.create();
+            for (const document of documents) {
+              // Embed filled field appearances before copying pages so values remain visible.
+              // Page content, images, dimensions and rotation are copied without rasterizing.
+              if (document.getForm().getFields().length) document.getForm().flatten();
+              for (const page of await combined.copyPages(document,document.getPageIndices())) combined.addPage(page);
+            }
+            bytes = Buffer.from(await combined.save());
+          }
+        } catch { return response.status(422).json({error:"Use readable, unencrypted PDFs with 1–20 combined pages."}); }
+        if (bytes.length>2097152) return response.status(422).json({error:"The combined PDF exceeds 2 MB. Choose smaller PDFs."});
+        const saved = await rpc("upload_supper_pdf", {p_token:token,p_id:id || null,p_revision:revision || null,p_metadata:metadata,p_pdf_base64:bytes.toString("base64"),p_pdf_sha256:createHash("sha256").update(bytes).digest("hex")});
         return response.status(200).json({record:saved});
       }
       if (action === "review") {

@@ -1,3 +1,4 @@
+import PdfUploadPicker from '../monitoring/PdfUploadPicker';
 import React, { useEffect, useState } from 'react';
 import { openSupervisorSession, closeSession, schoolManagers, monitoringSites, listMonitorings, uploadPdf } from './service';
 import { schoolYear } from './model';
@@ -11,7 +12,7 @@ export default function SupervisorExistingUpload({ schools, supervisorPin, initi
   const [sites,setSites]=useState([]);
   const [records,setRecords]=useState([]);
   const [metadata,setMetadata]=useState({schoolYear:initialYear,monitoringSlot:'manager_1',monitoringDate:'',managerEmployeeId:'',monitorName:'',onBehalf:true,monitoringType:'supper',monitoringSiteId:'',monitoringNumber:'',performerRole:'manager'});
-  const [file,setFile]=useState(null);
+  const [files,setFiles]=useState([]);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
   const school=schools.find(s=>String(s.id)===schoolId);
@@ -30,7 +31,7 @@ export default function SupervisorExistingUpload({ schools, supervisorPin, initi
     return()=>{cancelled=true;if(session)closeSession(session).catch(()=>{});};
   },[school,supervisorPin]);
   const occupied=slot=>metadata.monitoringType==='supper' && records.some(r=>r.status!=='deleted'&&r.monitoring_site_id===metadata.monitoringSiteId&&(r.monitoring_type||'supper')===metadata.monitoringType&&r.school_year===metadata.schoolYear&&r.monitoring_slot===slot);
-  async function upload(){setBusy(true);setError('');try{const record=await uploadPdf(token,null,metadata,file);await onUploaded(record,school);}catch(e){setError(e.message);}finally{setBusy(false);}}
+  async function upload(){setBusy(true);setError('');try{const record=await uploadPdf(token,null,metadata,files);await onUploaded(record,school);}catch(e){setError(e.message);}finally{setBusy(false);}}
   return <section className="sm-card"><h2>Upload Existing Monitoring</h2>
     <p>Upload an already-completed monitoring on behalf of an authorized school. Supper uploads use the Manager sequence; use Start Supervisor Monitoring to conduct your own Supper visit. Your Supervisor sign-in authorizes the upload; no Manager PIN is needed.</p>
     {error&&<p className="sm-error" role="alert">{error}</p>}
@@ -41,9 +42,9 @@ export default function SupervisorExistingUpload({ schools, supervisorPin, initi
       <label>Monitoring date<input type="date" value={metadata.monitoringDate} onChange={e=>setMetadata({...metadata,monitoringDate:e.target.value,schoolYear:schoolYear(e.target.value)||metadata.schoolYear})}/></label>
       <label>Manager responsible for corrections<select value={metadata.managerEmployeeId} onChange={e=>setMetadata({...metadata,managerEmployeeId:e.target.value,monitorName:managers.find(m=>String(m.id)===e.target.value)?.employee_name||metadata.monitorName})}><option value="">Any authorized Manager at this school</option>{managers.map(m=><option key={m.id} value={m.id}>{m.employee_name}</option>)}</select></label></div>
       <label>Manager / monitor printed name<input maxLength={160} value={metadata.monitorName} onChange={e=>setMetadata({...metadata,monitorName:e.target.value})}/></label>
-      <div className="sm-dropzone" onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();setFile(e.dataTransfer.files[0]||null);}}><label>Choose PDF<input type="file" accept="application/pdf,.pdf" onChange={e=>setFile(e.target.files[0]||null)}/></label><p>Or drag and drop a PDF here. Up to 2 MB and 20 pages.</p>{file&&<p>{file.name}</p>}</div>
+      <PdfUploadPicker files={files} onChange={setFiles} disabled={busy}/>
       <p>The record identifies the school, monitor and Supervisor who submitted it. It enters Submitted for Review and can then be reviewed and accepted.</p>
-      <div className="sm-actions"><button type="button" onClick={onBack}>Cancel Upload</button><button type="button" className="sm-primary" disabled={!token||!file||!metadata.monitoringDate||!metadata.monitorName.trim()||(metadata.monitoringType!=='supper'&&!/^[1-9][0-9]*$/.test(metadata.monitoringNumber))||occupied(metadata.monitoringSlot)} onClick={upload}>{metadata.monitoringType==='supper' ? 'Upload Manager Monitoring' : 'Upload Monitoring'}</button></div>
+      <div className="sm-actions"><button type="button" onClick={onBack}>Cancel Upload</button><button type="button" className="sm-primary" disabled={!token||!files.length||!metadata.monitoringDate||!metadata.monitorName.trim()||(metadata.monitoringType!=='supper'&&!/^[1-9][0-9]*$/.test(metadata.monitoringNumber))||occupied(metadata.monitoringSlot)} onClick={upload}>{metadata.monitoringType==='supper' ? 'Upload Manager Monitoring' : 'Upload Monitoring'}</button></div>
     </fieldset>
   </section>;
 }

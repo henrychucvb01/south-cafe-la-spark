@@ -41,10 +41,12 @@ export const getContext = token => rpc("supper_context",{p_token:token});
 export const supervisorOverview = pin => rpc("supper_supervisor_overview",{p_pin:pin});
 export const setUploads = (pin,enabled) => rpc("set_supper_uploads",{p_pin:pin,p_enabled:enabled});
 export const reviewAction = (token,record,action,comment) => rpc("supper_review_action",{p_token:token,p_id:record.id,p_revision:record.revision,p_action:action,p_comment:comment});
-export async function uploadPdf(token,record,metadata,file) {
-  if (!file || file.size > 2097152 || !/\.pdf$/i.test(file.name)) throw Error("Select a PDF no larger than 2 MB.");
-  const pdfBase64 = await new Promise((resolve,reject) => { const reader=new FileReader(); reader.onload=()=>resolve(reader.result.split(",")[1]); reader.onerror=()=>reject(Error("The PDF could not be read.")); reader.readAsDataURL(file); });
-  return (await (await reportRequest(token,record,"upload",{metadata,pdfBase64})).json()).record;
+export async function uploadPdf(token,record,metadata,selection) {
+  const files = Array.isArray(selection) ? selection : selection ? [selection] : [];
+  if (files.length < 1 || files.length > 2) throw Error("Select 1 or 2 PDFs.");
+  if (files.some(file => !/\.pdf$/i.test(file.name)) || files.reduce((total,file)=>total+file.size,0)>2097152) throw Error("Select PDFs totaling no more than 2 MB.");
+  const pdfs = await Promise.all(files.map(file => new Promise((resolve,reject) => { const reader=new FileReader(); reader.onload=()=>resolve(reader.result.split(",")[1]); reader.onerror=()=>reject(Error("The PDF could not be read.")); reader.readAsDataURL(file); })));
+  return (await (await reportRequest(token,record,"upload",{metadata,pdfs})).json()).record;
 }
 
 export const schoolManagers = token => rpc("supper_school_managers", {p_token:token});
