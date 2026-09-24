@@ -30,11 +30,11 @@ export function createHandler({ database, templateLoader = () => readFile(resolv
     const token = String(request.headers.authorization || "").replace(/^Bearer /, "");
     if (!/^[a-f0-9-]{72}$/.test(token)) return response.status(401).json({ error: "Re-enter your SPARK PIN to continue." });
     const { action, id, revision, metadata, pdfBase64, pdfs, version, annotations, comment, reviewAction } = request.body || {};
-    if (!["preview", "submit", "download", "upload", "review"].includes(action) || (!(action === "upload" && !id) && !/^[a-f0-9-]{36}$/.test(id || ""))) return response.status(400).json({ error: "Choose a saved monitoring and a valid action." });
+    if (!["preview", "submit", "download", "upload", "upload-preview", "review"].includes(action) || (!(["upload", "upload-preview"].includes(action) && !id) && !/^[a-f0-9-]{36}$/.test(id || ""))) return response.status(400).json({ error: "Choose a saved monitoring and a valid action." });
     async function rpc(name, params) { const { data, error } = await database.rpc(name, params); if (error) throw new Error(error.message); return data; }
     function pdfResponse(bytes) { response.setHeader("Content-Type", "application/pdf"); response.setHeader("Content-Disposition", `attachment; filename="Monitoring-${id}.pdf"`); return response.status(200).send(Buffer.from(bytes)); }
     try {
-      if (action === "upload") {
+      if (action === "upload" || action === "upload-preview") {
         await rpc("supper_context", { p_token: token });
         // Accept the legacy one-PDF request as well as ordered one/two-file uploads.
         const inputs = pdfs === undefined ? [pdfBase64] : pdfs;
@@ -58,6 +58,7 @@ export function createHandler({ database, templateLoader = () => readFile(resolv
           }
         } catch { return response.status(422).json({error:"Use readable, unencrypted PDFs with 1–20 combined pages."}); }
         if (bytes.length>2097152) return response.status(422).json({error:"The combined PDF exceeds 2 MB. Choose smaller PDFs."});
+        if (action === "upload-preview") return pdfResponse(bytes);
         const saved = await rpc("upload_supper_pdf", {p_token:token,p_id:id || null,p_revision:revision || null,p_metadata:metadata,p_pdf_base64:bytes.toString("base64"),p_pdf_sha256:createHash("sha256").update(bytes).digest("hex")});
         return response.status(200).json({record:saved});
       }

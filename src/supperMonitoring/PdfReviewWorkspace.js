@@ -1,7 +1,7 @@
 import { recordLabel } from "../monitoring/types";
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import PdfMarkupViewer from './PdfMarkupViewer';
-import { pdfReviews, reportBytes, savePdfReview } from './service';
+import { pdfReviews, reportBytes, savePdfReview, reviewAction } from './service';
 import { STATUSES } from './workflow';
 
 export default function PdfReviewWorkspace({ token, initialRecord, school, supervisor=false, onBack }) {
@@ -14,6 +14,15 @@ export default function PdfReviewWorkspace({ token, initialRecord, school, super
   const [dirty,setDirty]=useState(false);
   const [error,setError]=useState('');
   const [notice,setNotice]=useState('');
+  const [confirmDelete,setConfirmDelete]=useState(false);
+  const deleteDialog=useRef(null);
+  useEffect(()=>{if(confirmDelete)deleteDialog.current?.showModal();else deleteDialog.current?.close();},[confirmDelete]);
+  async function removeMonitoring(){
+    setBusy(true);setError('');
+    try {await reviewAction(token,record,'delete','');setDirty(false);setConfirmDelete(false);await onBack({deleted:true});}
+    catch(e){setError(e.message);setConfirmDelete(false);}finally{setBusy(false);}
+  }
+
   const editable=supervisor && !record.locked && ['submitted','corrections_requested'].includes(record.status);
   useEffect(()=>{
     let cancelled=false;setLoading(true);setError('');setBytes(null);
@@ -49,6 +58,12 @@ export default function PdfReviewWorkspace({ token, initialRecord, school, super
     {bytes && <fieldset className="sm-editor" disabled={busy}><PdfMarkupViewer key={record.document_version} bytes={bytes} annotations={annotations} editable={editable&&!busy} onChange={value=>{setAnnotations(value);setDirty(true);setNotice('');}}/></fieldset>}
     {editable && <div className="sm-actions"><button type="button" disabled={busy||loading||!bytes} onClick={()=>save('save')}>Save Comments & Markup</button>{record.status==='submitted' && <><button type="button" disabled={busy||loading||!bytes||!comment.trim()} onClick={()=>save('return')}>Return for Correction</button><button type="button" className="sm-primary" disabled={busy||loading||!bytes} onClick={()=>save('accept')}>Accept & Lock</button></>}</div>}
     {editable && <p>{dirty?'Unsaved review changes. Save before leaving.':'Comments and markup apply to the current PDF.'} Add a Supervisor comment explaining any return for correction.</p>}
+    {supervisor && <div className="sm-actions" style={{marginTop:24}}><button type="button" style={{color:'#9f2020',borderColor:'#9f2020'}} disabled={busy} onClick={()=>setConfirmDelete(true)}>Delete Monitoring</button></div>}
+    {supervisor && <dialog ref={deleteDialog} aria-labelledby="delete-monitoring-title" onCancel={e=>{if(busy)e.preventDefault();else setConfirmDelete(false);}} style={{maxWidth:'min(440px, 90vw)',border:'1px solid #aebdcd',borderRadius:12,padding:24}}>
+      <h3 id="delete-monitoring-title">Delete this monitoring?</h3>
+      <p>This will permanently delete this monitoring record and its uploaded PDF. This action cannot be undone.</p>
+      <div className="sm-actions"><button type="button" autoFocus disabled={busy} onClick={()=>setConfirmDelete(false)}>Cancel</button><button type="button" disabled={busy} style={{background:'#9f2020',color:'white'}} onClick={removeMonitoring}>Delete Monitoring</button></div>
+    </dialog>}
     {!editable && <p>Comments and markup are read-only.{supervisor&&record.locked?' Unlock the monitoring from its record to make corrections.':''}</p>}
   </section>;
 }

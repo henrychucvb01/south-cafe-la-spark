@@ -51,6 +51,11 @@ try {
  const list=async(token)=>{await db.exec('reset role;set role anon');return (await db.query('select * from list_supper_monitorings($1)',[token])).rows;};
  const save=(token,r,payload)=>rpc('save_supper_monitoring_draft',{p_token:token,p_id:r?.id || null,p_revision:r?.revision || null,p_section:6,p_payload:payload});
  assert.equal((await upload(manager,null,metadata,Buffer.from('bad PDF'))).code,422);
+ const beforePreview=await list(manager);
+ const singlePreview=await request(manager,{action:'upload-preview',pdfs:[template.toString('base64')]});assert.equal(singlePreview.code,200);assert.deepEqual(singlePreview.body,template);
+ assert.deepEqual(await list(manager),beforePreview,'Preview never creates a record or queue entry');
+ const pairPreview=await request(manager,{action:'upload-preview',pdfs:[template.toString('base64'),template.toString('base64')]});assert.equal(pairPreview.code,200);assert.equal((await PDFDocument.load(pairPreview.body)).getPageCount(),4);
+ assert.deepEqual(await list(manager),beforePreview);
  let r=okay(await upload(manager));assert.equal(r.status,'submitted');assert.equal(r.source,'uploaded');assert.equal(r.locked,false);
  assert.notEqual((await upload(manager)).code,200,'Duplicate slots blocked');
  assert.deepEqual((await request(supervisor,{action:'download',id:r.id})).body,template,'Original uploaded bytes preserved');
