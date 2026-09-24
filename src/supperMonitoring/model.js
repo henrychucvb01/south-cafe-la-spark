@@ -30,8 +30,8 @@ export function weekDates(date) {
     return current.toISOString().slice(0, 10);
   });
 }
-export function newDraft(monitor = "") {
-  return { schemaVersion: 1, unannounced: null, adultMeals: "", correctiveActionDue: "", followUpRequired: null, extraFollowUp: "", approvedServiceTime: "", monitoringDate: "", arrivalTime: "", departureTime: "", serviceStart: "", serviceEnd: "", programName: "", programType: "", todayAttendance: "", todayMeals: "", weekStart: "", history: [], menu: MENU.map(category => ({ category, applicable: true, item: "", serving: "" })), answers: {}, correctiveActions: {}, repeatedFindings: "", repeatedAction: "", comments: "", monitorName: monitor, coordinatorName: "", signatures: { monitor: null, coordinator: null } };
+export function newDraft(monitor = "", role = "manager") {
+  return { schemaVersion: 1, schoolYear: schoolYear(localDate()), monitoringSlot: role === "supervisor" ? "supervisor" : "manager_1", unannounced: null, adultMeals: "", correctiveActionDue: "", followUpRequired: null, extraFollowUp: "", approvedServiceTime: "", monitoringDate: "", arrivalTime: "", departureTime: "", serviceStart: "", serviceEnd: "", programName: "", programType: "", todayAttendance: "", todayMeals: "", weekStart: "", history: [], menu: MENU.map(category => ({ category, applicable: true, item: "", serving: "" })), answers: {}, correctiveActions: {}, repeatedFindings: "", repeatedAction: "", comments: "", monitorName: monitor, coordinatorName: "", signatures: { monitor: null, coordinator: null } };
 }
 export function countValid(value) {
   return /^(0|[1-9]\d*)$/.test(String(value)) && Number.isSafeInteger(Number(value)) && Number(value) <= 1000000;
@@ -53,6 +53,9 @@ export function validate(data, form = OFFICIAL_FORM) {
   const errors = [];
   const add = (section, field, message) => errors.push({ section, field, message });
   if (!validDate(data.monitoringDate)) add(0, "monitoringDate", "Enter a valid monitoring date.");
+  if (!/^\d{4}-\d{2}$/.test(data.schoolYear || "") || String(Number(data.schoolYear?.slice(0,4)) + 1).slice(-2) !== data.schoolYear?.slice(-2)) add(0, "schoolYear", "Choose a valid school year, such as 2026-27.");
+  else if (validDate(data.monitoringDate) && schoolYear(data.monitoringDate) !== data.schoolYear) add(0, "schoolYear", "Monitoring date must be in the selected school year.");
+  if (!["manager_1","manager_2","supervisor"].includes(data.monitoringSlot)) add(0, "monitoringSlot", "Choose a monitoring slot.");
   const timeValid = value => /^([01]\d|2[0-3]):[0-5]\d$/.test(value || "");
   ["arrivalTime", "departureTime"].forEach(field => { if (!timeValid(data[field])) add(0, field, `Enter the ${field === "arrivalTime" ? "arrival" : "departure"} time.`); });
   if (timeValid(data.arrivalTime) && timeValid(data.departureTime) && data.departureTime <= data.arrivalTime) add(0, "departureTime", "Departure must be after arrival. Review both times.");

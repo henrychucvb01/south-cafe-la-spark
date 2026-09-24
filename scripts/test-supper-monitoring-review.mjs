@@ -1,0 +1,115 @@
+import assert from 'node:assert/strict';
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {PGlite} from '@electric-sql/pglite';
+import {createHandler} from '../api/supper-monitoring.js';
+import {makeFixture,signFixture} from './supper-monitoring-fixture.mjs';
+import {slotProgress} from '../src/supperMonitoring/workflow.js';
+const db=new PGlite();
+try {
+ await db.exec(`create role anon;create role authenticated;create role service_role;
+ create table locations(id bigint primary key,active boolean,school_name text,location_code text);
+ create table employees(id bigint primary key,location_id bigint,employee_name text,active boolean);
+ insert into locations values(1,true,'Test School','1001'),(2,true,'Other School','1002'),(3,false,'Inactive','1003');
+ insert into employees values(11,1,'Monitor One',true),(12,1,'Colleague',true),(22,2,'Monitor Two',true);
+ create function verify_manager_pin(text,text) returns boolean language sql as $$select $2='1234'$$;
+ create function verify_covering_pin(text) returns boolean language sql as $$select $1='5678'$$;
+ create function verify_supervisor_pin(text) returns boolean language sql as $$select $1='9999'$$;`);
+ for(const file of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql']) {
+  if(file.startsWith('202609240001')) await db.exec(`
+   insert into supper_monitorings(location_id,created_by_employee_id,created_by_name,school_year,monitoring_date,status,submitted_at,template_version,pdf_storage_path,pdf_sha256)
+   select 2,22,'Legacy Manager','2025-26','2026-06-01','completed',now(),'lausd-supper-2022-09-08','legacy','test' from generate_series(1,3);
+   insert into supper_monitoring_documents(monitoring_id,pdf_bytes,sha256) select id,convert_to(repeat('old PDF',30),'UTF8'),'test' from supper_monitorings;
+  `);
+  await db.exec(await readFile(new URL('../supabase/migrations/'+file,import.meta.url),'utf8'));
+ }
+ const legacy=(await db.query('select * from supper_monitorings where location_id=2')).rows;
+ assert.equal(legacy.length,3);assert.ok(legacy.every(r=>r.status==='submitted' && !r.locked && r.document_version===1));
+ assert.equal(legacy.filter(r=>r.monitoring_slot===null).length,1,'Extra legacy records retained without a duplicate slot');
+ assert.equal((await db.query('select * from supper_monitoring_document_versions')).rows.length,3,'Legacy original PDFs seeded as version 1');
+ const rpc=async(name,args,role='anon')=>{await db.exec('reset role;set role '+role);return (await db.query(`select to_jsonb(public.${name}(${Object.keys(args).map((k,i)=>k+'=> $'+(i+1)).join(',')})) as result`,Object.values(args))).rows[0].result;};
+ const open=(loc,id)=>rpc('open_supper_monitoring_session',{p_location_id:loc,p_employee_id:id,p_pin:'1234'});
+ const manager=await open(1,11),colleague=await open(1,12),other=await open(2,22);
+ assert.equal(await open(2,11),null);
+ assert.equal(await rpc('open_supper_supervisor_session',{p_location_id:1,p_pin:'1234'}),null);
+ assert.equal(await rpc('open_supper_supervisor_session',{p_location_id:3,p_pin:'9999'}),null);
+ const supervisor=await rpc('open_supper_supervisor_session',{p_location_id:1,p_pin:'9999'});
+ const ctx=t=>rpc('supper_context',{p_token:t});
+ assert.equal((await ctx(manager)).allow_manager_uploads,true);
+ assert.equal((await ctx(supervisor)).actor_role,'supervisor');
+ await assert.rejects(()=>rpc('supper_supervisor_overview',{p_pin:'1234'}),/authorization/);
+ assert.equal((await rpc('supper_supervisor_overview',{p_pin:'9999'})).schools.length,2);
+ const template=await readFile('public/supper-monitoring-2022-09-08.pdf');
+ const database={rpc:async(name,args)=>{try{return {data:await rpc(name,args,'service_role')};}catch(e){return {error:{message:e.message}};}},from:()=>({select:()=>({eq:()=>({single:async()=>({data:{school_name:'Test School',location_code:'1001'}})})})})};
+ const handler=createHandler({database,templateLoader:async()=>template});
+ async function request(token,body){const res={code:0,headers:{},setHeader(k,v){this.headers[k]=v;},status(n){this.code=n;return this;},json(b){this.body=b;return this;},send(b){this.body=b;return this;}};await handler({method:'POST',headers:{authorization:'Bearer '+token},body},res);return res;}
+ const metadata={monitoringDate:'2026-09-23',schoolYear:'2026-27',monitoringSlot:'manager_1',monitorName:'Monitor One'};
+ async function upload(token,record=null,meta=metadata,bytes=template){return request(token,{action:'upload',id:record?.id,revision:record?.revision,metadata:meta,pdfBase64:bytes.toString('base64')});}
+ const okay=res=>{assert.equal(res.code,200,JSON.stringify(res.body));return res.body.record;};
+ const review=(token,r,action,comment='')=>rpc('supper_review_action',{p_token:token,p_id:r.id,p_revision:r.revision,p_action:action,p_comment:comment});
+ const get=(token,id)=>rpc('get_supper_monitoring',{p_token:token,p_id:id});
+ const list=async(token)=>{await db.exec('reset role;set role anon');return (await db.query('select * from list_supper_monitorings($1)',[token])).rows;};
+ const save=(token,r,payload)=>rpc('save_supper_monitoring_draft',{p_token:token,p_id:r?.id || null,p_revision:r?.revision || null,p_section:6,p_payload:payload});
+ assert.equal((await upload(manager,null,metadata,Buffer.from('bad PDF'))).code,422);
+ let r=okay(await upload(manager));assert.equal(r.status,'submitted');assert.equal(r.source,'uploaded');assert.equal(r.locked,false);
+ assert.notEqual((await upload(manager)).code,200,'Duplicate slots blocked');
+ assert.deepEqual((await request(supervisor,{action:'download',id:r.id})).body,template,'Original uploaded bytes preserved');
+ assert.equal((await request(other,{action:'download',id:r.id})).code,403);
+ assert.equal((await upload(colleague,r)).code,403);
+ for(const action of ['accept','unlock','delete','return','comment']) await assert.rejects(()=>review(manager,r,action,'Attempt'),/Supervisor authorization/);
+ await assert.rejects(()=>review(supervisor,r,'return'),/comment/);
+ r=await review(supervisor,r,'return','Add coordinator signature on page 2.');assert.equal(r.status,'corrections_requested');
+ assert.equal((await get(manager,r.id)).review_comments,'Add coordinator signature on page 2.');
+ await assert.rejects(()=>rpc('set_supper_uploads',{p_pin:'1234',p_enabled:false}),/authorization/);
+ await rpc('set_supper_uploads',{p_pin:'9999',p_enabled:false});assert.equal((await ctx(manager)).allow_manager_uploads,false);
+ assert.notEqual((await upload(manager,null,{...metadata,monitoringSlot:'manager_2'})).code,200,'OFF rejects new uploads');
+ assert.deepEqual((await request(manager,{action:'download',id:r.id})).body,template,'OFF retains old documents');
+ r=okay(await upload(manager,r));assert.equal(r.document_version,2);assert.equal(r.status,'corrections_requested');
+ r=await review(manager,r,'resubmit');assert.equal(r.status,'submitted');
+ await assert.rejects(()=>review(supervisor,{...r,revision:r.revision-1},'accept'),/revision/);
+ r=await review(supervisor,r,'accept');assert.equal(r.status,'accepted');assert.equal(r.locked,true);assert.ok(r.accepted_at);
+ assert.notEqual((await upload(manager,r)).code,200);
+ await assert.rejects(()=>save(manager,r,makeFixture()),/read-only/);
+ for(const action of ['unlock','delete','accept']) await assert.rejects(()=>review(manager,r,action,'Attempt'),/Supervisor authorization/);
+ r=okay(await upload(supervisor,r));assert.equal(r.status,'accepted');assert.equal(r.locked,true);assert.equal(r.document_version,3);
+ assert.equal((await request(manager,{action:'version',id:r.id,version:1})).code,403);
+ assert.deepEqual((await request(supervisor,{action:'version',id:r.id,version:1})).body,template);
+ r=await review(supervisor,r,'unlock','Please correct the date.');assert.equal(r.locked,false);
+ r=okay(await upload(manager,r));r=await review(manager,r,'resubmit');r=await review(supervisor,r,'accept');
+ // Guided manager uses the other structured slot even with uploads OFF.
+ const payload=makeFixture();payload.monitoringSlot='manager_2';signFixture(payload);
+ await assert.rejects(()=>save(manager,null,{...payload,monitoringSlot:'supervisor',monitor_role:'supervisor'}),/slot for this role/);
+ await assert.rejects(()=>save(manager,null,{...payload,schoolYear:'2025-26'}),/selected school year/);
+ let guided=await save(manager,null,payload);assert.equal(guided.monitor_role,'manager');
+ assert.equal((await get(manager,guided.id)).current_section,6);
+ await assert.rejects(()=>save(other,guided,payload),/not found for this school/);
+ await assert.rejects(()=>save(colleague,guided,payload),/creator/);
+ guided=okay(await request(manager,{action:'submit',id:guided.id,revision:guided.revision}));assert.equal(guided.status,'submitted');
+ guided=await review(supervisor,guided,'return','Clarify the comment.');assert.equal(guided.payload.signatures.monitor,null);
+ assert.equal((await request(manager,{action:'submit',id:guided.id,revision:guided.revision})).code,422,'Returned generated document requires fresh signatures');
+ guided=await save(manager,guided,signFixture({...guided.payload,comments:'Reviewed - No Findings'}));
+ guided=okay(await request(manager,{action:'submit',id:guided.id,revision:guided.revision}));guided=await review(supervisor,guided,'accept');
+ // Same guided engine, server-assigned Supervisor role, immediate completed lock.
+ const afss=makeFixture();afss.monitoringSlot='supervisor';afss.monitorName='TEST AFSS';signFixture(afss);
+ let own=await save(supervisor,null,afss);assert.equal(own.monitor_role,'supervisor');
+ own=okay(await request(supervisor,{action:'submit',id:own.id,revision:own.revision}));assert.equal(own.status,'completed');assert.equal(own.locked,true);
+ await assert.rejects(()=>review(supervisor,own,'accept'),/Only a submitted manager/);
+ await assert.rejects(()=>save(manager,own,afss),/creator/);
+ const pdf=await request(supervisor,{action:'download',id:own.id});assert.equal(pdf.code,200);
+ await mkdir('test-results/supper-review-qa',{recursive:true});await writeFile('test-results/supper-review-qa/supervisor-official.pdf',pdf.body);
+ assert.deepEqual(slotProgress(await list(manager),'2026-27').map(p=>p.record.status),['accepted','accepted','completed']);
+ assert.equal(new Set((await list(manager)).map(r=>r.source)).size,2,'Unified uploaded/generated history');
+ await db.exec('reset role;set role anon');
+ const events=(await db.query('select * from supper_audit_history($1,$2)',[supervisor,r.id])).rows;
+ for(const action of ['Uploaded','Submitted','Returned for Correction','PDF Replaced','Resubmitted','Accepted','Unlocked']) assert.ok(events.some(e=>e.action===action),action);
+ assert.ok(events.every(e=>e.actor_name && e.actor_role && e.occurred_at));
+ await assert.rejects(()=>rpc('supper_audit_history',{p_token:manager,p_id:r.id}),/Supervisor authorization/);
+ r=await review(supervisor,r,'delete','Duplicate outside monitoring replaced.');assert.equal(r.status,'deleted');
+ assert.equal((await list(manager)).length,2);assert.equal((await list(supervisor)).length,3);
+ assert.deepEqual((await request(supervisor,{action:'version',id:r.id,version:1})).body,template,'Deletion retains audit documents');
+ await assert.rejects(()=>get(manager,r.id),/not found/);
+ await rpc('set_supper_uploads',{p_pin:'9999',p_enabled:true});assert.equal(okay(await upload(manager)).status,'submitted','Deleted slot can be reused');
+ await db.exec('reset role;set role anon');
+ for(const table of ['supper_monitorings','supper_monitoring_events','supper_monitoring_document_versions','supper_monitoring_settings']) await assert.rejects(()=>db.query('select * from '+table),/permission denied/);
+ await assert.rejects(()=>rpc('upload_supper_pdf',{p_token:manager,p_id:null,p_revision:null,p_metadata:metadata,p_pdf_base64:template.toString('base64'),p_pdf_sha256:'fake'}),/permission denied/);
+ console.log('PASS: all migrations; real API + SQL upload/return/replace/resubmit/accept/lock/unlock/delete; setting OFF; PDF versions; ownership/school/role restrictions; shared guided manager and AFSS completion; unified three-slot history; audit and private storage.');
+}finally{await db.close();}

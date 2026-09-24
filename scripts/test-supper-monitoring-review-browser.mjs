@@ -1,0 +1,53 @@
+import assert from 'node:assert/strict';
+import {createServer} from 'node:http';
+import {readFile,mkdir} from 'node:fs/promises';
+import {resolve,extname,sep} from 'node:path';
+import {chromium,expect} from '@playwright/test';
+import {PGlite} from '@electric-sql/pglite';
+import {createHandler} from '../api/supper-monitoring.js';
+const db=new PGlite();
+await db.exec(`create role anon;create role authenticated;create role service_role;
+create table locations(id bigint primary key,active boolean,school_name text,location_code text);
+create table employees(id bigint primary key,location_id bigint,employee_name text,active boolean);
+insert into locations values(1,true,'Test School','1001');insert into employees values(11,1,'Test Monitor',true);
+create function verify_manager_pin(text,text) returns boolean language sql as $$select $2='1234'$$;
+create function verify_covering_pin(text) returns boolean language sql as $$select false$$;
+create function verify_supervisor_pin(text) returns boolean language sql as $$select $1='9999'$$;`);
+for(const name of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql']) await db.exec(await readFile('supabase/migrations/'+name,'utf8'));
+// Serialize role-scoped requests on this single ephemeral database connection.
+let queue=Promise.resolve();
+function rpc(name,args,role='anon') {const task=queue.then(async()=>{await db.exec('reset role;set role '+role);const set=['list_supper_monitorings','supper_audit_history'].includes(name);const rows=(await db.query(`select to_jsonb(public.${name}(${Object.keys(args).map((k,i)=>k+' => $'+(i+1)).join(',')})) as result`,Object.values(args))).rows;return set ? rows.map(r=>r.result) : rows[0].result;});queue=task.catch(()=>{});return task;}
+const database={rpc:async(name,args)=>{try{return {data:await rpc(name,args,'service_role')};}catch(e){return {error:{message:e.message}};}},from:()=>({select:()=>({eq:()=>({single:async()=>({data:{school_name:'Test School',location_code:'1001'}})})})})};
+const handler=createHandler({database});const build=resolve('build');
+const server=createServer(async(req,res)=>{try{if(req.url==='/api/supper-monitoring'){let raw='';for await(const c of req)raw+=c;req.body=JSON.parse(raw);res.status=n=>{res.statusCode=n;return res;};res.json=b=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify(b));};res.send=b=>res.end(b);await handler(req,res);return;}
+let path=resolve(build,'.'+new URL(req.url,'http://localhost').pathname);if(path!==build&&!path.startsWith(build+sep))return res.writeHead(403).end();if(path===build)path=resolve(build,'index.html');res.setHeader('Content-Type',({'.html':'text/html','.js':'application/javascript','.css':'text/css','.png':'image/png'})[extname(path)]||'application/octet-stream');res.end(await readFile(path));}catch(e){res.writeHead(500).end(e.message);}});
+await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin='http://127.0.0.1:'+server.address().port;
+const browser=await chromium.launch({channel:process.env.SPARK_TEST_BROWSER||'chrome',headless:true});const errors=[];
+async function pageFor(role){const context=await browser.newContext({viewport:{width:role==='manager'?390:1440,height:950},serviceWorkers:'block'});const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.addInitScript(()=>sessionStorage.setItem('sparkIntroPlayed','yes'));
+await page.route('**/*',async route=>{const request=route.request(),url=new URL(request.url());if(url.origin===origin)return route.continue();if(url.hostname!=='kkrcxqhfzepifhkryodd.supabase.co')return route.abort();const name=url.pathname.split('/').at(-1),args=request.postDataJSON()||{};try{let body=[];
+if(name==='locations')body={id:1,location_code:'1001',school_name:'Test School',active:true};else if(name==='employees')body=[{id:11,location_id:1,employee_name:'Test Monitor',active:true}];else if(['has_manager_pin','verify_manager_pin','verify_supervisor_pin'].includes(name))body=true;else if(/supper/.test(name))body=await rpc(name,args);
+await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});}catch(e){await route.fulfill({status:400,contentType:'application/json',body:JSON.stringify({message:e.message})});}});
+await page.goto(origin);if(role==='manager'){await page.getByLabel('Location Code').fill('1001');await page.getByRole('button',{name:'Continue',exact:true}).click();await page.getByRole('button',{name:/Test Monitor/}).click();await page.getByLabel('4-Digit PIN').fill('1234');}else{await page.getByRole('button',{name:'Supervisor Access',exact:true}).click();await page.locator('input[type=password]').fill('9999');await page.getByRole('button',{name:'Open Command Center'}).click();}
+await page.getByRole('button',{name:/Supper Monitoring/}).click();return page;}
+try{
+const manager=await pageFor('manager'),supervisor=await pageFor('supervisor');
+await expect(manager.getByRole('button',{name:'Upload Existing Monitoring',exact:true})).toBeVisible();
+await manager.getByRole('button',{name:'Upload Existing Monitoring',exact:true}).click();await manager.getByLabel('Monitoring date',{exact:true}).fill('2026-09-23');await manager.getByLabel('Choose PDF').setInputFiles('public/supper-monitoring-2022-09-08.pdf');await manager.getByRole('button',{name:'Upload & Submit for Review',exact:true}).click();await expect(manager.getByText('Submitted for Review',{exact:true})).toBeVisible();
+await supervisor.getByRole('button',{name:'Refresh Overview'}).click();await expect(supervisor.locator('.sm-slot-grid').getByText('Submitted for Review',{exact:true})).toBeVisible();await supervisor.getByRole('button',{name:'Open School Monitorings'}).click();await supervisor.getByRole('button',{name:'View',exact:true}).click();const downloaded=supervisor.waitForEvent('download');await supervisor.getByRole('button',{name:'View / Download PDF'}).click();await downloaded;
+await supervisor.getByLabel('Supervisor review comments').fill('Please add the ASP Coordinator signature.');await supervisor.getByRole('button',{name:'Return for Correction',exact:true}).click();await expect(supervisor.getByText('Corrections Requested',{exact:true})).toBeVisible();
+await manager.getByRole('button',{name:'Back to History'}).click();await manager.getByRole('button',{name:'Refresh',exact:true}).click();await expect(manager.getByText('Supervisor: Please add the ASP Coordinator signature.',{exact:true})).toBeVisible();await manager.getByRole('button',{name:'View',exact:true}).click();
+await supervisor.getByRole('button',{name:'← School Overview',exact:true}).click();await supervisor.getByLabel('Allow Manager PDF Uploads').click();await expect(supervisor.getByLabel('Allow Manager PDF Uploads')).not.toBeChecked();
+await manager.getByRole('button',{name:'Replace PDF',exact:true}).click();await manager.getByLabel('Choose PDF').setInputFiles('public/supper-monitoring-2022-09-08.pdf');await manager.getByRole('button',{name:'Save Replacement PDF'}).click();await manager.getByRole('button',{name:'Resubmit for Supervisor Review'}).click();await expect(manager.getByText('Submitted for Review',{exact:true})).toBeVisible();
+await supervisor.getByRole('button',{name:'Open School Monitorings'}).click();await supervisor.getByRole('button',{name:'View',exact:true}).click();await supervisor.getByRole('button',{name:'Accept Monitoring',exact:true}).click();await expect(supervisor.getByText('Accepted / Locked',{exact:true})).toBeVisible();
+await manager.getByRole('button',{name:'Back to History'}).click();await manager.getByRole('button',{name:'Refresh',exact:true}).click();await expect(manager.getByRole('button',{name:'Upload Existing Monitoring',exact:true})).toHaveCount(0);await expect(manager.getByRole('button',{name:'+ Start New Monitoring',exact:true})).toBeEnabled();await manager.getByRole('button',{name:'View',exact:true}).click();await expect(manager.getByText('Accepted / Locked',{exact:true})).toBeVisible();await expect(manager.getByRole('button',{name:'Replace PDF',exact:true})).toHaveCount(0);
+await supervisor.getByRole('button',{name:'View Audit History'}).click();await expect(supervisor.getByText('PDF Replaced',{exact:true})).toBeVisible();await supervisor.getByLabel('Supervisor review comments').fill('Correct and resubmit the document.');await supervisor.getByRole('button',{name:'Unlock for Correction'}).click();await expect(supervisor.getByText('Corrections Requested',{exact:true})).toBeVisible();await supervisor.getByRole('button',{name:'Back to History'}).click();await supervisor.getByRole('button',{name:'+ Start Supervisor Monitoring',exact:true}).click();await expect(supervisor.getByRole('heading',{name:'Monitoring Information',exact:true})).toBeVisible();await supervisor.getByLabel('Monitoring date',{exact:true}).fill('2026-09-24');await supervisor.getByRole('button',{name:'Save & Continue →',exact:true}).click();await expect(supervisor.getByRole('heading',{name:'Five-Day History',exact:true})).toBeVisible();await supervisor.getByLabel('Go to section').selectOption('7');await expect(supervisor.getByLabel('Supervisor / AFSS printed name',{exact:true})).toBeVisible();await expect(supervisor.getByRole('button',{name:'Sign with Finger',exact:true})).toHaveCount(2);
+await supervisor.getByRole('button',{name:'Save & Return to Monitorings',exact:true}).click();
+const drafts=supervisor.locator('section.sm-card').filter({has:supervisor.getByRole('heading',{name:'Drafts / In Progress',exact:true})});
+await drafts.getByRole('button',{name:'View',exact:true}).click();
+await expect(supervisor.getByRole('button',{name:'Delete Monitoring',exact:true})).toBeVisible();
+await expect(supervisor.getByRole('button',{name:'Replace PDF',exact:true})).toBeVisible();
+await supervisor.getByRole('button',{name:'Resume Guided Monitoring',exact:true}).click();
+await expect(supervisor.getByRole('heading',{name:'Names & Signatures',exact:true})).toBeVisible();
+await mkdir('test-results/supper-review',{recursive:true});await supervisor.screenshot({path:'test-results/supper-review/supervisor-guided.png',fullPage:true});await manager.screenshot({path:'test-results/supper-review/manager-locked.png',fullPage:true});assert.deepEqual(errors,[]);
+console.log('PASS: built app with real isolated SQL/API; mobile upload, supervisor comments/return/download, replacement after OFF, resubmit, accept, manager locked controls, history persistence, audit, unlock, supervisor school selection and shared guided engine.');
+}finally{await browser.close();await new Promise(r=>server.close(r));await db.close();}

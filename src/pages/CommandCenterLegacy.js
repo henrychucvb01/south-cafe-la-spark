@@ -56,7 +56,7 @@ const REIMBURSEMENT_RATES = {
   supper: 4.6,
 };
 
-function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, supervisorPin }) {
+function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, supervisorPin, onSupperMonitoring }) {
   const [schools, setSchools] = useState([]);
   const [selectedSchool, setSelectedSchool] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1299,6 +1299,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
             Location Directory
           </button>
 
+          <button className="command-nav-button" onClick={onSupperMonitoring}>Supper Monitoring</button>
           <button className={`command-nav-button ${view === "feedback" ? "active" : ""}`} onClick={() => setView("feedback")}>
             <span>💬</span>
             Feedback

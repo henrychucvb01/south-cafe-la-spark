@@ -1,74 +1,83 @@
 # Supper Monitoring
 
-Implemented on `spark-development` using the supplied official two-page LAUSD PDF. No live migration, deployment, push, or merge to main has been performed.
+Development-only expansion of the existing guided tool. Manager Hub still places School Dashboard and Daily Bites first; Supper Monitoring remains a tool and opens with the existing sign-in, without another PIN prompt. Command Center now links to Supervisor Supper Monitoring. No unrelated scoring, analytics, games, staffing or scorecard logic is changed.
 
-## Workflow
+## Manager and Supervisor workflows
 
-School Dashboard and Daily Bites are the first two Manager Hub choices. The Supper Monitoring tile opens school-scoped drafts, current-year completed monitorings, and previous-year history. Ten sections cover visit information, Monday–Friday history, today's service, menu, official questions, findings/actions, comments, signatures, review, and submission. Explicit saves preserve the section and question position across sessions/devices; there is no background autosave. Revision checks prevent silent overwrites. Failed saves preserve local work and prevent navigation.
+The school home combines uploaded and SPARK-generated monitorings in Drafts / In Progress, Submitted / Awaiting Review, Corrections Requested, Completed / Accepted, and Previous Monitorings. A selected school year tracks two Manager slots and one Supervisor/AFSS slot. A database unique index prevents duplicate active slots, including concurrent creation. Deleted records release their slots; their documents and audit remain available to supervisors. Legacy records beyond the three slots remain in history with “Slot needs assignment.”
 
-History dates are generated for the selected week. Every day requires attendance greater than meals; monitoring-date overlap, missing/invalid/duplicate dates and counts are rejected. The average is calculated. Menu fields cover all seven official categories. Questions 1–20 include 18a/18b, the form's N/A restrictions, conditional 18b, and corrective-action rules. No requires action except 18a/19; Yes to 19 requires action. Repeated findings apply to 18b No. Question 20 Yes with other findings prompts review without inventing a new prohibition.
+**Temporary upload:** Allow Manager PDF Uploads defaults ON. Managers can pick or drop an existing PDF and supply monitoring date, school year, slot and monitor name. School is fixed by authorization and the name is prefilled from sign-in. Only unencrypted PDFs of 1–20 pages and at most 2 MB are accepted. The server validates format and bounds, not document correctness; supervisors review content manually. The original bytes are preserved.
 
-Comments, printed names, signature dates, and both signatures are required. Each signer opens the drawing pad with Sign with Finger. Mouse/touch signatures scale for phone rotation and include explicit consent to apply to both pages. Signatures bind to a SHA-256 digest of report content; content edits clear them and the server independently checks the digest. Navigating questions does not invalidate signatures.
+**Review:** Manager uploads and guided submissions enter Submitted for Review. Supervisors can download the PDF, comment, Return for Correction (comment required), or Accept. A returned uploaded document can be replaced on the same record, then explicitly resubmitted. Replacement before acceptance also returns the upload to the correction state until resubmitted. Comments appear prominently in manager history and the record. Accept sets Accepted / Locked. Managers cannot edit, delete, unlock or replace accepted records. Manager edit rights are restricted to their own records; same-school historical viewing is allowed.
 
-Preview and submission render the actual supplied template, with answers, history, menu, comments/actions, and both signatures. Submission validates saved data on the server, verifies the template hash, renders successfully, then atomically saves private PDF bytes and locks the record. Completed and previous records are read-only and download the stored original bytes. Interrupted submission responses can safely be retried.
+**Supervisor controls:** Accept, comments, Return, Unlock for Correction, Replace PDF, Delete Monitoring, View Audit History, download old document versions, and Allow Manager PDF Uploads. Unlock returns the record to Corrections Requested. Replacing an accepted PDF as Supervisor preserves its lock and previous versions. Delete is a soft deletion requiring a reason, never permanent loss of the audit or PDFs. The overview filters authorized school, school year, status and performed-by role.
 
-## Official template and rendering
+**Upload OFF:** Prevents only NEW manager uploads, both in the UI and server. Existing history, accepted records, PDF downloads and replacements/resubmissions of existing uploaded monitorings remain available. Guided Start New Monitoring remains available when a manager slot is free. The server rechecks the setting even if a browser has a stale screen.
 
-`public/supper-monitoring-2022-09-08.pdf` is byte-for-byte the user-supplied file; SHA-256:
-`46a38e329dde0f31e3d70d5e66ebeb161062be5f0fa2da3f1de789b65359e876`.
+**Supervisor monitoring:** Select a school in the overview, then Start Supervisor Monitoring. It uses the SAME ten-section guided component as managers, including the five-day history, questions, corrective actions, signatures and official PDF renderer. Role comes from the verified session, not client metadata. Supervisor submission becomes Completed / Locked immediately, with no self-approval. The official page 2 monitor checkbox marks AFSS instead of FSM. Supervisors can unlock their own generated report for correction and submit it again.
 
-The file name is dated 2022-09-08; its printed revision is 9-5-2019. Template version: `lausd-supper-2022-09-08`. Official wording/options are in `officialForm.js`; coordinate mappings are in `pdf.js`. The source has ambiguous duplicate widget names, so rendering preserves blank widget appearances and places measured content at verified coordinates, then removes interactive fields. It does not substitute a new report design. The AFSS-only area remains blank.
+## Preserved guided behavior and official PDF
 
-Reports remain two pages. Excess text produces a section-specific correction message instead of truncation or extra pages. Standard PDF font encoding supports Latin text; unsupported characters produce an explicit correction message. Long noncompliance/actions and comments must fit the official space. Preview before submission is available.
+Explicit saves preserve section and question position across devices. Revision checks prevent silent overwrites; failed saves preserve local work. Monday–Friday dates are generated from one selected week. Every day requires attendance greater than meals; missing/invalid/repeated dates, count errors and overlap with monitoring date are rejected. Five-day average is calculated on the same screen.
 
-## Authorization and storage
+All seven menu categories and official questions 1–20 remain, including conditional 18b, 18a/19 exceptions, repeated findings, corrective action and 20 guidance. Follow-up requires a date, 1–60 operating days and school-calendar confirmation; SPARK does not yet calculate district operating days. No scheduling matrix is introduced.
 
-Existing SPARK login does not create a Supabase Auth session. This tool reuses the existing in-memory SPARK sign-in without a second PIN prompt, verifies the active employee-school assignment, and issues a random two-hour token held in component memory. Only its hash is stored. Covering access follows the existing temporary-PIN model, scoped to the selected school. Every record operation rechecks expiry and assignment. Ten attempts per school/identity per 15 minutes are allowed; old attempts/sessions are pruned.
+Sign with Finger opens the existing mouse/touch canvas with Clear/Accept and explicit consent for both pages. The accepted signature is bound to a content hash; report edits and a return/unlock of a generated report clear signatures. Resubmission requires both people to sign the revised content. No QR workflow is present.
 
-`202609230001_supper_monitoring.sql` adds:
-- `supper_monitorings`: school, creator/role, versioned payload, year/date, section, revision, draft/completed state, timestamps, template/PDF metadata, optional replacement relationship.
-- `supper_monitoring_sessions` and `supper_monitoring_attempts`.
-- Session, list, get, save RPCs with school authorization and optimistic revisions. Direct anonymous/authenticated table access is revoked and RLS enabled.
+`public/supper-monitoring-2022-09-08.pdf` is the exact supplied template, SHA-256 `46a38e329dde0f31e3d70d5e66ebeb161062be5f0fa2da3f1de789b65359e876`, template version `lausd-supper-2022-09-08`. It prints revision 9-5-2019. Reports stay two pages. The renderer preserves original appearances, overlays measured content/signatures and removes interactive fields. Text overflow and unsupported characters cause a correction message, not truncation. The bottom AFSS-only corrective-review area remains blank; supervisor workflow comments are stored in SPARK rather than silently modifying an uploaded original.
 
-`202609230002_supper_monitoring_reports.sql` adds:
-- `supper_monitoring_documents`: private PDF bytes/hash, linked to the monitoring record.
-- Service-role-only finalization and retrieval RPCs. Finalization checks scope, revision, template, PDF integrity and size, and commits document plus completed status together. Direct client submission is rejected.
+## Schema, storage and permissions
 
-Private database byte storage deliberately provides transactional completion without public links or orphaned uploads. A later storage-bucket implementation must preserve these guarantees. The server accepts a saved record ID/revision, never a client-supplied report payload or PDF.
+Apply the existing two migrations, then `202609240001_supper_monitoring_review.sql`:
 
-## Deployment steps and assumptions
+- Extends `supper_monitorings` with source, structured slot, lock state, review comments, acceptance/deletion timestamps and current document version. Existing school ID (`location_id`), date, year, monitor role, creator, submission time and revision remain. Status supports draft, submitted, corrections_requested, accepted, completed and deleted. Legacy manager completions become submitted for review; legacy supervisor completions stay completed/locked. Available legacy slots are backfilled without dropping excess records.
+- Extends the existing short-lived monitoring sessions with verified actor role.
+- Adds singleton `supper_monitoring_settings`, default uploads ON.
+- Extends private database PDF storage with `supper_monitoring_document_versions`, preserving every original/replacement and SHA-256. `supper_monitoring_documents` continues to hold the current bytes; there is no public bucket/link. PDF and record transitions commit atomically.
+- Adds `supper_monitoring_events` for uploads, submissions/resubmissions, returns, comments, acceptance, unlock, replacement, soft deletion and upload-setting changes. Events hold time, actor name/role/employee ID, old/new status, comment, document version and structured metadata snapshot. Record audit is visible to supervisors; setting-change events are retained administratively.
+- Adds Supervisor overview/session, setting, context, review, upload and version-retrieval RPCs. Direct anonymous/authenticated table access is revoked with RLS enabled. Upload, PDF finalization and PDF retrieval require the server service role. Public RPCs independently validate session, school, creator, role, lock, revision and applicable state transitions.
 
-1. Verify the development project's bigint `locations`/`employees` IDs, active/assignment columns, and existing `verify_manager_pin(text,text)` and `verify_covering_pin(text)` functions. Repository patterns informed these assumptions; the live schema was not changed.
-2. Apply both migrations in order to the intended development project.
-3. Configure server-only `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_URL`. Never expose the service key through a `REACT_APP_` variable. Missing credentials keep drafts available and return a clear setup error on report operations.
-4. Deploy the React build with `api/supper-monitoring.js` as a Node server function. `vercel.json` bundles the exact PDF template. Static-only hosting needs an equivalent server route at `/api/supper-monitoring`.
-5. Verify real PIN identities, school separation, two-device resumption, submission and PDF retrieval in development before production rollout.
+SPARK currently verifies supervisors using a shared Supervisor PIN with global active-school authorization. This feature follows that existing Command Center pattern; it does not invent school assignments or a parallel account system. Supervisor audit identity is therefore the shared “Supervisor / AFSS” role, not a proven individual identity. Printed monitor name is independently required for reports. Individual supervisor identities/school scopes would require an existing-auth upgrade outside this task. Manager/covering sessions follow existing PIN/assignment rules and expire after two hours. Tokens stay in component memory and only hashes are stored; PINs are not put in persistent browser storage. Session operations recheck active school and manager assignment; supervisor PIN rotation does not revoke an already issued two-hour session.
 
-School year is July–June. Follow-up requires a selected date, a count of 1–60 operating days, and explicit confirmation against the school's operating calendar. SPARK does not yet calculate that count from a district calendar. This is an attested check, not an automated calendar calculation.
+## Development setup and deployment
 
-Phone-signature QR handoff is not part of the requested workflow. There is no QR or separate-phone option; signing takes place directly on the device running SPARK. Supervisor dashboards, scheduling rules, corrections/replacements UI, combined exports and template administration remain outside this implementation; role/year/version/replacement fields support later work.
+No live database migration or production deployment is performed by these changes. Before using the expansion in a live development environment:
 
-## Files
+1. Confirm `locations` and `employees` bigint IDs/active fields and existing `verify_manager_pin(text,text)`, `verify_covering_pin(text)`, and `verify_supervisor_pin(text)` functions in the intended development database.
+2. Apply all three Supper Monitoring migrations in chronological order (only the third if the first two are already installed).
+3. Configure server-only `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_URL`. Never use a `REACT_APP_` service key. Deploy React plus `/api/supper-monitoring` as the existing Vercel Node function; `vercel.json` includes the verified template. The UI alone cannot persist without the migrations.
+4. Verify real development identities, school scope, original PDF download, mobile signing and two-device draft resumption before any later production rollout.
 
-- Integration: `src/App.js`, `src/pages/HomeBase.js` (Manager Hub, not Manager Resources).
-- Feature: `src/supperMonitoring/` UI, model, official wording, signatures, persistence, PDF rendering, styles and tests.
-- Server: `api/supper-monitoring.js`, `vercel.json`, official PDF under `public/`.
-- Schema: the two `supabase/migrations/20260923000*_supper_monitoring*.sql` files.
-- Verification: `scripts/test-supper-monitoring-{db,browser,report}.mjs`, `scripts/supper-monitoring-fixture.mjs`.
-- Dependencies/scripts: `package.json`, `package-lock.json`; `.gitignore` excludes local QA artifacts.
+No AI/OCR, combined export, OneDrive integration, district upload or future-date scheduling matrix is included.
 
-## Verification
+## Files and verification
+
+Integration: `src/App.js`, `src/pages/CommandCenterLegacy.js`. Existing Manager Hub ordering is unchanged. Shared editor and services: `src/supperMonitoring/`; new `MonitoringHome.js`, `SupervisorSupperMonitoringPage.js`, `workflow.js`. Server: `api/supper-monitoring.js`. Schema: the new review migration above. Tests/scripts: `scripts/test-supper-monitoring-{db,report,browser,review,review-browser}.mjs` and feature unit tests. No new dependencies.
+
+Run:
 
 ```sh
-npm run build
 npm test -- --watchAll=false --runInBand --testMatch '**/src/**/*.test.js'
+npm run build
 npm run test:supper-db
 npm run test:supper-report
+npm run test:supper-review
 npm run test:supper-browser
-npm run test:ask-spark-route
+npm run test:supper-review-browser
 npm run test:ar-training-bank
+npm run test:ask-spark-route
 ```
 
-The explicit Jest pattern works around Windows path separators. Browser checks require installed Chrome (or `SPARK_TEST_BROWSER=msedge`) and a production build. They block live backend traffic and use synthetic records with the real report handler. Database checks use ephemeral PGlite, two synthetic schools and test PIN verifiers. Report checks cover both findings/no-findings PDFs, two-page/static output, signatures, overflow, altered-content rejection, revision/auth failures, preview, submission retries and byte-identical retrieval. Rendered PDF pages and desktop/phone screenshots are inspected locally under ignored `test-results/`.
+The review integration test runs all migrations in isolated PGlite and uses the real report handler with real authorization RPCs. It checks the correction/lock cycle, revisions, cross-school/creator/role denial, OFF behavior, exact original download, preserved versions, audit, deletion, duplicate slots, guided manager resubmission and Supervisor immediate completion. The review browser test drives the built app through Manager Hub and Command Center using the same isolated SQL backend, never live credentials. Existing browser coverage checks desktop/mobile history, save/resume, mouse/touch signatures, PDF submission/download and preserved Manager Hub routes. QA screenshots/PDFs are stored under ignored `test-results/`.
 
-Live deployment, real multi-device persistence and the district operating calendar remain rollout checks, not claimed test results.
+## Verification results for this expansion
+
+- All 24 unit-test suites passed: 109 tests, including existing SPARK regression coverage.
+- The application build passed; it retains the existing bundle-size advisory.
+- Original Supper database and official-report checks passed.
+- New real SQL/API workflow checks passed, including upgrading legacy completed records/PDFs without losing extra records.
+- Existing desktop/mobile browser checks passed: Manager Hub order/routes, five-day history, save/resume, mouse/touch signatures, landscape signing, preview, stored download and read-only history.
+- The AR Training bank passed all 500-question checks.
+- The unrelated Ask SPARK route test still fails because its mock does not handle Gemini model discovery. Its API and test files are identical to current `origin/main`; this inherited failure was not changed as part of Supper Monitoring.
+- Final review browser checks passed against real isolated SQL/API: manager upload, Supervisor PDF download/comments/return, OFF switch, replacement and resubmission while OFF, acceptance/locked manager controls, audit, unlock, authorized-school selection, and shared Supervisor draft save/resume with Supervisor-only controls.
+- Both pages of the generated Supervisor official PDF were visually inspected; AFSS is selected on page 2 and the accepted signatures appear in their original signature areas.

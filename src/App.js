@@ -19,6 +19,7 @@ import OperationsHelpPage from "./pages/OperationsHelpPage";
 import HowToEarnPointsPage from "./pages/HowToEarnPointsPage"; // <--- Added
 import ManagerFeedback from "./feedback/ManagerFeedback";
 import ManagerMonthlyScorecardPage from "./monthlyScorecards/ManagerMonthlyScorecardPage";
+import SupervisorSupperMonitoringPage from "./supperMonitoring/SupervisorSupperMonitoringPage";
 import SupperMonitoringPage from "./supperMonitoring/SupperMonitoringPage";
 
 function App() {
@@ -74,7 +75,8 @@ function App() {
   }
 
   if (screen === "schoolDashboard") return managerPage(<SchoolDashboard location={selectedLocation} employee={selectedEmployee} onBack={() => { setEditingCheck(null); setScreen("schoolHub"); }} onEditFinishLine={(check) => { setEditingCheck(check); setScreen("finishLine"); }} />);
-  if (screen === "commandCenter") return <CommandCenter supervisorPin={supervisorSessionPin} onExit={resetToLogin} onOpenSchoolAnalytics={(school) => { setSelectedLocation(school); setScreen("mealAnalytics"); }} onPreviewFinishLine={(preview) => { setEditingCheck({ previewMode: true, previewDay: preview.day, previewMonthEnd: preview.monthEnd }); setScreen("finishLine"); }} />;
+  if (screen === "supervisorSupperMonitoring") return <SupervisorSupperMonitoringPage supervisorPin={supervisorSessionPin} onBack={() => setScreen("commandCenter")} />;
+  if (screen === "commandCenter") return <CommandCenter onSupperMonitoring={() => setScreen("supervisorSupperMonitoring")} supervisorPin={supervisorSessionPin} onExit={resetToLogin} onOpenSchoolAnalytics={(school) => { setSelectedLocation(school); setScreen("mealAnalytics"); }} onPreviewFinishLine={(preview) => { setEditingCheck({ previewMode: true, previewDay: preview.day, previewMonthEnd: preview.monthEnd }); setScreen("finishLine"); }} />;
   return null;
 }
 

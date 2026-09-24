@@ -65,3 +65,10 @@
   .sm-bottom button { flex: 1; }
 }
 @media(orientation: landscape) and (max-height: 600px) { .sm-signature-canvas { height: 65vh; min-height: 260px; } }
+
+.sm-dropzone { border: 2px dashed #537565; border-radius: 12px; padding: 20px; margin: 18px 0; background: #f5faf7; }
+.sm-slot-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 18px 0; }
+.sm-slot-grid > div { padding: 14px; border: 1px solid #ccd9d1; border-radius: 10px; }
+.sm-card > label, .sm-editor > label { display: block; margin: 12px 0; }
+.sm-card label > input:not([type=checkbox]), .sm-card label > select, .sm-card label > textarea { display: block; width: 100%; box-sizing: border-box; padding: 10px; margin-top: 6px; font: inherit; }
+@media (max-width: 650px) { .sm-slot-grid { grid-template-columns: 1fr; } }

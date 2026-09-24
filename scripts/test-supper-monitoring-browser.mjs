@@ -23,7 +23,7 @@ const reportHandler = createHandler({ database: {
     if (name === 'read_supper_monitoring_pdf') return { data: documents.get(record.id) };
     if (name === 'finalize_supper_monitoring') {
       documents.set(record.id,args.p_pdf_base64);
-      Object.assign(record,{status:'completed',revision:record.revision+1,submitted_at:new Date().toISOString(),current_section:8});
+      Object.assign(record,{status:'submitted',document_version:1,revision:record.revision+1,submitted_at:new Date().toISOString(),current_section:8});
       return {data:record};
     }
     throw new Error(name);
@@ -69,13 +69,14 @@ try {
       else if (path.endsWith("/employees")) body = [{ id: 11, location_id: 1, employee_name: "Test Monitor", active: true }];
       else if (path.endsWith("/has_manager_pin") || path.endsWith("/verify_manager_pin")) body = true;
       else if (path.endsWith("/open_supper_monitoring_session")) body = token;
+      else if (path.endsWith("/supper_context")) body = {actor_role:"manager",employee_id:11,monitor_name:"Test Monitor",allow_manager_uploads:true};
       else if (path.endsWith("/close_supper_monitoring_session")) body = null;
       else if (path.endsWith("/list_supper_monitorings")) body = records.map(record => ({ ...record, monitor_name: record.payload.monitorName }));
       else if (path.endsWith("/get_supper_monitoring")) body = records.find(record => record.id === args.p_id);
       else if (path.endsWith("/save_supper_monitoring_draft")) {
         let record = records.find(record => record.id === args.p_id);
-        if (!record) { record = { id: randomUUID(), location_id: 1, status: "draft", revision: 0 }; records.push(record); }
-        Object.assign(record, { payload: args.p_payload, current_section: args.p_section, revision: record.revision + 1, school_year: "2026-27", monitoring_date: args.p_payload.monitoringDate, updated_at: "2026-09-23T20:00:00Z" });
+        if (!record) { record = { id: randomUUID(), location_id: 1, status: "draft", source:"generated", monitor_role:"manager",created_by_employee_id:11, revision: 0 }; records.push(record); }
+        Object.assign(record, { payload: args.p_payload, monitoring_slot: args.p_payload.monitoringSlot, current_section: args.p_section, revision: record.revision + 1, school_year: "2026-27", monitoring_date: args.p_payload.monitoringDate, updated_at: "2026-09-23T20:00:00Z" });
         body = record;
       } else body = [];
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
@@ -190,8 +191,8 @@ try {
     await (await preview).saveAs(resolve(output,`browser-preview-${viewport.width}.pdf`));
     assert.equal(complete.status,'draft');
     await page.getByRole('button',{name:'Submit Monitoring',exact:true}).click();
-    await expect(page.getByText('Completed records cannot be edited.',{exact:false})).toBeVisible();
-    assert.equal(complete.status,'completed');
+    await expect(page.getByText('This record is read-only until returned or unlocked for correction.',{exact:false})).toBeVisible();
+    assert.equal(complete.status,'submitted');
     const download = page.waitForEvent('download');
     await page.getByRole('button',{name:/Download.*PDF/}).click();
     await (await download).saveAs(resolve(output,`browser-completed-${viewport.width}.pdf`));
@@ -201,6 +202,7 @@ try {
     await page.getByRole('button',{name:'Return to Monitorings',exact:true}).click();
     const previous = page.locator('section.sm-card').filter({has:page.getByRole('heading',{name:'Previous Monitorings',exact:true})});
     await previous.getByRole('button',{name:'View',exact:true}).last().click();
+    await page.getByRole('button',{name:'View Guided Monitoring',exact:true}).click();
     await expect(page.getByRole('button',{name:'Download Official PDF',exact:true})).toBeVisible();
     await page.getByLabel('Go to section').selectOption('0');
     await expect(page.getByLabel('Monitoring date',{exact:true})).toBeDisabled();

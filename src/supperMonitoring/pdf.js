@@ -10,7 +10,7 @@ const shortDate = value => value ? `${value.slice(5, 7)}/${value.slice(8, 10)}/$
 // The source has duplicate field names and radio export values. Final reports
 // are static: remove empty interactive widgets and overlay verified locations.
 // The original PDF bytes and its printed page content are never redesigned.
-export async function generateOfficialPdf(template, data, school) {
+export async function generateOfficialPdf(template, data, school, { monitorRole = "manager" } = {}) {
   const pdf = await PDFDocument.load(template);
   if (pdf.getPageCount() !== 2) throw new Error("The official template must have two pages.");
   // Preserve the exact blank Off appearance streams. Generic flattening fails
@@ -144,7 +144,7 @@ export async function generateOfficialPdf(template, data, school) {
   mark(1, data.followUpRequired ? 171 : 211, 350);
   text(1, data.monitorName, 98, 257, 201, "Monitor printed name", 7);
   text(1, data.coordinatorName, 377, 257, 201, "Coordinator printed name", 7);
-  mark(1, 149, 242); mark(1, 390, 217);
+  mark(1, 149, monitorRole === "supervisor" ? 218 : 242); mark(1, 390, 217);
   signature(1, data.signatures.monitor, 174, 218, 124, 20);
   signature(1, data.signatures.coordinator, 418, 218, 160, 20);
   // Page 2 has no signature-date fields; dated signatures are on page 1.
