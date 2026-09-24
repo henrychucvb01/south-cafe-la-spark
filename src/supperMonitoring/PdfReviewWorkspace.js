@@ -1,3 +1,4 @@
+import { typeLabel, siteLabel } from "../monitoring/types";
 import React, { useEffect, useState } from 'react';
 import PdfMarkupViewer from './PdfMarkupViewer';
 import { pdfReviews, reportBytes, savePdfReview } from './service';
@@ -43,7 +44,7 @@ export default function PdfReviewWorkspace({ token, initialRecord, school, super
   return <section className="sm-card sm-review-workspace">
     <div className="sm-actions"><button type="button" disabled={busy} onClick={()=>{if(mayLeave())onBack();}}>Back to Monitorings</button></div>
     <h2>{supervisor?'Supervisor PDF Review':'PDF & Supervisor Markup'}</h2>
-    <p><strong>{school.school_name}</strong> · {SLOTS[record.monitoring_slot]} · {record.monitoring_date} · {record.school_year}</p>
+    <p><strong>{school.school_name} · {typeLabel(record.monitoring_type)} · {siteLabel(record)}</strong> · {SLOTS[record.monitoring_slot]} · {record.monitoring_date} · {record.school_year}</p>
     <p><strong>{STATUSES[record.status]}</strong> · Monitor: {record.payload?.monitorName || record.created_by_name}</p>
     {error && <p role="alert" className="sm-error">{error}</p>}
     {notice && <p role="status" className="sm-notice">{notice}</p>}

@@ -1,10 +1,10 @@
-# Supper Monitoring
+# Monitoring — Supper workflow
 
-Development-only expansion of the existing guided tool. Manager Hub still places School Dashboard and Daily Bites first; Supper Monitoring remains a tool and opens with the existing sign-in, without another PIN prompt. Command Center now links to Supervisor Supper Monitoring. No unrelated scoring, analytics, games, staffing or scorecard logic is changed.
+Development-only expansion of the existing guided tool. Manager Hub still places School Dashboard and Daily Bites first; Monitoring is the tool name and opens with the existing sign-in, without another PIN prompt. Command Center links to Monitoring. Supper remains the first active monitoring type. No unrelated scoring, analytics, games, staffing or scorecard logic is changed.
 
 ## Manager and Supervisor workflows
 
-The school home combines uploaded and SPARK-generated monitorings in Drafts / In Progress, Submitted / Awaiting Review, Corrections Requested, Completed / Accepted, and Previous Monitorings. A selected school year tracks two Manager slots and one Supervisor/AFSS slot. A database unique index prevents duplicate active slots, including concurrent creation. Deleted records release their slots; their documents and audit remain available to supervisors. Legacy records beyond the three slots remain in history with “Slot needs assignment.”
+The school home combines uploaded and SPARK-generated monitorings in Drafts / In Progress, Submitted for Review, Corrections Requested, Completed / Accepted, and Previous Monitorings. Each school/site/type/year assignment tracks two Manager slots and one Supervisor/AFSS slot. Multiple sites can belong to one school; there is no three-record school maximum. A database unique index prevents duplicate active slots within each site/type/year assignment, including concurrent creation. Deleted records release their slots; their documents and audit remain available to supervisors. Legacy records beyond their original slots remain in history with “Slot needs assignment.”
 
 **Temporary upload:** Allow Manager PDF Uploads defaults ON. Managers can pick or drop an existing PDF and supply monitoring date, school year, slot and monitor name. School is fixed by authorization and the name is prefilled from sign-in. Only unencrypted PDFs of 1–20 pages and at most 2 MB are accepted. The server validates format and bounds, not document correctness; supervisors review content manually. The original bytes are preserved.
 
@@ -144,3 +144,59 @@ Verification for this guided update: all 24 unit suites / 113 tests passed. The 
 The unrelated Ask SPARK route check still fails because its existing mock rejects Gemini model discovery; both its API and test are identical to origin/main. This is the previously documented failure and is outside this task. Build output retains the existing bundle-size advisory. No live database changes, push, preview deployment or production deployment are part of this update.
 
 Final build passed and its source map matches the final guided component. The expanded desktop/mobile browser suite passed, including actual multi-program/day-specific time validation, lower/equal attendance, zero-history blocking, compact menu/questions, inline 18b/19/20 follow-up, legacy draft confirmation/save/resume, mouse/touch signing, landscape sizing, preview/submission, exact stored download and read-only history. Final service-table and mobile-menu screenshots were inspected. The separate review browser suite also passed the existing upload/review/annotation/return/replacement/accept/lock/on-behalf and zero-Manager-authentication Supervisor workflows.
+
+
+## Monitoring types, sites and Manager restart — September 24, 2026
+
+### Migration and rollout
+
+Apply `supabase/migrations/202609240003_monitoring_types_sites_restart.sql` after the four existing migrations and before deploying this application update. This is migration #5; do not rerun migrations #1–4 if already installed. No live database migration or deployment is performed by this implementation task.
+
+The migration adds `monitoring_types` (Supper enabled; Breakfast/Lunch reserved but disabled) and `monitoring_sites` (UUID, main-school location_id, name, kind main/offsite/eec/program). Every existing monitoring receives explicit `monitoring_type = supper`, a Main Site UUID, site display name and current-PDF availability. Original payloads, PDFs and signatures are not rewritten during backfill. Additional/unassigned legacy records remain intact.
+
+The original school/year/slot unique index is replaced by school/site/type/year/slot uniqueness for active assigned records. A composite site/school foreign key and trigger reject cross-school sites and identity changes to existing records. Type/site come from structured draft/upload metadata and are persisted as record columns, not inferred from routes or filenames. New legacy-client writes without these fields default to the authorized school's Main Site and Supper. Unknown or disabled types cannot be created. Newly added schools get a Main Site on their first monitoring context request/create.
+
+Both new tables have RLS and no direct client table privileges. Existing school-scoped opaque sessions authorize site reads and all monitoring operations. Only Supervisors can add named Offsite/EEC/Program sites, with an audit event; Managers can select sites for their school. No per-site permission system, site editing/deletion, scheduling matrix or offsite dashboard is introduced. School authorization governs its sites.
+
+### Entry points and type adapters
+
+Manager Hub and Command Center now say Monitoring. Internal app screens are monitoring and supervisorMonitoring. `src/monitoring/types.js` defines type labels/availability and identity helpers; `MonitoringPage.js` registers the working Supper guided adapter. The home type selector shows Supper plus disabled Coming Later options for Breakfast/Lunch. No incomplete future form can open. Adding a future type requires its complete guided/API adapter and enabling its catalog entry; merely enabling a UI option is insufficient. Existing Supper component filenames, SQL tables/RPCs and report API remain compatible to avoid a wholesale refactor.
+
+The home retains Drafts / In Progress, Submitted for Review, Corrections Requested, Completed / Accepted and the existing previous-year group. Type and site are shown on records and the PDF review header/queue. Site selection controls start/upload slot availability and progress; status lists still show all school sites. Supervisors select a school, then a site before Start Supervisor Monitoring. Their Upload Existing Monitoring also includes a site selector and stays a separate action. No Manager PIN is used by a Supervisor.
+
+### Restart semantics
+
+Redo Monitoring is available to the owning/authorized Manager on an unlocked generated Draft or Corrections Requested record (In Progress is represented by draft status). It appears in the guided editor or applicable record detail and opens an explicit Cancel / Start Over confirmation warning that answers/signatures and unsaved changes will be cleared.
+
+`restart_monitoring` independently checks the session, active school/assignment, ownership, role, source, status and exact revision while locking the row. It creates a blank guided payload on the server; the caller cannot supply new answers or change assignment. ID, school, site, monitoring type, year, slot, creator and role remain unchanged. Date, answers, counts, history, menu, service rows, comments, corrective actions and signatures reset; unannounced remains true and adult meals 0. Current section returns to 0 and revision increments. No second monitoring is inserted.
+
+Submitted records must first be returned by the Supervisor. Accepted/completed/locked records cannot be restarted; only the existing Supervisor unlock process can make them editable again. Uploaded records and Supervisor guided records are excluded from Manager restart. Stale browser revisions cannot erase newer work.
+
+The abandoned generated PDF is removed from the current-document table, current_pdf_available becomes false, and current download/markup buttons disappear. Immutable PDF versions and their reviews/audit remain. The document version counter is retained; the next submission adds a new version, never overwrites an old one. The audit event is Monitoring restarted by Manager with verified actor, timestamp, prior/new status, site/type/slot and historical version. Previous review/return comments remain in the earlier audit events. Cleared answers are not separately recoverable, consistent with the confirmation.
+
+### Assumptions and scope
+
+Legacy records are assigned to Main Site because no prior structured offsite/EEC identity exists; the migration does not guess from PDF names or content. Site identity is separate from the After School Program service-time rows in the Supper form. A site's display name and type are recorded in SPARK/review metadata; this update does not alter the official Supper PDF layout or its existing school-name mapping. A Supervisor can create the basic site entry under an authorized school; Managers cannot create duplicate site requirements themselves. No Breakfast/Lunch forms, final history UX, full site matrix, combined export, OCR or external-drive integration was built.
+
+### Files changed for this expansion
+
+- `supabase/migrations/202609240003_monitoring_types_sites_restart.sql`: additive type/site schema, scoped RPCs, restart and audit.
+- `src/monitoring/MonitoringPage.js`, `types.js`, `RestartMonitoringButton.js`, `types.test.js`: generic entry/registry, helpers, confirmation and rules tests.
+- `src/App.js`, `src/pages/HomeBase.js`, `src/pages/CommandCenterLegacy.js`: targeted navigation names/callbacks only.
+- `src/supperMonitoring/MonitoringHome.js`: type/site selection, status/record identity, scoped slots, simple Supervisor site creation and restart entry.
+- `src/supperMonitoring/SupperMonitoringPage.js`, `SupperMonitoringPage.test.js`: generic header, guided restart and confirmation test.
+- `src/supperMonitoring/SupervisorSupperMonitoringPage.js`: typed/site-aware queue and school overview preserving status filters.
+- `src/supperMonitoring/SupervisorExistingUpload.js`: authorized site selection for on-behalf upload.
+- `src/supperMonitoring/PdfReviewWorkspace.js`: type/site identification only; review operations unchanged.
+- `src/supperMonitoring/service.js`, `workflow.js`: scoped site/restart RPCs and per-site slot helpers.
+- `api/supper-monitoring.js`: reject unsupported future guided types rather than render them with the Supper template.
+- `scripts/test-supper-monitoring-review.mjs`, `test-supper-monitoring-review-browser.mjs`, `test-supper-monitoring-browser.mjs`: additive migration/security/restart/site tests and renamed-navigation regression coverage.
+- `SUPPER_MONITORING.md`: rollout, schema, scope, file list and assumptions.
+
+### Expansion verification
+
+All 25 unit suites / 116 tests passed, including restart eligibility, Cancel/confirm behavior, per-site/type slot progress and current-PDF availability. Real isolated SQL/API tests applied all five migrations, verified existing-record/PDF preservation, multiple Main/Offsite/EEC assignments beyond three records per school, duplicate slots within a site, cross-school/owner restrictions, disabled future types, restart status/revision guards, same-record reset, audit events, historical PDF preservation and version increments after resubmission. Existing upload/return/replace/resubmit/accept/unlock/delete/annotation tests passed.
+
+Official Supper PDF tests and the original database/security suite passed. The desktop/mobile guided browser suite passed all existing time/count/history/menu/question/signature/PDF rules after the navigation rename. The AR Training bank passed all 500 questions. The previously documented unrelated Ask SPARK route mock failure is unchanged; its files are not part of this update.
+
+Final expansion build passed (existing bundle-size advisory only). The final browser suite passed Monitoring navigation, Supervisor site creation/selection, Manager restart confirmation/Cancel/same-record reset, rendered PDF review/zoom/comments/drawing, correction and replacement history, Accept & Lock, upload on behalf while Manager uploads are OFF, separate AFSS guided entry and zero Manager authentication calls by Supervisors. The desktop site selector/status groups and mobile restart confirmation screenshots were visually inspected. No feature code changes were made after this final build.

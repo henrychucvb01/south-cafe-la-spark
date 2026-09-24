@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import SupperMonitoringPage from './SupperMonitoringPage';
+import MonitoringPage from '../monitoring/MonitoringPage';
+import { typeLabel, siteLabel } from '../monitoring/types';
 import PdfReviewWorkspace from './PdfReviewWorkspace';
 import SupervisorExistingUpload from './SupervisorExistingUpload';
 import { supervisorOverview, setUploads, openSupervisorSession, closeSession, getMonitoring } from './service';
@@ -31,11 +32,16 @@ export default function SupervisorSupperMonitoringPage({ supervisorPin, onBack }
   async function closeReview(){await closeSession(workspace.token).catch(()=>{});setWorkspace(null);await load();}
   if(workspace) return <div className="login-app sm-app"><main className="sm-main"><PdfReviewWorkspace token={workspace.token} initialRecord={workspace.record} school={workspace.school} supervisor onBack={closeReview}/></main></div>;
   if(upload) return <div className="login-app sm-app"><main className="sm-main"><SupervisorExistingUpload schools={overview.schools} supervisorPin={supervisorPin} initialYear={year} onBack={()=>setUpload(false)} onUploaded={async(record,school)=>{await openReview(record,school);}}/>{error&&<p role="alert" className="sm-error">{error}</p>}</main></div>;
-  if(school) return <SupperMonitoringPage key={school.id} location={school} employee={{employee_name:'Supervisor / AFSS'}} supervisorPin={supervisorPin} onBack={()=>{setSchool(null);load();}}/>;
-  const rows=overview.schools.filter(s=>!schoolFilter||String(s.id)===schoolFilter).map(s=>({...s,slots:slotProgress(overview.records.filter(r=>r.location_id===s.id),year)})).filter(s=>s.slots.some(p=>(!role||(p.slot==='supervisor'?'supervisor':'manager')===role)&&(!status||(p.record?.status||'not_started')===status)));
+  if(school) return <MonitoringPage key={school.id} location={school} employee={{employee_name:'Supervisor / AFSS'}} supervisorPin={supervisorPin} onBack={()=>{setSchool(null);load();}}/>;
+  const rows=overview.schools.filter(s=>!schoolFilter||String(s.id)===schoolFilter).map(s=>{
+    const records=overview.records.filter(r=>r.location_id===s.id&&r.school_year===year&&r.status!=='deleted');
+    const sites=overview.sites?.filter(site=>site.location_id===s.id) || [];
+    const progress=(sites.length?sites:[{id:undefined}]).flatMap(site=>slotProgress(records,year,site.id));
+    return {...s,records,progress};
+  }).filter(s=>s.progress.some(p=>(!role||(p.slot==='supervisor'?'supervisor':'manager')===role)&&(!status||(p.record?.status||'not_started')===status)));
   const queue=overview.records.filter(r=>r.status==='submitted'&&r.monitor_role==='manager'&&r.school_year===year&&(!schoolFilter||String(r.location_id)===schoolFilter)).sort((a,b)=>String(a.submitted_at).localeCompare(String(b.submitted_at)));
   return <div className="login-app sm-app"><main className="sm-main">
-    <button type="button" onClick={onBack}>← Command Center</button><h1>Supervisor Supper Monitoring</h1>
+    <button type="button" onClick={onBack}>← Command Center</button><h1>Monitoring</h1>
     {error&&<p role="alert" className="sm-error">{error}</p>}
     <section className="sm-card">
       <div className="sm-actions"><button type="button" className="sm-primary" disabled={busy||!overview.schools.length} onClick={()=>setUpload(true)}>Upload Existing Monitoring</button></div>
@@ -49,12 +55,12 @@ export default function SupervisorSupperMonitoringPage({ supervisorPin, onBack }
       <button type="button" disabled={busy} onClick={load}>Refresh Overview</button>
     </section>
     <section className="sm-card"><h2>Submitted for Review</h2><p>Manager monitorings awaiting your review for the selected school and school year.</p>
-      {!queue.length?<p>No submitted monitorings awaiting review.</p>:<div className="sm-queue-scroll"><table className="sm-review-queue"><thead><tr>{['School','Monitoring slot','Monitoring date','Submitted by','Submitted date','Status','Review'].map(label=><th scope="col" key={label}>{label}</th>)}</tr></thead><tbody>{queue.map(r=><tr key={r.id}>
-        <td>{overview.schools.find(s=>s.id===r.location_id)?.school_name}</td><td>{SLOTS[r.monitoring_slot]||'Slot needs assignment'}</td><td>{r.monitoring_date}</td>
+      {!queue.length?<p>No submitted monitorings awaiting review.</p>:<div className="sm-queue-scroll"><table className="sm-review-queue"><thead><tr>{['School','Type / Site','Monitoring slot','Monitoring date','Submitted by','Submitted date','Status','Review'].map(label=><th scope="col" key={label}>{label}</th>)}</tr></thead><tbody>{queue.map(r=><tr key={r.id}>
+        <td>{overview.schools.find(s=>s.id===r.location_id)?.school_name}</td><td>{typeLabel(r.monitoring_type)} · {siteLabel(r)}</td><td>{SLOTS[r.monitoring_slot]||'Slot needs assignment'}</td><td>{r.monitoring_date}</td>
         <td>{r.submitted_by_name||r.created_by_name}{r.uploaded_on_behalf&&r.submitted_by_role==='supervisor'?' (on behalf of school/Manager)':''}</td><td>{r.submitted_at?new Date(r.submitted_at).toLocaleString():'—'}</td><td>{STATUSES[r.status]}</td><td><button type="button" disabled={busy} onClick={()=>openReview(r)}>Review</button></td>
       </tr>)}</tbody></table></div>}
     </section>
-    {rows.map(s=><section key={s.id} className="sm-card"><h2>{s.school_name}</h2><div className="sm-slot-grid">{s.slots.map(p=><div key={p.slot}><strong>{SLOTS[p.slot]}</strong><p>{p.record?STATUSES[p.record.status]:'Not Started'}</p></div>)}</div><button type="button" onClick={()=>setSchool(s)}>Open School Monitorings</button></section>)}
+    {rows.map(s=><section key={s.id} className="sm-card"><h2>{s.school_name}</h2>{s.records.length ? <ul>{s.records.map(r=><li key={r.id}>{typeLabel(r.monitoring_type)} · {siteLabel(r)} · {SLOTS[r.monitoring_slot]||'Slot needs assignment'} · {STATUSES[r.status]}</li>)}</ul> : <p>No monitorings started for this school year.</p>}<button type="button" onClick={()=>setSchool(s)}>Open School Monitorings</button></section>)}
     {!busy&&!rows.length&&<p>No schools match these filters.</p>}
   </main></div>;
 }

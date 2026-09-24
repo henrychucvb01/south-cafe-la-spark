@@ -86,9 +86,9 @@ try {
     await page.getByRole("button", { name: "Continue", exact: true }).click();
     await page.getByRole("button", { name: /Test Monitor/ }).click();
     await page.getByLabel("4-Digit PIN").fill("1234");
-    await page.getByRole("button", { name: /Supper Monitoring/ }).waitFor();
+    await page.getByRole("button", { name: /Monitoring/ }).waitFor();
     assert.equal(await page.getByRole("button", { name: /Manager Resources/ }).count(), 1);
-    assert.deepEqual(await page.locator(".homebase-grid strong").allTextContents(), ["School Dashboard", "Daily Bites", "Supper Monitoring", "Incident Record Helper", "Manager Resources", "Monthly Scorecard"]);
+    assert.deepEqual(await page.locator(".homebase-grid strong").allTextContents(), ["School Dashboard", "Daily Bites", "Monitoring", "Incident Record Helper", "Manager Resources", "Monthly Scorecard"]);
     // Current-main routes must survive the Supper Monitoring integration.
     await page.getByRole('button',{name:/Monthly Scorecard/}).click();
     await expect(page.getByRole('heading',{name:'Monthly Scorecard',exact:true})).toBeVisible();
@@ -104,7 +104,7 @@ try {
     await page.getByRole('button',{name:/Daily Bites/}).click();
     await expect(page.getByRole('heading',{name:'Daily Bites',exact:true})).toBeVisible();
     await page.getByRole('button',{name:'← Home Base',exact:true}).click();
-    await page.getByRole("button", { name: /Supper Monitoring/ }).click();
+    await page.getByRole("button", { name: /Monitoring/ }).click();
     await expect(page.getByRole("button", { name: "+ Start New Monitoring", exact: true })).toBeVisible();
     await expect(page.locator("input[type=password]")).toHaveCount(0);
     await page.getByRole("button", { name: "+ Start New Monitoring", exact: true }).click();

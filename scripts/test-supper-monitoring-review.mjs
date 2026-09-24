@@ -14,7 +14,7 @@ try {
  create function verify_manager_pin(text,text) returns boolean language sql as $$select $2='1234'$$;
  create function verify_covering_pin(text) returns boolean language sql as $$select $1='5678'$$;
  create function verify_supervisor_pin(text) returns boolean language sql as $$select $1='9999'$$;`);
- for(const file of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql']) {
+ for(const file of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql','202609240003_monitoring_types_sites_restart.sql']) {
   if(file.startsWith('202609240001')) await db.exec(`
    insert into supper_monitorings(location_id,created_by_employee_id,created_by_name,school_year,monitoring_date,status,submitted_at,template_version,pdf_storage_path,pdf_sha256)
    select 2,22,'Legacy Manager','2025-26','2026-06-01','completed',now(),'lausd-supper-2022-09-08','legacy','test' from generate_series(1,3);
@@ -152,5 +152,67 @@ try {
  const unassigned=okay(await upload(supervisor,null,{...behalfMeta,monitoringSlot:'manager_2',managerEmployeeId:''}));
  assert.equal(unassigned.manager_employee_id,null);
  assert.equal(okay(await upload(colleague,unassigned,{...behalfMeta,monitoringSlot:'manager_2'})).status,'corrections_requested','School managers can correct an unassigned on-behalf upload');
+
+ // Generic monitoring identity and same-record restart, with real SQL permissions.
+ assert.ok(legacy.every(r=>r.monitoring_type==='supper'&&r.monitoring_site_id&&r.monitoring_site_name==='Main Site'));
+ const mainSites=await rpc('monitoring_sites_for_school',{p_token:manager});assert.equal(mainSites.length,1);
+ await assert.rejects(()=>rpc('create_monitoring_site',{p_token:manager,p_name:'Unauthorized',p_kind:'offsite'}),/Supervisor authorization/);
+ const offsite=await rpc('create_monitoring_site',{p_token:supervisor,p_name:'North Offsite',p_kind:'offsite'});
+ const eec=await rpc('create_monitoring_site',{p_token:supervisor,p_name:'Early Education Center',p_kind:'eec'});
+ await assert.rejects(()=>rpc('create_monitoring_site',{p_token:supervisor,p_name:'north offsite',p_kind:'offsite'}),/already/);
+ assert.equal((await ctx(manager)).monitoring_sites.length,3);
+ const otherSite=(await rpc('monitoring_sites_for_school',{p_token:other}))[0];
+ const sitePayload=(site,slot='manager_1')=>signFixture({...makeFixture(),monitoringType:'supper',monitoringSiteId:site.id,monitoringSlot:slot});
+ await assert.rejects(()=>save(manager,null,sitePayload(otherSite)),/site belonging/);
+ await assert.rejects(()=>save(manager,null,{...sitePayload(offsite),monitoringType:'breakfast'}),/not available/);
+ let restartable=await save(manager,null,sitePayload(offsite));
+ const offsiteSecond=await save(manager,null,sitePayload(offsite,'manager_2'));
+ const offsiteSupervisor=await save(supervisor,null,sitePayload(offsite,'supervisor'));
+ const eecFirst=await save(manager,null,sitePayload(eec));
+ assert.equal(new Set([restartable,offsiteSecond,offsiteSupervisor,eecFirst].map(r=>r.id)).size,4,'No three-record maximum per school');
+ assert.equal(restartable.monitoring_type,'supper');assert.equal(restartable.monitoring_site_id,offsite.id);
+ await assert.rejects(()=>save(manager,null,sitePayload(offsite)),/slot already exists/);
+ await assert.rejects(()=>save(manager,restartable,sitePayload(eec)),/cannot be changed/);
+ const restart=(token,r)=>rpc('restart_monitoring',{p_token:token,p_id:r.id,p_revision:r.revision});
+ await assert.rejects(()=>restart(other,restartable),/not found/);
+ await assert.rejects(()=>restart(colleague,restartable),/creator/);
+ await assert.rejects(()=>restart(supervisor,restartable),/assigned Manager/);
+ await assert.rejects(()=>restart(manager,{...restartable,revision:0}),/revision/);
+ await assert.rejects(()=>restart(manager,behalf),/unlocked Draft/);
+ await assert.rejects(()=>restart(manager,guided),/unlocked Draft/);
+ const totalBefore=(await list(manager)).length;
+ const originalId=restartable.id;
+ restartable=await restart(manager,restartable);
+ assert.equal(restartable.id,originalId);assert.equal((await list(manager)).length,totalBefore);
+ assert.equal(restartable.current_section,0);assert.equal(restartable.payload.monitoringDate,'');
+ assert.deepEqual(restartable.payload.answers,{});assert.deepEqual(restartable.payload.history,[]);assert.equal(restartable.payload.signatures.monitor,null);
+ assert.equal(restartable.monitoring_site_id,offsite.id);assert.equal(restartable.school_year,'2026-27');assert.equal(restartable.monitoring_slot,'manager_1');assert.equal(restartable.created_by_employee_id,11);
+ restartable=await save(manager,restartable,sitePayload(offsite));
+ restartable=okay(await request(manager,{action:'submit',id:restartable.id,revision:restartable.revision}));
+ await assert.rejects(()=>restart(manager,restartable),/Submitted records/);
+ restartable=await review(supervisor,restartable,'return','Start again with corrected observation.');
+ const previousVersion=restartable.document_version;
+ const oldBytes=(await request(supervisor,{action:'version',id:restartable.id,version:previousVersion})).body;
+ restartable=await restart(manager,restartable);
+ assert.equal(restartable.status,'draft');assert.equal(restartable.current_pdf_available,false);assert.equal(restartable.document_version,previousVersion);
+ assert.notEqual((await request(manager,{action:'download',id:restartable.id})).code,200,'Abandoned PDF is not current');
+ assert.deepEqual((await request(supervisor,{action:'version',id:restartable.id,version:previousVersion})).body,oldBytes,'Prior PDF retained unchanged');
+ await db.exec('reset role;set role anon');
+ const restartedEvents=(await db.query('select * from supper_audit_history($1,$2)',[supervisor,restartable.id])).rows;
+ assert.equal(restartedEvents.filter(e=>e.action==='Monitoring restarted by Manager').length,2);
+ assert.equal(restartedEvents.at(-1).metadata.monitoring_site_id,offsite.id);
+ restartable=await save(manager,restartable,sitePayload(offsite));
+ restartable=okay(await request(manager,{action:'submit',id:restartable.id,revision:restartable.revision}));
+ assert.equal(restartable.document_version,previousVersion+1);assert.equal(restartable.current_pdf_available,true);
+ restartable=await review(supervisor,restartable,'accept');
+ await assert.rejects(()=>restart(manager,restartable),/unlocked Draft/);
+ restartable=await review(supervisor,restartable,'unlock','Authorized correction.');
+ assert.equal((await restart(manager,restartable)).id,originalId,'Supervisor unlock still authorizes a Manager correction/restart');
+ const uploadedAtEec=okay(await upload(supervisor,null,{...metadata,onBehalf:true,monitoringType:'supper',monitoringSiteId:eec.id,monitoringSlot:'manager_2'}));
+ assert.equal(uploadedAtEec.monitoring_site_id,eec.id);
+ assert.equal((await rpc('supper_supervisor_overview',{p_pin:'9999'})).records.find(r=>r.id===uploadedAtEec.id).monitoring_type,'supper');
+ await db.exec('reset role;set role anon');
+ await assert.rejects(()=>db.query('select * from monitoring_sites'),/permission denied/);
+ console.log('PASS: monitoring types/sites backfill, per-site slots beyond three records, school isolation, scoped site creation, same-record restart, ownership/status/revision guards, historical PDF retention and audit.');
  console.log('PASS: all migrations; on-behalf uploads and attribution; version-bound PDF markup, atomic review and lock permissions; real API + SQL upload/return/replace/resubmit/accept/lock/unlock/delete; setting OFF; PDF versions; ownership/school/role restrictions; shared guided manager and AFSS completion; unified three-slot history; audit and private storage.');
 }finally{await db.close();}

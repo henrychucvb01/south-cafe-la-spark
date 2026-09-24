@@ -62,3 +62,7 @@ export async function reportBytes(token,record,version=record.document_version) 
 export async function savePdfReview(token,record,annotations,comment,reviewAction="save") {
   return (await (await reportRequest(token,record,"review",{version:record.document_version,annotations,comment,reviewAction})).json()).record;
 }
+
+export const monitoringSites = token => rpc("monitoring_sites_for_school", {p_token:token});
+export const createMonitoringSite = (token,name,kind) => rpc("create_monitoring_site", {p_token:token,p_name:name,p_kind:kind});
+export const restartMonitoring = (token,record) => rpc("restart_monitoring", {p_token:token,p_id:record.id,p_revision:record.revision});

@@ -72,6 +72,7 @@ export function createHandler({ database, templateLoader = () => readFile(resolv
       }
       if (!Number.isInteger(revision) || record.revision !== revision) return response.status(409).json({ error: "The draft changed in another session. Reopen the saved draft before submitting." });
       if (record.source === "uploaded" || record.status === "deleted") return response.status(409).json({error:"Use the uploaded PDF review workflow for this record."});
+      if (record.monitoring_type && record.monitoring_type !== "supper") return response.status(409).json({error:"This guided monitoring type is not available yet."});
       const errors = submissionErrors(record.payload);
       if (errors.length) return response.status(422).json({ error: "Complete the items in Final Review before submitting.", errors });
       const { data: school, error: schoolError } = await database.from("locations").select("school_name,location_code").eq("id", record.location_id).single();

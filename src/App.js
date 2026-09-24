@@ -20,7 +20,7 @@ import HowToEarnPointsPage from "./pages/HowToEarnPointsPage"; // <--- Added
 import ManagerFeedback from "./feedback/ManagerFeedback";
 import ManagerMonthlyScorecardPage from "./monthlyScorecards/ManagerMonthlyScorecardPage";
 import SupervisorSupperMonitoringPage from "./supperMonitoring/SupervisorSupperMonitoringPage";
-import SupperMonitoringPage from "./supperMonitoring/SupperMonitoringPage";
+import MonitoringPage from "./monitoring/MonitoringPage";
 
 function App() {
   const [screen, setScreen] = useState("login");
@@ -56,8 +56,8 @@ function App() {
   if (screen === "supervisorPin") return <SupervisorPinPage onSuccess={(verifiedPin) => { setSupervisorSessionPin(verifiedPin); setScreen("commandCenter"); }} onBack={() => { setSupervisorSessionPin(""); setScreen("login"); }} />;
   if (screen === "employeeSelect") return <EmployeeSelectPage location={selectedLocation} onEmployeeSelected={(employee) => { setSelectedEmployee(employee); setEditingCheck(null); setScreen("managerPin"); }} onBack={resetToLogin} />;
   if (screen === "managerPin") return <ManagerPinPage location={selectedLocation} employee={selectedEmployee} onSuccess={(verifiedPin) => { setManagerSessionPin(verifiedPin); setScreen("homeBase"); }} onBack={() => { setSelectedEmployee(null); setManagerSessionPin(""); setScreen("employeeSelect"); }} />;
-  if (screen === "homeBase") return managerPage(<HomeBase location={selectedLocation} employee={selectedEmployee} onSchoolHub={() => setScreen("schoolHub")} onMonthlyScorecard={() => setScreen("managerMonthlyScorecard")} onIncidentHelper={() => setScreen("incidentHelper")} onDailyBites={() => setScreen("dailyBites")} onManagerResources={() => setScreen("managerResources")} onSupperMonitoring={() => setScreen("supperMonitoring")} onExit={resetToLogin} />);
-  if (screen === "supperMonitoring" && selectedLocation && selectedEmployee) return managerPage(<SupperMonitoringPage location={selectedLocation} employee={selectedEmployee} managerPin={managerSessionPin} onBack={() => setScreen("homeBase")} />);
+  if (screen === "homeBase") return managerPage(<HomeBase location={selectedLocation} employee={selectedEmployee} onSchoolHub={() => setScreen("schoolHub")} onMonthlyScorecard={() => setScreen("managerMonthlyScorecard")} onIncidentHelper={() => setScreen("incidentHelper")} onDailyBites={() => setScreen("dailyBites")} onManagerResources={() => setScreen("managerResources")} onMonitoring={() => setScreen("monitoring")} onExit={resetToLogin} />);
+  if (screen === "monitoring" && selectedLocation && selectedEmployee) return managerPage(<MonitoringPage location={selectedLocation} employee={selectedEmployee} managerPin={managerSessionPin} onBack={() => setScreen("homeBase")} />);
   if (screen === "managerMonthlyScorecard") return managerPage(<ManagerMonthlyScorecardPage location={selectedLocation} employee={selectedEmployee} managerPin={managerSessionPin} onBack={() => setScreen("homeBase")} />);
   if (screen === "managerResources") return managerPage(<ManagerResourcesPage onAskSpark={() => setScreen("askSpark")} onOperationsHelp={() => setScreen("operationsHelp")} onLocationInformation={() => setScreen("locationInformation")} onHowToEarnPoints={() => setScreen("howToEarnPoints")} onBack={() => setScreen("homeBase")} />);
   if (screen === "howToEarnPoints") return managerPage(<HowToEarnPointsPage onBack={() => setScreen("managerResources")} />);
@@ -75,8 +75,8 @@ function App() {
   }
 
   if (screen === "schoolDashboard") return managerPage(<SchoolDashboard location={selectedLocation} employee={selectedEmployee} onBack={() => { setEditingCheck(null); setScreen("schoolHub"); }} onEditFinishLine={(check) => { setEditingCheck(check); setScreen("finishLine"); }} />);
-  if (screen === "supervisorSupperMonitoring") return <SupervisorSupperMonitoringPage supervisorPin={supervisorSessionPin} onBack={() => setScreen("commandCenter")} />;
-  if (screen === "commandCenter") return <CommandCenter onSupperMonitoring={() => setScreen("supervisorSupperMonitoring")} supervisorPin={supervisorSessionPin} onExit={resetToLogin} onOpenSchoolAnalytics={(school) => { setSelectedLocation(school); setScreen("mealAnalytics"); }} onPreviewFinishLine={(preview) => { setEditingCheck({ previewMode: true, previewDay: preview.day, previewMonthEnd: preview.monthEnd }); setScreen("finishLine"); }} />;
+  if (screen === "supervisorMonitoring") return <SupervisorSupperMonitoringPage supervisorPin={supervisorSessionPin} onBack={() => setScreen("commandCenter")} />;
+  if (screen === "commandCenter") return <CommandCenter onMonitoring={() => setScreen("supervisorMonitoring")} supervisorPin={supervisorSessionPin} onExit={resetToLogin} onOpenSchoolAnalytics={(school) => { setSelectedLocation(school); setScreen("mealAnalytics"); }} onPreviewFinishLine={(preview) => { setEditingCheck({ previewMode: true, previewDay: preview.day, previewMonthEnd: preview.monthEnd }); setScreen("finishLine"); }} />;
   return null;
 }
 

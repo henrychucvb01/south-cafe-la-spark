@@ -8,7 +8,7 @@ function HomeBase({
   onIncidentHelper,
   onDailyBites,
   onManagerResources,
-  onSupperMonitoring,
+  onMonitoring,
   onExit,
 }) {
   return (
@@ -90,10 +90,10 @@ function HomeBase({
               <div className="homebase-card-arrow">›</div>
             </button>
 
-            <button type="button" className="homebase-card" onClick={onSupperMonitoring}>
+            <button type="button" className="homebase-card" onClick={onMonitoring}>
               <div className="homebase-card-icon">📋</div>
               <div className="homebase-card-body">
-                <strong>Supper Monitoring</strong>
+                <strong>Monitoring</strong>
                 <span>Prepare a monitoring, save a draft, and review your school's monitoring history.</span>
               </div>
               <div className="homebase-card-arrow">›</div>

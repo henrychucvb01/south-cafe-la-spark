@@ -13,7 +13,7 @@ insert into locations values(1,true,'Test School','1001');insert into employees 
 create function verify_manager_pin(text,text) returns boolean language sql as $$select $2='1234'$$;
 create function verify_covering_pin(text) returns boolean language sql as $$select false$$;
 create function verify_supervisor_pin(text) returns boolean language sql as $$select $1='9999'$$;`);
-for(const name of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql']) await db.exec(await readFile('supabase/migrations/'+name,'utf8'));
+for(const name of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql','202609240003_monitoring_types_sites_restart.sql']) await db.exec(await readFile('supabase/migrations/'+name,'utf8'));
 // Serialize role-scoped requests on this single ephemeral database connection.
 let queue=Promise.resolve();
 function rpc(name,args,role='anon') {const task=queue.then(async()=>{await db.exec('reset role;set role '+role);const set=['list_supper_monitorings','supper_audit_history'].includes(name);const rows=(await db.query(`select to_jsonb(public.${name}(${Object.keys(args).map((k,i)=>k+' => $'+(i+1)).join(',')})) as result`,Object.values(args))).rows;return set ? rows.map(r=>r.result) : rows[0].result;});queue=task.catch(()=>{});return task;}
@@ -25,10 +25,10 @@ await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin='http://127.0.
 const browser=await chromium.launch({channel:process.env.SPARK_TEST_BROWSER||'chrome',headless:true});const errors=[];const supervisorCalls=[];
 async function pageFor(role){const context=await browser.newContext({viewport:{width:role==='manager'?390:1440,height:950},hasTouch:true,serviceWorkers:'block'});const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.addInitScript(()=>sessionStorage.setItem('sparkIntroPlayed','yes'));
 await page.route('**/*',async route=>{const request=route.request(),url=new URL(request.url());if(url.origin===origin)return route.continue();if(url.hostname!=='kkrcxqhfzepifhkryodd.supabase.co')return route.abort();const name=url.pathname.split('/').at(-1),args=request.postDataJSON()||{};if(role==='supervisor')supervisorCalls.push(name);try{let body=[];
-if(name==='locations')body={id:1,location_code:'1001',school_name:'Test School',active:true};else if(name==='employees')body=[{id:11,location_id:1,employee_name:'Test Monitor',active:true}];else if(['has_manager_pin','verify_manager_pin','verify_supervisor_pin'].includes(name))body=true;else if(/supper/.test(name))body=await rpc(name,args);
+if(name==='locations')body={id:1,location_code:'1001',school_name:'Test School',active:true};else if(name==='employees')body=[{id:11,location_id:1,employee_name:'Test Monitor',active:true}];else if(['has_manager_pin','verify_manager_pin','verify_supervisor_pin'].includes(name))body=true;else if(/supper|monitoring/.test(name))body=await rpc(name,args);
 await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});}catch(e){await route.fulfill({status:400,contentType:'application/json',body:JSON.stringify({message:e.message})});}});
 await page.goto(origin);if(role==='manager'){await page.getByLabel('Location Code').fill('1001');await page.getByRole('button',{name:'Continue',exact:true}).click();await page.getByRole('button',{name:/Test Monitor/}).click();await page.getByLabel('4-Digit PIN').fill('1234');}else{await page.getByRole('button',{name:'Supervisor Access',exact:true}).click();await page.locator('input[type=password]').fill('9999');await page.getByRole('button',{name:'Open Command Center'}).click();}
-await page.getByRole('button',{name:/Supper Monitoring/}).click();return page;}
+await page.getByRole('button',{name:role==='manager'?/Monitoring/:'Monitoring',exact:role==='supervisor'}).click();return page;}
 try{
  const manager=await pageFor('manager'),supervisor=await pageFor('supervisor');
  await manager.getByRole('button',{name:'Upload Existing Monitoring',exact:true}).click();
@@ -115,7 +115,41 @@ try{
  const drafts=supervisor.locator('section.sm-card').filter({has:supervisor.getByRole('heading',{name:'Drafts / In Progress',exact:true})});
  await drafts.getByRole('button',{name:'View',exact:true}).click();await expect(supervisor.getByRole('button',{name:'Delete Monitoring',exact:true})).toBeVisible();await supervisor.getByRole('button',{name:'Resume Guided Monitoring',exact:true}).click();
  await expect(supervisor.getByRole('heading',{name:'Names & Signatures',exact:true})).toBeVisible();
+
+ // Minimal site setup and Manager restart use the same authorized school session.
+ await supervisor.getByRole('button',{name:'Save & Return to Monitorings',exact:true}).click();
+ await supervisor.getByRole('button',{name:'Add Site / Program',exact:true}).click();
+ await supervisor.getByLabel('Site / program name',{exact:true}).fill('North Offsite');
+ await supervisor.getByLabel('Site kind',{exact:true}).selectOption('offsite');
+ await supervisor.getByRole('button',{name:'Save Site / Program',exact:true}).click();
+ await expect(supervisor.getByLabel('Monitored site / program',{exact:true})).toContainText('North Offsite');
+ await supervisor.screenshot({path:'test-results/supper-review/monitoring-sites.png',fullPage:true});
+ await manager.getByRole('button',{name:'Back to History',exact:true}).click();
+ await manager.getByRole('button',{name:'Refresh',exact:true}).click();
+ await manager.getByLabel('Monitored site / program',{exact:true}).selectOption({label:'North Offsite (offsite)'});
+ await manager.getByRole('button',{name:'+ Start New Monitoring',exact:true}).click();
+ await manager.getByLabel('Monitoring date',{exact:true}).fill('2026-09-24');
+ await manager.getByRole('button',{name:'Save Draft',exact:true}).click();
+ await expect(manager.getByText('Draft saved. You can return from any device.',{exact:true})).toBeVisible();
+ const restartToken=await rpc('open_supper_monitoring_session',{p_location_id:1,p_employee_id:11,p_pin:'1234'});
+ const beforeRestart=await rpc('list_supper_monitorings',{p_token:restartToken});
+ const target=beforeRestart.find(r=>r.monitoring_site_name==='North Offsite'&&r.monitor_role==='manager');
+ assert.equal(target.monitoring_type,'supper');
+ await manager.getByRole('button',{name:'Redo Monitoring',exact:true}).click();
+ await expect(manager.getByRole('alertdialog')).toBeVisible();
+ await manager.screenshot({path:'test-results/supper-review/restart-confirmation.png',fullPage:true});
+ await manager.getByRole('button',{name:'Cancel',exact:true}).click();
+ await expect(manager.getByLabel('Monitoring date',{exact:true})).toHaveValue('2026-09-24');
+ await manager.getByRole('button',{name:'Redo Monitoring',exact:true}).click();
+ await manager.getByRole('button',{name:'Start Over',exact:true}).click();
+ await expect(manager.getByText('Monitoring restarted. Complete the guided form again.',{exact:true})).toBeVisible();
+ await expect(manager.getByLabel('Monitoring date',{exact:true})).toHaveValue('');
+ const afterRestart=await rpc('list_supper_monitorings',{p_token:restartToken});
+ assert.equal(afterRestart.length,beforeRestart.length);
+ const same=afterRestart.find(r=>r.id===target.id);
+ assert.equal(same.monitoring_site_id,target.monitoring_site_id);assert.equal(same.monitoring_slot,target.monitoring_slot);assert.equal(same.status,'draft');
+ await rpc('close_supper_monitoring_session',{p_token:restartToken});
  assert.ok(!supervisorCalls.some(n=>['verify_manager_pin','open_supper_monitoring_session','has_manager_pin'].includes(n)),'Supervisor never asks for or uses Manager authentication');
  assert.deepEqual(errors,[]);
- console.log('PASS: Supervisor queue, rendered multi-page PDF, zoom, comment markers/freehand drawing, atomic return, manager read-only markup, replacement-version history, Accept & Lock, upload on behalf while OFF, AFSS separation, and zero Manager auth calls by Supervisor.');
+ console.log('PASS: Monitoring navigation, scoped site creation/selection, restart confirmation/cancel/same-record reset, Supervisor queue, rendered multi-page PDF, zoom, comment markers/freehand drawing, atomic return, manager read-only markup, replacement-version history, Accept & Lock, upload on behalf while OFF, AFSS separation, and zero Manager auth calls by Supervisor.');
 }catch(error){for(const context of browser.contexts())for(const page of context.pages()){console.error((await page.locator('body').innerText()).slice(0,7000));}throw error;}finally{await browser.close();await new Promise(r=>server.close(r));await db.close();}

@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import SupperMonitoringPage from "./SupperMonitoringPage";
 import { newDraft } from "./model";
 import * as service from "./service";
-jest.mock("./service", () => ({ openSession: jest.fn(), getContext: jest.fn(), closeSession: jest.fn(), listMonitorings: jest.fn(), getMonitoring: jest.fn(), saveDraft: jest.fn() }));
+jest.mock("./service", () => ({ openSession: jest.fn(), getContext: jest.fn(), closeSession: jest.fn(), listMonitorings: jest.fn(), getMonitoring: jest.fn(), saveDraft: jest.fn(), restartMonitoring: jest.fn() }));
 jest.mock("./SignaturePad", () => function Pad() { return <div>Signature pad</div>; });
 let container, root;
 beforeEach(async () => {
@@ -64,4 +64,16 @@ test("opens with the existing manager sign-in without a second PIN prompt", () =
   expect(service.openSession).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), expect.objectContaining({ id: 11 }), "1234");
   expect(container.querySelector('input[type=password]')).toBeNull();
   expect(container.textContent).toContain("+ Start New Monitoring");
+});
+
+test("Manager restart requires confirmation and Cancel preserves the saved draft", async () => {
+  await click("+ Start New Monitoring");await input("#monitoringDate","2026-09-23");await click("Save Draft");
+  await click("Redo Monitoring");expect(container.querySelector('[role=alertdialog]')).not.toBeNull();
+  expect(service.restartMonitoring).not.toHaveBeenCalled();await click("Cancel");
+  expect(container.querySelector('#monitoringDate').value).toBe("2026-09-23");
+  service.restartMonitoring.mockResolvedValue({id:"draft-id",revision:2,status:"draft",source:"generated",monitor_role:"manager",created_by_employee_id:11,school_year:"2026-27",monitoring_slot:"manager_1",current_section:0,payload:newDraft("Test Monitor")});
+  await click("Redo Monitoring");await click("Start Over");
+  expect(service.restartMonitoring).toHaveBeenCalledWith("scoped-token",expect.objectContaining({id:"draft-id",revision:1}));
+  expect(container.querySelector('#monitoringDate').value).toBe("");
+  expect(container.textContent).toContain("Monitoring restarted");
 });
