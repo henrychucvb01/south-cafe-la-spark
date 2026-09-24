@@ -87,6 +87,21 @@ try {
     await page.getByLabel("4-Digit PIN").fill("1234");
     await page.getByRole("button", { name: /Supper Monitoring/ }).waitFor();
     assert.equal(await page.getByRole("button", { name: /Manager Resources/ }).count(), 1);
+    // Current-main routes must survive the Supper Monitoring integration.
+    await page.getByRole('button',{name:/Monthly Scorecard/}).click();
+    await expect(page.getByRole('heading',{name:'Monthly Scorecard',exact:true})).toBeVisible();
+    await page.getByRole('button',{name:'← Back to Home Base',exact:true}).click();
+    await page.getByRole('button',{name:/Manager Resources/}).click();
+    await page.getByRole('button',{name:/How to Earn SPARK Points/}).click();
+    await expect(page.getByRole('heading',{name:'How to Earn SPARK Points',exact:true})).toBeVisible();
+    await page.getByRole('button',{name:'← Back to Manager Resources',exact:true}).click();
+    await page.getByRole('button',{name:'← Back to Home Base',exact:true}).click();
+    await page.getByRole('button',{name:/Incident Record Helper/}).click();
+    await expect(page.getByRole('heading',{name:'Incident Record Helper',exact:true})).toBeVisible();
+    await page.getByRole('button',{name:'← Back to Home Base',exact:true}).click();
+    await page.getByRole('button',{name:/Daily Bites/}).click();
+    await expect(page.getByRole('heading',{name:'Daily Bites',exact:true})).toBeVisible();
+    await page.getByRole('button',{name:'← Home Base',exact:true}).click();
     await page.getByRole("button", { name: /Supper Monitoring/ }).click();
     await page.getByLabel("SPARK PIN", { exact: true }).fill("1234");
     await page.getByRole("button", { name: "Open Monitorings", exact: true }).click();
