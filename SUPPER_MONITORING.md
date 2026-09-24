@@ -4,7 +4,7 @@ Implemented on `spark-development` using the supplied official two-page LAUSD PD
 
 ## Workflow
 
-The Manager Hub tile opens school-scoped drafts, current-year completed monitorings, and previous-year history. Ten sections cover visit information, Monday–Friday history, today's service, menu, official questions, findings/actions, comments, signatures, review, and submission. Explicit saves preserve the section and question position across sessions/devices; there is no background autosave. Revision checks prevent silent overwrites. Failed saves preserve local work and prevent navigation.
+School Dashboard and Daily Bites are the first two Manager Hub choices. The Supper Monitoring tile opens school-scoped drafts, current-year completed monitorings, and previous-year history. Ten sections cover visit information, Monday–Friday history, today's service, menu, official questions, findings/actions, comments, signatures, review, and submission. Explicit saves preserve the section and question position across sessions/devices; there is no background autosave. Revision checks prevent silent overwrites. Failed saves preserve local work and prevent navigation.
 
 History dates are generated for the selected week. Every day requires attendance greater than meals; monitoring-date overlap, missing/invalid/duplicate dates and counts are rejected. The average is calculated. Menu fields cover all seven official categories. Questions 1–20 include 18a/18b, the form's N/A restrictions, conditional 18b, and corrective-action rules. No requires action except 18a/19; Yes to 19 requires action. Repeated findings apply to 18b No. Question 20 Yes with other findings prompts review without inventing a new prohibition.
 
@@ -23,7 +23,7 @@ Reports remain two pages. Excess text produces a section-specific correction mes
 
 ## Authorization and storage
 
-Existing SPARK login does not create a Supabase Auth session. This tool re-verifies the existing manager PIN and active employee-school assignment, issuing a random two-hour token held in component memory. Only its hash is stored. Covering access follows the existing temporary-PIN model, scoped to the selected school. Every record operation rechecks expiry and assignment. Ten attempts per school/identity per 15 minutes are allowed; old attempts/sessions are pruned.
+Existing SPARK login does not create a Supabase Auth session. This tool reuses the existing in-memory SPARK sign-in without a second PIN prompt, verifies the active employee-school assignment, and issues a random two-hour token held in component memory. Only its hash is stored. Covering access follows the existing temporary-PIN model, scoped to the selected school. Every record operation rechecks expiry and assignment. Ten attempts per school/identity per 15 minutes are allowed; old attempts/sessions are pruned.
 
 `202609230001_supper_monitoring.sql` adds:
 - `supper_monitorings`: school, creator/role, versioned payload, year/date, section, revision, draft/completed state, timestamps, template/PDF metadata, optional replacement relationship.

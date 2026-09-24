@@ -12,9 +12,9 @@ function Field({ id, label, value, onChange, errors = [], reveal = false, type =
   return <div className="sm-field"><label htmlFor={id}>{label}</label>{multiline ? <textarea {...control} rows={4} maxLength={4000} /> : <input {...control} type={type} maxLength={type === "text" ? 300 : undefined} />}{messages.length > 0 && <div id={`${id}-error`} className="sm-error">{[...new Set(messages.map(e => e.message))].join(" ")}</div>}</div>;
 }
 
-export default function SupperMonitoringPage({ location, employee, onBack }) {
+export default function SupperMonitoringPage({ location, employee, managerPin, onBack }) {
   const [token, setToken] = useState("");
-  const [pin, setPin] = useState("");
+  const initialOpen = useRef(false);
   const [records, setRecords] = useState([]);
   const [record, setRecord] = useState(null);
   const [data, setData] = useState(null);
@@ -44,12 +44,18 @@ export default function SupperMonitoringPage({ location, employee, onBack }) {
     try { await task(); } catch (err) { setError(err.message || "SPARK could not save your work. Keep this page open and try again."); setServerIssues(err.errors || []); }
     finally { lock.current = false; setBusy(false); }
   }
-  async function unlock(event) {
-    event.preventDefault();
+  // Reuse the existing SPARK sign-in; never ask for a second PIN.
+  useEffect(() => {
+    if (initialOpen.current) return;
+    initialOpen.current = true;
+    unlock();
+  });
+  async function unlock() {
     await run(async () => {
-      const session = await openSession(location, employee, pin);
-      setPin(""); setToken(session);
-      setRecords(await listMonitorings(session));
+      if (!managerPin) throw new Error("Your SPARK sign-in has ended. Return to Manager Hub and sign in again.");
+      const session = await openSession(location, employee, managerPin);
+      const latest = await listMonitorings(session);
+      setToken(session); setRecords(latest);
     });
   }
   async function save(nextSection = section) {
@@ -137,9 +143,9 @@ export default function SupperMonitoringPage({ location, employee, onBack }) {
 
   return <div className="login-app sm-app"><header className="login-header"><div className="login-brand"><div className="login-logo spark-login-logo"><img src="/spark-192.png" alt="SPARK" /></div><div><div className="login-brand-name">SOUTH CAFÉ LA</div><div className="login-brand-subtitle">SUPPER MONITORING</div></div></div><button type="button" disabled={busy} onClick={() => { if (data) leaveEditor(); else run(async () => { if (token) await closeSession(token); onBack(); }); }}>{data ? (readonly ? "Return to Monitorings" : "Save & Return to Monitorings") : "← Manager Hub"}</button></header>
     <main className="sm-main"><div className="sm-title"><div><p className="homebase-eyebrow">{location?.school_name} · {location?.location_code}</p><h1>Supper Monitoring</h1></div>{data && !readonly && <button className="sm-primary" type="button" disabled={busy} onClick={() => run(() => save())}>{busy ? "Saving…" : "Save Draft"}</button>}</div>
-    {error && <div role="alert" className="sm-error sm-card">{error}{serverIssues.map((issue,i) => <button key={i} type="button" onClick={() => navigate(issue.section)}>Review {SECTIONS[issue.section]}</button>)}<p>Your unsaved work remains on this screen. Retry saving when the connection is restored. If your session expired, verify your PIN below.</p>{data && <form onSubmit={unlock}><label>SPARK PIN<input aria-label="Reverify SPARK PIN" type="password" inputMode="numeric" maxLength={4} value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ""))} /></label><button disabled={busy || pin.length !== 4}>Verify PIN</button></form>}{record && !readonly && <button type="button" disabled={busy} onClick={() => run(async () => { const latest = await getMonitoring(token, record.id); setRecord(latest); setData({ ...newDraft(), ...latest.payload }); setSection(latest.current_section); setDirty(false); setNotice("Saved draft reopened; local unsaved changes discarded."); })}>Discard local changes and reopen saved draft</button>}</div>}
+    {error && <div role="alert" className="sm-error sm-card">{error}{serverIssues.map((issue,i) => <button key={i} type="button" onClick={() => navigate(issue.section)}>Review {SECTIONS[issue.section]}</button>)}<p>Your unsaved work remains on this screen. Retry saving when the connection is restored. If your session expired, select Reconnect to continue with your current SPARK sign-in.</p>{data && <button type="button" disabled={busy} onClick={unlock}>Reconnect</button>}{record && !readonly && <button type="button" disabled={busy} onClick={() => run(async () => { const latest = await getMonitoring(token, record.id); setRecord(latest); setData({ ...newDraft(), ...latest.payload }); setSection(latest.current_section); setDirty(false); setNotice("Saved draft reopened; local unsaved changes discarded."); })}>Discard local changes and reopen saved draft</button>}</div>}
     {notice && <p role="status" className="sm-save-status">{notice}</p>}
-    {!token ? <form className="sm-card sm-unlock" onSubmit={unlock}><h2>Open your school's monitorings</h2><p>Verify your SPARK PIN to securely access drafts and reports for {location?.school_name}.</p><label htmlFor="supperPin">{employee?.covering ? "Temporary covering-manager PIN" : "SPARK PIN"}</label><input id="supperPin" type="password" inputMode="numeric" autoComplete="off" maxLength={4} value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ""))} /><button className="sm-primary" disabled={busy || pin.length !== 4}>{busy ? "Checking…" : "Open Monitorings"}</button></form> : !data ? <><div className="sm-notice">Prepare a monitoring at your own pace. Save drafts and return from any device. Submitted reports are read-only.</div><div className="sm-actions"><button className="sm-primary" type="button" disabled={busy} onClick={() => { setRecord(null); setData(newDraft(employee.employee_name)); setSection(0); setDirty(true); setShowErrors(false); }}>+ Start New Monitoring</button><button type="button" disabled={busy} onClick={() => run(async () => setRecords(await listMonitorings(token)))}>Refresh</button></div>{recordList("Drafts / In Progress", records.filter(r => r.status === "draft"))}{recordList("Completed Monitorings", records.filter(r => r.status === "completed" && r.school_year === schoolYear(localDate())))}{recordList("Previous Monitorings", records.filter(r => r.status === "completed" && r.school_year !== schoolYear(localDate())))}</> : <>
+    {!token ? <section className="sm-card sm-unlock"><h2>Opening your school's monitorings</h2><p>{busy ? "Connecting…" : "Connect using your current SPARK sign-in."}</p>{!busy && <button type="button" onClick={unlock}>Retry Connection</button>}</section> : !data ? <><div className="sm-notice">Prepare a monitoring at your own pace. Save drafts and return from any device. Submitted reports are read-only.</div><div className="sm-actions"><button className="sm-primary" type="button" disabled={busy} onClick={() => { setRecord(null); setData(newDraft(employee.employee_name)); setSection(0); setDirty(true); setShowErrors(false); }}>+ Start New Monitoring</button><button type="button" disabled={busy} onClick={() => run(async () => setRecords(await listMonitorings(token)))}>Refresh</button></div>{recordList("Drafts / In Progress", records.filter(r => r.status === "draft"))}{recordList("Completed Monitorings", records.filter(r => r.status === "completed" && r.school_year === schoolYear(localDate())))}{recordList("Previous Monitorings", records.filter(r => r.status === "completed" && r.school_year !== schoolYear(localDate())))}</> : <>
     <nav className="sm-progress" aria-label="Monitoring progress"><p>Section {section + 1} of {SECTIONS.length} · {SECTIONS[section]}{readonly ? " · Read-only" : ""}</p><progress max={SECTIONS.length} value={section + 1} /><select aria-label="Go to section" value={section} disabled={busy} onChange={e => navigate(Number(e.target.value))}>{SECTIONS.map((label, i) => <option key={label} value={i}>{i + 1}. {label}</option>)}</select></nav>
     <section className="sm-card"><h2 ref={heading} tabIndex={-1}>{SECTIONS[section]}</h2><fieldset className="sm-editor" disabled={busy || (readonly && section !== 8)}>{renderSection()}</fieldset>{!readonly && section < 8 && <button type="button" disabled={busy} onClick={() => setShowErrors(true)}>Check This Section</button>}{showErrors && <div role="status">{errors.filter(e => e.section === section).length === 0 ? <p>✓ This section is complete.</p> : <ul className="sm-errors">{errors.filter(e => e.section === section).map((e, i) => <li key={i}>{e.message}</li>)}</ul>}</div>}</section>
     <div className="sm-actions sm-bottom"><button type="button" disabled={busy || section === 0} onClick={() => navigate(section - 1)}>← Previous</button>{section < 9 && <button className="sm-primary" type="button" disabled={busy} onClick={() => navigate(section + 1)}>{readonly ? "Next →" : "Save & Continue →"}</button>}</div><p className="sm-save-status">{readonly ? "" : dirty ? "Changes have not been saved yet." : "Draft saved."} {readonly ? "Completed records cannot be edited." : "Save Draft and Save & Continue preserve your work and current section."}</p>

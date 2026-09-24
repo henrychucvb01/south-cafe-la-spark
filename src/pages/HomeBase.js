@@ -54,14 +54,6 @@ function HomeBase({
           </div>
 
           <div className="homebase-grid">
-            <button type="button" className="homebase-card" onClick={onSupperMonitoring}>
-              <div className="homebase-card-icon">📋</div>
-              <div className="homebase-card-body">
-                <strong>Supper Monitoring</strong>
-                <span>Prepare a monitoring, save a draft, and review your school's monitoring history.</span>
-              </div>
-              <div className="homebase-card-arrow">›</div>
-            </button>
             <button
               type="button"
               className="homebase-card homebase-card-primary"
@@ -83,24 +75,6 @@ function HomeBase({
             <button
               type="button"
               className="homebase-card"
-              onClick={onIncidentHelper}
-            >
-              <div className="homebase-card-icon">📄</div>
-
-              <div className="homebase-card-body">
-                <strong>Incident Record Helper</strong>
-
-                <span>
-                  Organize and prepare clear employee incident documentation.
-                </span>
-              </div>
-
-              <div className="homebase-card-arrow">›</div>
-            </button>
-
-            <button
-              type="button"
-              className="homebase-card"
               onClick={onDailyBites}
             >
               <div className="homebase-card-icon">🍎</div>
@@ -110,6 +84,33 @@ function HomeBase({
 
                 <span>
                   Quick tips, comics, SPARK Bingo, and school engagement.
+                </span>
+              </div>
+
+              <div className="homebase-card-arrow">›</div>
+            </button>
+
+            <button type="button" className="homebase-card" onClick={onSupperMonitoring}>
+              <div className="homebase-card-icon">📋</div>
+              <div className="homebase-card-body">
+                <strong>Supper Monitoring</strong>
+                <span>Prepare a monitoring, save a draft, and review your school's monitoring history.</span>
+              </div>
+              <div className="homebase-card-arrow">›</div>
+            </button>
+
+            <button
+              type="button"
+              className="homebase-card"
+              onClick={onIncidentHelper}
+            >
+              <div className="homebase-card-icon">📄</div>
+
+              <div className="homebase-card-body">
+                <strong>Incident Record Helper</strong>
+
+                <span>
+                  Organize and prepare clear employee incident documentation.
                 </span>
               </div>
 
