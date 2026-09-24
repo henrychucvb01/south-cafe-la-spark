@@ -105,9 +105,9 @@ try {
     await expect(page.getByRole('heading',{name:'Daily Bites',exact:true})).toBeVisible();
     await page.getByRole('button',{name:'← Home Base',exact:true}).click();
     await page.getByRole("button", { name: /Monitoring/ }).click();
-    await expect(page.getByRole("button", { name: "+ Start New Monitoring", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Supper 1 - Test School.*Not Started/ })).toBeVisible();
     await expect(page.locator("input[type=password]")).toHaveCount(0);
-    await page.getByRole("button", { name: "+ Start New Monitoring", exact: true }).click();
+    await page.getByRole("button", { name: /Supper 1 - Test School.*Not Started/ }).click();
     await page.getByLabel("Monitoring date", { exact: true }).fill("2026-09-23");
     await page.getByLabel("Arrival time").fill("14:00");
     await page.getByLabel("Departure time").fill("16:00");
@@ -279,7 +279,9 @@ try {
     complete.status='accepted';complete.locked=true;
     complete.school_year = '2025-26';
     await page.getByRole('button',{name:'Return to Monitorings',exact:true}).click();
-    const previous = page.locator('section.sm-card').filter({has:page.getByRole('heading',{name:'Previous Monitorings',exact:true})});
+    await expect(page.getByRole('heading',{name:'Previous Monitorings',exact:true})).toHaveCount(0);
+    await page.getByLabel('School year',{exact:true}).selectOption('2025-26');
+    const previous = page.locator('section.sm-card').filter({has:page.getByRole('heading',{name:'Completed / Accepted',exact:true})});
     await previous.getByRole('button',{name:'View',exact:true}).last().click();
     await page.getByRole('button',{name:'View Guided Monitoring',exact:true}).click();
     await expect(page.getByRole('button',{name:'Download Official PDF',exact:true})).toBeVisible();

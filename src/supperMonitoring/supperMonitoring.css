@@ -124,3 +124,19 @@
  .sm-service-day > span, .sm-service-row > .sm-check:not(.sm-service-confirm) > span { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
  .sm-service-row > .sm-check:not(.sm-service-confirm) { justify-content:center; }
 }
+/* Manager yearly shortcuts and compact work/history rows. */
+.sm-app .sm-status-card { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 16px; text-align: left; overflow-wrap: anywhere; }
+.sm-app .sm-status-done { background: #edf8f0; border-color: #81b890; color: #173f27; }
+.sm-app .sm-status-incomplete { background: #fff0f1; border-color: #d8a0a5; color: #652a32; }
+.sm-app .sm-status-pending { background: #fff8e7; border-color: #d1b66e; color: #594510; }
+.sm-app .sm-status-card:disabled { opacity: 1; cursor: default; }
+.sm-status-card small { font-size: 13px; }
+.sm-compact-records { list-style: none; margin: 0; padding: 0; max-height: 420px; overflow-y: auto; }
+.sm-compact-records li { display: grid; grid-template-columns: minmax(0, 1.5fr) auto minmax(0, 1.5fr) auto; align-items: center; gap: 14px; padding: 10px 0; border-top: 1px solid #dfe6ed; }
+.sm-compact-records strong, .sm-compact-comment { overflow-wrap: anywhere; }
+.sm-compact-comment { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+@media (max-width: 650px) {
+  .sm-compact-records li { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+  .sm-compact-records strong, .sm-compact-comment { grid-column: 1; }
+  .sm-compact-records button { grid-column: 2; grid-row: 1 / 4; }
+}

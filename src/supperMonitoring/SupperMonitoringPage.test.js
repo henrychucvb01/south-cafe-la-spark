@@ -25,7 +25,7 @@ async function input(selector, value) {
   await act(async () => { const el = container.querySelector(selector); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(el, value); el.dispatchEvent(new Event("input", { bubbles: true })); });
 }
 test("starts, saves, and resumes at the server's saved section", async () => {
-  await click("+ Start New Monitoring");
+  await click("Supper 1 - Test SchoolManagerNot Started");
   await input("#monitoringDate", "2026-09-23");
   await click("Save Draft");
   expect(service.saveDraft.mock.calls[0][2].monitoringDate).toBe("2026-09-23");
@@ -37,7 +37,7 @@ test("starts, saves, and resumes at the server's saved section", async () => {
   expect(container.querySelector("h2").textContent).toBe("Five-Day History");
 });
 test("a failed save preserves data and prevents navigation", async () => {
-  await click("+ Start New Monitoring"); await input("#monitoringDate", "2026-09-23");
+  await click("Supper 1 - Test SchoolManagerNot Started"); await input("#monitoringDate", "2026-09-23");
   service.saveDraft.mockRejectedValue(new Error("Connection unavailable"));
   await click("Save Draft");
   expect(container.querySelector("#monitoringDate").value).toBe("2026-09-23");
@@ -47,7 +47,10 @@ test("a failed save preserves data and prevents navigation", async () => {
 test("completed history opens read-only and final submission is unavailable", async () => {
   service.listMonitorings.mockResolvedValue([{ id: "complete", status: "completed", school_year: "2025-26", monitoring_date: "2026-06-01", submitted_at: "2026-06-01T17:00:00Z" }]);
   service.getMonitoring.mockResolvedValue({ id: "complete", status: "completed", payload: newDraft("Previous Monitor"), current_section: 9 });
-  await click("Refresh"); await click("View"); await click("View Guided Monitoring");
+  await click("Refresh");
+  await act(async()=>{const select=[...container.querySelectorAll('label')].find(l=>l.textContent.startsWith('School year')).querySelector('select');select.value='2025-26';select.dispatchEvent(new Event('change',{bubbles:true}));});
+  expect(container.textContent).not.toContain('Previous Monitorings');
+  await click("View"); await click("View Guided Monitoring");
   expect(container.textContent).toContain("read-only");
   await act(async () => {
     const select = container.querySelector("select");
@@ -63,11 +66,11 @@ test("opens with the existing manager sign-in without a second PIN prompt", () =
   expect(service.openSession).toHaveBeenCalledTimes(1);
   expect(service.openSession).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), expect.objectContaining({ id: 11 }), "1234");
   expect(container.querySelector('input[type=password]')).toBeNull();
-  expect(container.textContent).toContain("+ Start New Monitoring");
+  expect(container.textContent).toContain("Supper 1 - Test SchoolManagerNot Started");
 });
 
 test("Manager restart requires confirmation and Cancel preserves the saved draft", async () => {
-  await click("+ Start New Monitoring");await input("#monitoringDate","2026-09-23");await click("Save Draft");
+  await click("Supper 1 - Test SchoolManagerNot Started");await input("#monitoringDate","2026-09-23");await click("Save Draft");
   await click("Redo Monitoring");expect(container.querySelector('[role=alertdialog]')).not.toBeNull();
   expect(service.restartMonitoring).not.toHaveBeenCalled();await click("Cancel");
   expect(container.querySelector('#monitoringDate').value).toBe("2026-09-23");
@@ -77,3 +80,12 @@ test("Manager restart requires confirmation and Cancel preserves the saved draft
   expect(container.querySelector('#monitoringDate').value).toBe("");
   expect(container.textContent).toContain("Monitoring restarted");
 });
+
+ test("Manager yearly cards preserve Supper roles and start Supper 3", async()=>{
+  const cards=container.querySelectorAll('.sm-status-card');
+  expect(cards).toHaveLength(3);expect(cards[1].disabled).toBe(true);expect(cards[1].textContent).toContain('Supervisor / AFSS');
+  expect(cards[0].className).toContain('sm-status-incomplete');
+  await click('Supper 3 - Test SchoolManagerNot Started');
+  await click('Save Draft');
+  expect(service.saveDraft.mock.calls[0][2].monitoringSlot).toBe('manager_2');
+ });

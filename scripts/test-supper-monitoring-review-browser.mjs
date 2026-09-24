@@ -37,6 +37,13 @@ try{
  const split=[];
  for(let i=0;i<2;i++){const doc=await PDFDocument.create();const [p]=await doc.copyPages(original,[i]);doc.addPage(p);split.push({name:`Monitoring Page ${i+1}.pdf`,mimeType:'application/pdf',buffer:Buffer.from(await doc.save())});}
 
+ const cards=manager.locator('.sm-status-card');
+ await expect(cards).toHaveCount(3);
+ await expect(cards.nth(0)).toContainText('Supper 1 - Test School');
+ await expect(cards.nth(1)).toBeDisabled();await expect(cards.nth(2)).toBeEnabled();
+ await expect(cards.nth(0)).toHaveClass(/sm-status-incomplete/);
+ await expect(manager.getByRole('button',{name:'+ Start New Monitoring',exact:true})).toHaveCount(0);
+ await expect(manager.getByRole('heading',{name:'Previous Monitorings',exact:true})).toHaveCount(0);
  await manager.getByRole('button',{name:'Upload Existing Monitoring',exact:true}).click();
  await manager.getByLabel('Monitoring date',{exact:true}).fill('2026-09-23');
  await expect(manager.getByLabel('Upload PDF(s)')).toHaveAttribute('multiple','');
@@ -63,6 +70,7 @@ try{
  await supervisor.getByRole('button',{name:'Refresh Overview'}).click();await expect(supervisor.locator('.sm-review-queue').getByRole('button',{name:'Review',exact:true})).toHaveCount(0);
  await confirmUpload.check();await submitUpload.click();
  await expect(manager.getByText('Submitted for Review',{exact:true})).toBeVisible();
+ await manager.getByRole('button',{name:'Back to History'}).click();await expect(cards.nth(0)).toHaveClass(/sm-status-pending/);await cards.nth(0).click();
  const checkToken=await rpc('open_supper_monitoring_session',{p_location_id:1,p_employee_id:11,p_pin:'1234'});
  const submitted=(await rpc('list_supper_monitorings',{p_token:checkToken}))[0];
  assert.deepEqual(Buffer.from(await rpc('read_supper_monitoring_pdf',{p_token:checkToken,p_id:submitted.id},'service_role'),'base64'),reviewedBytes,'Submitted bytes exactly match reviewed combined preview');
@@ -103,6 +111,10 @@ try{
  await supervisor.getByLabel('Allow Manager PDF Uploads').click();await expect(supervisor.getByLabel('Allow Manager PDF Uploads')).not.toBeChecked();
  await manager.getByRole('button',{name:'Back to History'}).click();await manager.getByRole('button',{name:'Refresh',exact:true}).click();
  await expect(manager.getByRole('button',{name:'Upload Existing Monitoring',exact:true})).toHaveCount(0);
+ const corrections=manager.locator('section').filter({has:manager.getByRole('heading',{name:'Corrections Requested',exact:true})});
+ await expect(corrections.getByRole('button')).toHaveCount(1);
+ await corrections.getByRole('button',{name:'View',exact:true}).click();
+ await expect(manager.getByRole('button',{name:'Resubmit for Supervisor Review',exact:true})).toHaveCount(0);
  await manager.getByRole('button',{name:'View PDF & Supervisor Markup',exact:true}).click();
  await expect(manager.locator('.sm-mark-list').getByText('Add the ASP Coordinator signature here.',{exact:false})).toBeVisible();
  await expect(manager.getByRole('button',{name:'Draw',exact:true})).toHaveCount(0);
@@ -111,7 +123,7 @@ try{
  await manager.getByLabel('PDF zoom',{exact:true}).selectOption('0.5');await manager.getByRole('button',{name:'Next Page',exact:true}).click();
  await expect(manager.getByText('Loading PDF page…',{exact:true})).toHaveCount(0);
  await manager.screenshot({path:'test-results/supper-review/manager-markup.png',fullPage:true});
- await manager.getByRole('button',{name:'Back to Monitorings',exact:true}).click();await manager.getByRole('button',{name:'View',exact:true}).click();
+ await manager.getByRole('button',{name:'Back to Monitorings',exact:true}).click();
  await manager.setViewportSize({width:1440,height:950});
  await manager.getByRole('button',{name:'Replace PDF',exact:true}).click();await manager.getByLabel('Upload PDF(s)').setInputFiles('public/supper-monitoring-2022-09-08.pdf');
  await manager.getByRole('button',{name:'Review Upload',exact:true}).click();
@@ -140,7 +152,16 @@ try{
  await expect(supervisor.locator('.sm-mark-list li')).toHaveCount(0);
  await supervisor.getByRole('button',{name:'Accept & Lock',exact:true}).click();await expect(supervisor.getByText('Monitoring accepted and locked.',{exact:true})).toBeVisible();
  await expect(supervisor.getByRole('button',{name:'Draw',exact:true})).toHaveCount(0);
- await manager.getByRole('button',{name:'Back to History'}).click();await manager.getByRole('button',{name:'Refresh',exact:true}).click();await manager.getByRole('button',{name:'View',exact:true}).click();
+ await manager.getByRole('button',{name:'Back to History'}).click();await manager.getByRole('button',{name:'Refresh',exact:true}).click();
+ await expect(cards.nth(0)).toHaveClass(/sm-status-done/);
+ await manager.getByLabel('School year',{exact:true}).selectOption('2025-26');
+ await expect(cards.nth(0)).toContainText('Not Started');await expect(manager.locator('.sm-compact-records li')).toHaveCount(0);
+ await manager.getByLabel('School year',{exact:true}).selectOption('2026-27');await expect(cards.nth(0)).toContainText('Accepted / Locked');
+ await manager.setViewportSize({width:1440,height:950});
+ const completedRow=manager.locator('.sm-compact-records li');await expect(completedRow).toHaveCount(1);
+ assert.ok((await completedRow.boundingBox()).height<100,'Completed row remains compact on desktop');
+ await manager.screenshot({path:'test-results/supper-review/manager-yearly-cards.png',fullPage:true});
+ await cards.nth(0).click();
  await expect(manager.getByText('Accepted / Locked',{exact:true})).toBeVisible();await expect(manager.getByRole('button',{name:'Replace PDF',exact:true})).toHaveCount(0);
  // Supervisor upload on behalf uses only the Supervisor session and remains a Manager slot.
  await supervisor.getByRole('button',{name:'Back to Monitorings',exact:true}).click();await supervisor.getByRole('button',{name:'Upload Existing Monitoring',exact:true}).click();
@@ -232,7 +253,7 @@ try{
  await manager.getByRole('button',{name:'Back to History',exact:true}).click();
  await manager.getByRole('button',{name:'Refresh',exact:true}).click();
  await manager.getByLabel('Monitored site / program',{exact:true}).selectOption({label:'North Offsite (offsite)'});
- await manager.getByRole('button',{name:'+ Start New Monitoring',exact:true}).click();
+ await manager.getByRole('button',{name:/Supper 1 - North Offsite.*Not Started/}).click();
  await manager.getByLabel('Monitoring date',{exact:true}).fill('2026-09-24');
  await manager.getByRole('button',{name:'Save Draft',exact:true}).click();
  await expect(manager.getByText('Draft saved. You can return from any device.',{exact:true})).toBeVisible();
