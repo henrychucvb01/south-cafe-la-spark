@@ -1,5 +1,5 @@
 import { PDFDocument, StandardFonts, PDFName, PDFDict, rgb, pushGraphicsState, popGraphicsState, concatTransformationMatrix, drawObject } from "pdf-lib";
-import { average, findings, QUESTION_IDS } from "./model.js";
+import { average, findings, QUESTION_IDS, observedServices, displayTime } from "./model.js";
 
 export class ReportFitError extends Error {
   constructor(label, section) { super(`${label} does not fit the official two-page report. Shorten this entry before submitting; nothing has been truncated.`); this.section = section; }
@@ -83,12 +83,16 @@ export async function generateOfficialPdf(template, data, school, { monitorRole 
   text(0, shortDate(data.monitoringDate), 241, 724, 72, "Monitoring date", 0);
   text(0, data.arrivalTime, 325, 724, 65, "Arrival time", 0);
   text(0, data.departureTime, 407, 724, 82, "Departure time", 0);
-  if (data.unannounced) mark(0, 507, 728);
-  text(0, data.approvedServiceTime, 301, 705, 129, "CDE-approved service time", 2);
+  mark(0, 507, 728); // Supper visits are always unannounced.
+  const observed = observedServices(data);
+  const serviceLabel = [...new Set(observed.map(row => `${displayTime(row.start)}-${displayTime(row.end)}`))].join("; ");
+  const programLabel = [...new Set(observed.map(row => row.program))].join("; ");
+  const fitSummary = (value, width) => font.widthOfTextAtSize(value, 7) <= width ? value : "See page 2";
+  text(0, fitSummary(serviceLabel, 129), 301, 705, 129, "CDE-approved service time", 2);
   text(0, data.todayMeals, 527, 705, 50, "Today's meal count", 2);
   text(0, data.todayAttendance, 144, 687, 70, "Today's attendance", 2);
-  text(0, data.programName, 224, 686, 270, "ASP/program name", 2);
-  text(0, data.adultMeals, 555, 687, 24, "Adult meals", 2, 8);
+  text(0, fitSummary(programLabel, 270), 224, 686, 270, "After School Program name", 2);
+  text(0, "0", 555, 687, 24, "Adult meals", 2, 8);
   data.history.forEach((day, i) => {
     const x = 156 + 33 * i;
     text(0, shortDate(day.date), x, 570, 28, "History date", 1, 7, 6.5);
@@ -99,7 +103,7 @@ export async function generateOfficialPdf(template, data, school, { monitorRole 
   const menuRows = [635, 618, 601, 583, 564, 543, 521];
   const menuX = [374, 400, 397, 378, 389, 400, 382];
   data.menu.forEach((item, i) => {
-    text(0, item.applicable ? item.item : "N/A", menuX[i], menuRows[i], 528 - menuX[i], `${item.category} menu item`, 3, 8.5);
+    text(0, item.applicable && item.item.trim() ? item.item : "N/A", menuX[i], menuRows[i], 528 - menuX[i], `${item.category} menu item`, 3, 8.5);
     text(0, item.applicable ? item.serving : "", 535, menuRows[i], 45, `${item.category} serving size`, 3, 8);
   });
   const questionY = [466, 451.5, 437, 422.5, 408, 393.5, 379, 364.5, 350, 335.5, 321, 306.5, 292, 277.5, 263, 248.5, 234, 219.5, 201, 177, 156];
@@ -122,7 +126,7 @@ export async function generateOfficialPdf(template, data, school, { monitorRole 
     const a = data.correctiveActions[q.id];
     return `Q${q.id} follow-up by ${shortDate(a.followUpDue)} (${a.operatingDays} operating days, calendar checked): ${a.followUpPlan}${a.followUpComplete ? ` Completed ${shortDate(a.followUpDate)}: ${a.followUpNotes}` : ""}`;
   });
-  const comments = [data.comments, `Service observed: ${data.serviceStart}-${data.serviceEnd}.${data.programType ? ` Program: ${data.programType}.` : ""}`, data.followUpRequired && !required.length ? data.extraFollowUp : "", ...detail].filter(Boolean).join("\n");
+  const comments = [data.comments, ...observed.map(row => `After School Program: ${row.program}; ${row.day} CDE-approved service: ${displayTime(row.start)}-${displayTime(row.end)}.`), data.followUpRequired && !required.length ? data.extraFollowUp : "", ...detail].filter(Boolean).join("\n");
   const commentLines = lines(comments, 548, 8, "Comments and follow-up", 6);
   if (commentLines.length > 8) throw new ReportFitError("Comments and follow-up", 6);
   commentLines.forEach((line, i) => text(1, line, 31, 671 - i * 10.85, 548, "Comments and follow-up", 6, 8));

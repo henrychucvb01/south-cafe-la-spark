@@ -87,3 +87,40 @@
 .sm-review-queue { border-collapse: collapse; width: 100%; text-align: left; }
 .sm-review-queue th, .sm-review-queue td { padding: 12px; border-bottom: 1px solid #d3dbe5; vertical-align: top; }
 @media(max-width:650px) { .sm-pdf-scroll { padding: 4px; } .sm-review-workspace { padding: 14px; } }
+
+/* Compact guided tables; mobile keeps labels and full-size touch controls. */
+.sm-service-heading, .sm-service-row { display:grid; grid-template-columns:minmax(150px,2fr) minmax(115px,1fr) minmax(125px,1fr) minmax(125px,1fr) 100px 88px; gap:8px; align-items:start; }
+.sm-service-heading, .sm-menu-heading { font-weight:700; padding:10px 0; }
+.sm-service-row { padding:10px 0; border-top:1px solid #dfe6ed; }
+.sm-service-row .sm-field, .sm-menu-row .sm-field { margin:0; }
+.sm-service-confirm { grid-column:1 / -1; }
+.sm-service-row button { padding:10px 6px; }
+.sm-menu-heading, .sm-menu-row { display:grid; grid-template-columns:180px minmax(0,2fr) minmax(130px,1fr); gap:12px; align-items:center; }
+.sm-menu-row { padding:6px 0; border-top:1px solid #dfe6ed; }
+.sm-menu-row .sm-field label, .sm-service-row .sm-field label { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+.sm-question-row { padding:12px 0; border-bottom:1px solid #dfe6ed; }
+.sm-question-main { display:grid; grid-template-columns:minmax(0,1fr) 215px; gap:16px; align-items:start; line-height:1.5; }
+.sm-question-main .sm-answers { gap:6px; flex-wrap:nowrap; }
+.sm-question-main .sm-answers button { padding:8px 12px; min-width:60px; }
+.sm-question-tip { margin:5px 0 0; font-size:14px; color:#405671; }
+.sm-question-row .sm-subcard { margin:12px 0 0; }
+.sm-attendance-warning { padding:10px 14px; margin:8px 0; }
+.sm-attendance-warning p { margin:0; }
+@media(max-width:900px) {
+ .sm-service-heading { display:none; }
+ .sm-service-row { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .sm-service-row .sm-field label { position:static; width:auto; height:auto; clip-path:none; }
+}
+@media(max-width:600px) {
+ .sm-menu-heading { display:none; }
+ .sm-menu-row { grid-template-columns:minmax(0,2fr) minmax(100px,1fr); padding:10px 0; gap:8px; }
+ .sm-menu-row > strong { grid-column:1 / -1; }
+ .sm-menu-row .sm-field label { position:static; width:auto; height:auto; clip-path:none; font-size:13px; }
+ .sm-question-main { grid-template-columns:1fr; gap:8px; }
+ .sm-question-main .sm-answers button { flex:1; }
+}
+
+@media(min-width:901px) {
+ .sm-service-day > span, .sm-service-row > .sm-check:not(.sm-service-confirm) > span { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+ .sm-service-row > .sm-check:not(.sm-service-confirm) { justify-content:center; }
+}

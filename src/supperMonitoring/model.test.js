@@ -1,4 +1,4 @@
-import { newDraft, weekDates, average, validate, requiresCorrectiveAction, findings, QUESTION_IDS, schoolYear } from "./model";
+import { newDraft, weekDates, average, validate, requiresCorrectiveAction, findings, QUESTION_IDS, schoolYear, resumeDraft } from "./model";
 
 // Synthetic questionnaire exercises the renderer contract. It is deliberately
 // not the missing official questionnaire or an approved compliance definition.
@@ -6,6 +6,7 @@ const fixture = { ready: true, questions: QUESTION_IDS.map(id => ({ id, options:
 function completeDraft() {
   const data = newDraft("A Monitor");
   Object.assign(data, { unannounced: true, adultMeals: "0", approvedServiceTime: "14:30-15:30", followUpRequired: false, monitoringDate: "2026-09-23", arrivalTime: "14:00", departureTime: "16:00", serviceStart: "14:30", serviceEnd: "15:30", programName: "ASP", todayAttendance: "101", todayMeals: "100", weekStart: "2026-09-14", coordinatorName: "B Coordinator", comments: "No Findings" });
+  data.serviceTimes = [{program:"Beyond the Bell",day:"Wednesday",start:"14:30",end:"15:30",observed:true}];
   data.history = weekDates(data.weekStart).map(date => ({ date, meals: "100", attendance: "101" }));
   data.menu = data.menu.map(row => ({ ...row, item: "Menu item", serving: "1 cup" }));
   data.answers = Object.fromEntries(QUESTION_IDS.map(id => [id, id === "18a" || id === "19" ? "no" : "yes"]));
@@ -64,7 +65,7 @@ test("18b only applies according to the configured form condition", () => {
 });
 test("corrective action and follow-up fields are mandatory when triggered", () => {
   const draft = completeDraft(); draft.answers["19"] = "yes"; draft.followUpRequired = true; draft.correctiveActionDue = "2026-10-01";
-  expect(validate(draft, fixture).some(e => e.section === 5)).toBe(true);
+  expect(validate(draft, fixture).some(e => e.section === 4)).toBe(true);
   draft.correctiveActions["19"] = { description: "Finding", action: "Action", training: "Discussion", followUpPlan: "Return visit", actionDate: "2026-09-23", followUpDue: "2026-10-01", operatingDays: "6", calendarConfirmed: true };
   expect(validate(draft, fixture)).toEqual([]);
   draft.correctiveActions["19"].followUpComplete = true;
@@ -87,4 +88,46 @@ test("school-year boundary uses July and does not parse invalid dates", () => {
   expect(schoolYear("2026-06-30")).toBe("2025-26");
   expect(schoolYear("2026-07-01")).toBe("2026-27");
   expect(schoolYear("2026-02-30")).toBe("");
+});
+
+test("service validation uses only observed programs on the monitoring weekday and strict boundaries", () => {
+  const data = completeDraft();
+  data.serviceTimes.push({program:"Other program",day:"Wednesday",start:"15:00",end:"16:30",observed:true});
+  data.serviceTimes.push({program:"Beyond the Bell",day:"Tuesday",start:"12:00",end:"17:30",observed:true});
+  expect(validate(data,fixture).find(e=>e.field === "departureTime").message).toContain("4:30 PM");
+  data.departureTime="16:31";
+  expect(validate(data,fixture)).toEqual([]);
+  for(const time of ["14:30","14:45"]) { data.arrivalTime=time; expect(validate(data,fixture).find(e=>e.field === "arrivalTime").message).toContain("2:30 PM"); }
+  data.arrivalTime="14:29";data.departureTime="16:30";
+  expect(validate(data,fixture).some(e=>e.field === "departureTime")).toBe(true);
+  data.serviceTimes.forEach(row=>row.observed=false);
+  expect(validate(data,fixture).some(e=>e.field === "serviceTimes")).toBe(true);
+});
+test("today and history equal counts require explicit confirmation tied to those counts and date", () => {
+  const data=completeDraft();data.todayAttendance="100";
+  data.history[0].attendance="100";
+  expect(validate(data,fixture).map(e=>e.field)).toEqual(expect.arrayContaining(["todayAttendance","attendance-0"]));
+  data.todayAttendanceConfirmed=`${data.monitoringDate}|100|100`;
+  data.history[0].attendanceConfirmed=`${data.history[0].date}|100|100`;
+  expect(validate(data,fixture)).toEqual([]);
+  data.todayMeals="101";data.todayAttendance="101";
+  expect(validate(data,fixture).some(e=>e.field === "todayAttendance")).toBe(true);
+  data.todayAttendance="99";
+  expect(validate(data,fixture).find(e=>e.field === "todayAttendance").message).toContain("cannot be lower");
+});
+test("zero history meals cannot be confirmed away and optional menu rows may stay blank", () => {
+  const data=completeDraft();data.history[2].meals="0";
+  expect(validate(data,fixture).find(e=>e.field === "meals-2").message).toContain("Select a different Monday-Friday week");
+  data.history[2].meals="100";data.menu[5].item="";data.menu[5].serving="";
+  expect(validate(data,fixture)).toEqual([]);
+});
+
+test("legacy drafts retain their work and require confirmation of copied approved service hours", () => {
+  const old=completeDraft();delete old.serviceTimes;old.unannounced=false;old.adultMeals="8";
+  const resumed=resumeDraft(old);
+  expect(resumed.serviceTimes[0]).toMatchObject({program:"ASP",day:"Wednesday",start:"14:30",needsConfirmation:true});
+  expect(resumed.history).toEqual(old.history);
+  expect(resumed.unannounced).toBe(true);expect(resumed.adultMeals).toBe("0");
+  expect(resumed.signatures.monitor).toBeNull();
+  expect(validate(resumed,fixture).some(e=>e.field === "service-0")).toBe(true);
 });

@@ -18,7 +18,7 @@ The school home combines uploaded and SPARK-generated monitorings in Drafts / In
 
 ## Preserved guided behavior and official PDF
 
-Explicit saves preserve section and question position across devices. Revision checks prevent silent overwrites; failed saves preserve local work. Monday–Friday dates are generated from one selected week. Every day requires attendance greater than meals; missing/invalid/repeated dates, count errors and overlap with monitoring date are rejected. Five-day average is calculated on the same screen.
+Explicit saves preserve the current section and all answers across devices. Questions are displayed together in a compact list. Revision checks prevent silent overwrites; failed saves preserve local work. Monday–Friday dates are generated from one selected week. Every day requires a positive meal count and attendance at least equal to meals (equality requires explicit confirmation); missing/invalid/repeated dates, count errors and overlap with monitoring date are rejected. Five-day average is calculated on the same screen.
 
 All seven menu categories and official questions 1–20 remain, including conditional 18b, 18a/19 exceptions, repeated findings, corrective action and 20 guidance. Follow-up requires a date, 1–60 operating days and school-calendar confirmation; SPARK does not yet calculate district operating days. No scheduling matrix is introduced.
 
@@ -104,3 +104,43 @@ The real SQL/API test additionally checks Supervisor upload attribution, Manager
 Deployment of this upgrade requires the fourth migration before the new application build. The three migrations the user already applied remain unchanged. No live migration or production deployment is performed by this code update.
 
 Final workspace upgrade results: all 24 unit suites (109 tests), the production build, the real isolated SQL/API review checks, official report checks, existing desktop/mobile browser checks, and the expanded review browser checks passed. The parent-page review navigation guard also passed its four targeted tests. Browser coverage verified actual PDF canvas rendering, mouse and touch drawing, version-bound markup, Supervisor upload attribution, and zero Manager authentication calls from the Supervisor session. Supervisor and mobile Manager review screenshots were visually inspected. The existing build bundle-size advisory remains.
+
+
+## Guided workflow UX and rules — September 24, 2026
+
+This targeted update changes only the guided Manager/Supervisor form and its generated report. Uploaded PDFs, review/annotation, permissions, audit, locking and correction workflows are unchanged. No new database migration is required: the existing payload envelope remains schemaVersion 1, with additive guidedVersion 2 fields. Old generic fields remain in stored payloads for compatibility but are no longer inputs or PDF sources.
+
+- Monitoring Information includes a compact CDE-approved service-time table: After School Program name, day, start/end, and an observed checkbox. It supports multiple programs and different schedules by day. At least one service on the monitoring date's weekday must be selected. Arrival is strictly before every selected start, departure strictly after every selected end; equality is invalid. Each row's end must follow its start. Time messages identify the actual service/program/day.
+- Unannounced is automatic and Adult Meals is always 0. Neither is a question. Duplicate generic program/service fields are removed.
+- Today's counts display the monitoring date. Today and each history day reject attendance below meals; equal counts show the 100% participation warning and require confirmation against attendance and Community Roster. Confirmations are tied to the exact date and counts and reset when edited. Counts are never auto-adjusted.
+- Five-day history stays on one screen with visible guidance. Any zero meal day blocks Continue and submission and offers Select Different Week. Existing Monday-Friday/date uniqueness/monitoring-date exclusions remain.
+- Menu uses seven compact rows with food and serving-size columns. Unused categories may stay blank; entering either food or serving requires its paired value. Existing categories explicitly marked not applicable display blank and still map to N/A unless edited.
+- Questions are a compact desktop list and mobile rows with full-size answer buttons. Official options stay unchanged: only question 4 offers manual N/A; 18b is automatically N/A when 18a is No. The 18a/18b/19/20 guidance remains. Triggered 18b/19/20 detail fields appear immediately beneath their question; their validation points to that screen. Other corrective-action fields remain in the existing findings section.
+- Check This Section is removed. Touched fields/count comparisons validate as entered; Save Draft surfaces section issues while preserving incomplete work; Save & Continue blocks invalid sections. Section selection still allows working on drafts out of order; final review and server submission enforce every rule.
+- Editable old drafts retain entered data. Their old program and generic hours are copied to a service row requiring confirmation against the CDE approval; the previous free-text approved time is shown as a reference. New required data invalidates old signatures, so the updated content must be signed again. Stored completed PDFs are not regenerated.
+
+### PDF mapping and assumptions
+
+The official two-page template and coordinates remain unchanged. Unannounced is checked regardless of any legacy value; adult meals prints 0. The report uses the explicitly selected services on the monitoring date's weekday. Page 1 summarizes their approved times and program names; when either field is too long it prints See page 2. Page 2 includes each observed program, weekday and exact approved start/end. Other weekdays' schedules remain saved in SPARK and are not represented as observed services on that visit. Existing fit checks reject overflow rather than truncate or change the official layout. Counts, five-day history, menu/servings, answers and signatures retain their original mapped locations.
+
+Assumptions: visits and each service window are within one calendar day; before/after are strict boundaries; users select all services they actually observed. Confirmation permits equal attendance but cannot override lower attendance or zero history meals. Optional menu categories can be blank rather than requiring a separate not-applicable toggle.
+
+### Files in this update
+
+- src/supperMonitoring/GuidedSections.js (new): compact guided sections and count warnings.
+- src/supperMonitoring/SupperMonitoringPage.js: integration, inline special follow-up, validation/navigation and resume.
+- src/supperMonitoring/model.js: service/date/count/confirmation rules and legacy upgrade.
+- src/supperMonitoring/pdf.js: automatic constants and observed-service PDF mapping.
+- src/supperMonitoring/supperMonitoring.css: responsive tables and compact question list.
+- src/supperMonitoring/model.test.js and SupperMonitoringPage.test.js: business rules and draft regression tests.
+- scripts/supper-monitoring-fixture.mjs: structured schedule fixture.
+- scripts/test-supper-monitoring-browser.mjs: desktop/mobile guided UX, rules, special questions, signing and PDF regression.
+- scripts/test-supper-monitoring-report.mjs: actual PDF values/operator equivalence and server-side rules.
+- scripts/test-supper-monitoring-review-browser.mjs: use section selector to save an intentionally incomplete Supervisor draft under the new Continue validation.
+- SUPPER_MONITORING.md: workflow, compatibility, assumptions and verification.
+
+Verification for this guided update: all 24 unit suites / 113 tests passed. The real isolated SQL/database and API review suites passed, including existing upload, scope, audit, return/replace/resubmit/lock and Supervisor on-behalf workflows. Official-report tests passed, including actual extracted Adult Meals coordinates, identical page-1 rendering when legacy Unannounced/Adult values differ, multiple observed programs, day-specific mapping, signature binding, overflow protection and server business rules. The AR Training bank passed all 500 questions. Both official PDF pages were rendered and visually reviewed.
+
+The unrelated Ask SPARK route check still fails because its existing mock rejects Gemini model discovery; both its API and test are identical to origin/main. This is the previously documented failure and is outside this task. Build output retains the existing bundle-size advisory. No live database changes, push, preview deployment or production deployment are part of this update.
+
+Final build passed and its source map matches the final guided component. The expanded desktop/mobile browser suite passed, including actual multi-program/day-specific time validation, lower/equal attendance, zero-history blocking, compact menu/questions, inline 18b/19/20 follow-up, legacy draft confirmation/save/resume, mouse/touch signing, landscape sizing, preview/submission, exact stored download and read-only history. Final service-table and mobile-menu screenshots were inspected. The separate review browser suite also passed the existing upload/review/annotation/return/replacement/accept/lock/on-behalf and zero-Manager-authentication Supervisor workflows.

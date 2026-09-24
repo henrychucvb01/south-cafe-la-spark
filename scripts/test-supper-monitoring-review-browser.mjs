@@ -108,7 +108,7 @@ try{
  await expect(supervisor.locator('.sm-review-queue')).toContainText('Supervisor / AFSS (on behalf of school/Manager)');
  await supervisor.getByRole('button',{name:'Open School Monitorings',exact:true}).click();
  await supervisor.getByRole('button',{name:'+ Start Supervisor Monitoring',exact:true}).click();
- await supervisor.getByLabel('Monitoring date',{exact:true}).fill('2026-09-24');await supervisor.getByRole('button',{name:'Save & Continue →',exact:true}).click();
+ await supervisor.getByLabel('Monitoring date',{exact:true}).fill('2026-09-24');await supervisor.getByLabel('Go to section').selectOption('1');
  await expect(supervisor.getByRole('heading',{name:'Five-Day History',exact:true})).toBeVisible();await supervisor.getByLabel('Go to section').selectOption('7');
  await expect(supervisor.getByLabel('Supervisor / AFSS printed name',{exact:true})).toBeVisible();await expect(supervisor.getByRole('button',{name:'Sign with Finger',exact:true})).toHaveCount(2);
  await supervisor.getByRole('button',{name:'Save & Return to Monitorings',exact:true}).click();

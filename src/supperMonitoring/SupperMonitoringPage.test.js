@@ -27,9 +27,9 @@ async function input(selector, value) {
 test("starts, saves, and resumes at the server's saved section", async () => {
   await click("+ Start New Monitoring");
   await input("#monitoringDate", "2026-09-23");
-  await click("Save & Continue →");
+  await click("Save Draft");
   expect(service.saveDraft.mock.calls[0][2].monitoringDate).toBe("2026-09-23");
-  expect(service.saveDraft.mock.calls[0][3]).toBe(1);
+  expect(service.saveDraft.mock.calls[0][3]).toBe(0);
   const payload = { ...newDraft("Test Monitor"), monitoringDate: "2026-09-23" };
   service.listMonitorings.mockResolvedValue([{ id: "draft-id", status: "draft", source: "generated", monitor_role: "manager", created_by_employee_id: 11, school_year: "2026-27", monitoring_slot: "manager_1", current_section: 1, updated_at: "2026-09-23T10:00:00Z" }]);
   service.getMonitoring.mockResolvedValue({ id: "draft-id", status: "draft", source: "generated", monitor_role: "manager", created_by_employee_id: 11, school_year: "2026-27", monitoring_slot: "manager_1", revision: 2, payload, current_section: 1 });
@@ -39,7 +39,7 @@ test("starts, saves, and resumes at the server's saved section", async () => {
 test("a failed save preserves data and prevents navigation", async () => {
   await click("+ Start New Monitoring"); await input("#monitoringDate", "2026-09-23");
   service.saveDraft.mockRejectedValue(new Error("Connection unavailable"));
-  await click("Save & Continue →");
+  await click("Save Draft");
   expect(container.querySelector("#monitoringDate").value).toBe("2026-09-23");
   expect(container.querySelector("[role=alert]").textContent).toContain("Connection unavailable");
   expect(container.querySelector("h2").textContent).toBe("Monitoring Information");
