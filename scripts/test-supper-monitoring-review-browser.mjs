@@ -14,13 +14,13 @@ insert into locations values(1,true,'Test School','1001');insert into employees 
 create function verify_manager_pin(text,text) returns boolean language sql as $$select $2='1234'$$;
 create function verify_covering_pin(text) returns boolean language sql as $$select false$$;
 create function verify_supervisor_pin(text) returns boolean language sql as $$select $1='9999'$$;`);
-for(const name of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql','202609240003_monitoring_types_sites_restart.sql']) await db.exec(await readFile('supabase/migrations/'+name,'utf8'));
+for(const name of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql','202609240003_monitoring_types_sites_restart.sql','202609240004_monitoring_current_records.sql']) await db.exec(await readFile('supabase/migrations/'+name,'utf8'));
 // Serialize role-scoped requests on this single ephemeral database connection.
 let queue=Promise.resolve();
 function rpc(name,args,role='anon') {const task=queue.then(async()=>{await db.exec('reset role;set role '+role);const set=['list_supper_monitorings','supper_audit_history'].includes(name);const rows=(await db.query(`select to_jsonb(public.${name}(${Object.keys(args).map((k,i)=>k+' => $'+(i+1)).join(',')})) as result`,Object.values(args))).rows;return set ? rows.map(r=>r.result) : rows[0].result;});queue=task.catch(()=>{});return task;}
 const database={rpc:async(name,args)=>{try{return {data:await rpc(name,args,'service_role')};}catch(e){return {error:{message:e.message}};}},from:()=>({select:()=>({eq:()=>({single:async()=>({data:{school_name:'Test School',location_code:'1001'}})})})})};
 const handler=createHandler({database});const build=resolve('build');
-const server=createServer(async(req,res)=>{try{if(req.url==='/api/supper-monitoring'){let raw='';for await(const c of req)raw+=c;req.body=JSON.parse(raw);res.status=n=>{res.statusCode=n;return res;};res.json=b=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify(b));};res.send=b=>res.end(b);await handler(req,res);return;}
+const server=createServer(async(req,res)=>{try{if(req.url==='/api/monitoring'){let raw='';for await(const c of req)raw+=c;req.body=JSON.parse(raw);res.status=n=>{res.statusCode=n;return res;};res.json=b=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify(b));};res.send=b=>res.end(b);await handler(req,res);return;}
 let path=resolve(build,'.'+new URL(req.url,'http://localhost').pathname);if(path!==build&&!path.startsWith(build+sep))return res.writeHead(403).end();if(path===build)path=resolve(build,'index.html');res.setHeader('Content-Type',({'.html':'text/html','.js':'application/javascript','.mjs':'application/javascript','.wasm':'application/wasm','.css':'text/css','.png':'image/png'})[extname(path)]||'application/octet-stream');res.end(await readFile(path));}catch(e){res.writeHead(500).end(e.message);}});
 await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin='http://127.0.0.1:'+server.address().port;
 const browser=await chromium.launch({channel:process.env.SPARK_TEST_BROWSER||'chrome',headless:true});const errors=[];const supervisorCalls=[];
@@ -86,11 +86,8 @@ try{
  await supervisor.getByRole('button',{name:'Refresh Overview'}).click();await supervisor.locator('.sm-review-queue').getByRole('button',{name:'Review',exact:true}).click();
  await expect(supervisor.getByText('Opening the stored PDF and review…',{exact:true})).toHaveCount(0);
  await expect(supervisor.locator('.sm-mark-list li')).toHaveCount(0);
- await supervisor.getByLabel('PDF version',{exact:true}).selectOption('1');
- await expect(supervisor.locator('.sm-mark-list').getByText('Add the ASP Coordinator signature here.',{exact:false})).toBeVisible();
- await expect(supervisor.getByRole('button',{name:'Draw',exact:true})).toHaveCount(0);
- await supervisor.getByLabel('PDF version',{exact:true}).selectOption('2');
- await supervisor.getByLabel('Supervisor comments',{exact:true}).fill('Correction verified.');
+ await expect(supervisor.getByLabel('PDF version',{exact:true})).toHaveCount(0);
+ await expect(supervisor.locator('.sm-mark-list li')).toHaveCount(0);
  await supervisor.getByRole('button',{name:'Accept & Lock',exact:true}).click();await expect(supervisor.getByText('Monitoring accepted and locked.',{exact:true})).toBeVisible();
  await expect(supervisor.getByRole('button',{name:'Draw',exact:true})).toHaveCount(0);
  await manager.getByRole('button',{name:'Back to History'}).click();await manager.getByRole('button',{name:'Refresh',exact:true}).click();await manager.getByRole('button',{name:'View',exact:true}).click();
@@ -186,7 +183,25 @@ try{
  const same=afterRestart.find(r=>r.id===target.id);
  assert.equal(same.monitoring_site_id,target.monitoring_site_id);assert.equal(same.monitoring_slot,target.monitoring_slot);assert.equal(same.status,'draft');
  await rpc('close_supper_monitoring_session',{p_token:restartToken});
+ await supervisor.getByLabel('Monitoring type').selectOption('snack');
+ await expect(supervisor.getByRole('button',{name:'+ Start Supervisor Monitoring',exact:true})).toBeDisabled();
+ assert.equal(await supervisor.getByText('View Audit History',{exact:true}).count(),0);
+ await supervisor.getByRole('button',{name:'← School Overview',exact:true}).click();
+ await supervisor.getByRole('button',{name:'Upload Existing Monitoring',exact:true}).click();
+ await supervisor.getByLabel('Upload school',{exact:true}).selectOption('1');
+ await supervisor.getByLabel('Monitoring type').selectOption('snack');
+ await supervisor.getByLabel('Monitored site / program',{exact:true}).selectOption({label:'North Offsite'});
+ await supervisor.getByLabel('Monitoring number',{exact:true}).fill('7');
+ await supervisor.getByLabel('Monitoring date',{exact:true}).fill('2026-09-24');
+ await supervisor.getByLabel('Manager / monitor printed name',{exact:true}).fill('Snack Monitor');
+ await supervisor.getByLabel('Choose PDF',{exact:true}).setInputFiles('public/supper-monitoring-2022-09-08.pdf');
+ await supervisor.getByRole('button',{name:'Upload Monitoring',exact:true}).click();
+ await expect(supervisor.getByRole('heading',{name:'Supervisor PDF Review',exact:true})).toBeVisible();
+ await expect(supervisor.getByText(/Snack 7 - North Offsite/)).toBeVisible();
+ await supervisor.getByRole('button',{name:'Accept & Lock',exact:true}).click();
+ await expect(supervisor.getByText('Accepted / Locked',{exact:true})).toBeVisible();
+ await supervisor.screenshot({path:'test-results/supper-review/snack-current-record.png',fullPage:true});
  assert.ok(!supervisorCalls.some(n=>['verify_manager_pin','open_supper_monitoring_session','has_manager_pin'].includes(n)),'Supervisor never asks for or uses Manager authentication');
  assert.deepEqual(errors,[]);
- console.log('PASS: Monitoring navigation, scoped site creation/selection, restart confirmation/cancel/same-record reset, Supervisor queue, rendered multi-page PDF, zoom, comment markers/freehand drawing, atomic return, manager read-only markup, replacement-version history, Accept & Lock, upload on behalf while OFF, AFSS separation, and zero Manager auth calls by Supervisor.');
+ console.log('PASS: Monitoring navigation, scoped site creation/selection, restart confirmation/cancel/same-record reset, Supervisor queue, rendered multi-page PDF, zoom, comment markers/freehand drawing, atomic return, manager read-only markup, current-only replacement, Accept & Lock, upload on behalf while OFF, AFSS separation, and zero Manager auth calls by Supervisor.');
 }catch(error){for(const context of browser.contexts())for(const page of context.pages()){console.error((await page.locator('body').innerText()).slice(0,7000));}throw error;}finally{await browser.close();await new Promise(r=>server.close(r));await db.close();}

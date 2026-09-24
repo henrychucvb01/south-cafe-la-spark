@@ -16,7 +16,7 @@ export const getMonitoring = (token, id) => rpc("get_supper_monitoring", { p_tok
 export const saveDraft = (token, record, payload, section) => rpc("save_supper_monitoring_draft", { p_token: token, p_id: record?.id || null, p_revision: record?.revision || null, p_section: section, p_payload: payload });
 
 async function reportRequest(token, record, action, extra = {}) {
-  const response = await fetch("/api/supper-monitoring", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ action, id: record?.id, revision: record?.revision, ...extra }) });
+  const response = await fetch("/api/monitoring", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ action, id: record?.id, revision: record?.revision, ...extra }) });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     const error = new Error(body.error || "The official report could not be saved. Your draft is preserved.");
@@ -28,7 +28,7 @@ export async function submitMonitoring(token, record) { return (await (await rep
 export async function downloadReport(token, record, action = "download") {
   const response = await reportRequest(token, record, action);
   const url = URL.createObjectURL(await response.blob());
-  const link = document.createElement("a"); link.href = url; link.download = `Supper-Monitoring-${record.monitoring_date || "draft"}.pdf`;
+  const link = document.createElement("a"); link.href = url; link.download = `${record.monitoring_type || "supper"}-Monitoring-${record.monitoring_date || "draft"}.pdf`;
   document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
 
@@ -41,22 +41,16 @@ export const getContext = token => rpc("supper_context",{p_token:token});
 export const supervisorOverview = pin => rpc("supper_supervisor_overview",{p_pin:pin});
 export const setUploads = (pin,enabled) => rpc("set_supper_uploads",{p_pin:pin,p_enabled:enabled});
 export const reviewAction = (token,record,action,comment) => rpc("supper_review_action",{p_token:token,p_id:record.id,p_revision:record.revision,p_action:action,p_comment:comment});
-export const auditHistory = (token,id) => rpc("supper_audit_history",{p_token:token,p_id:id});
 export async function uploadPdf(token,record,metadata,file) {
   if (!file || file.size > 2097152 || !/\.pdf$/i.test(file.name)) throw Error("Select a PDF no larger than 2 MB.");
   const pdfBase64 = await new Promise((resolve,reject) => { const reader=new FileReader(); reader.onload=()=>resolve(reader.result.split(",")[1]); reader.onerror=()=>reject(Error("The PDF could not be read.")); reader.readAsDataURL(file); });
   return (await (await reportRequest(token,record,"upload",{metadata,pdfBase64})).json()).record;
 }
-export async function downloadVersion(token,record,version) {
-  const response=await reportRequest(token,record,"version",{version});
-  const url=URL.createObjectURL(await response.blob()); const link=document.createElement("a");
-  link.href=url;link.download=`Supper-Monitoring-version-${version}.pdf`;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
-}
 
 export const schoolManagers = token => rpc("supper_school_managers", {p_token:token});
 export const pdfReviews = (token,id) => rpc("supper_pdf_reviews_for_record", {p_token:token,p_id:id});
-export async function reportBytes(token,record,version=record.document_version) {
-  const response = await reportRequest(token,record,version===record.document_version ? "download" : "version",{version});
+export async function reportBytes(token,record) {
+  const response = await reportRequest(token,record,"download");
   return new Uint8Array(await response.arrayBuffer());
 }
 export async function savePdfReview(token,record,annotations,comment,reviewAction="save") {

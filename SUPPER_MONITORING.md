@@ -1,3 +1,5 @@
+> Current retention/type policy: see [MONITORING_CURRENT_RECORDS.md](MONITORING_CURRENT_RECORDS.md). Migration 6 removes the Monitoring-only audit/version archive described in older sections below. Completed historical monitoring records remain.
+
 # Monitoring — Supper workflow
 
 Development-only expansion of the existing guided tool. Manager Hub still places School Dashboard and Daily Bites first; Monitoring is the tool name and opens with the existing sign-in, without another PIN prompt. Command Center links to Monitoring. Supper remains the first active monitoring type. No unrelated scoring, analytics, games, staffing or scorecard logic is changed.

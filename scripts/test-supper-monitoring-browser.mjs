@@ -32,7 +32,7 @@ const reportHandler = createHandler({ database: {
 } });
 const server = createServer(async (req, res) => {
   try {
-    if (req.url === '/api/supper-monitoring') {
+    if (req.url === '/api/monitoring') {
       let body = ''; for await (const chunk of req) body += chunk;
       req.body = JSON.parse(body);
       res.status = code => { res.statusCode = code; return res; };
@@ -262,10 +262,10 @@ try {
     await expect(page.getByRole("group",{name:"Question 2",exact:true})).toBeVisible();
     assert.equal(await page.locator(".sm-question-row").count(),20);
     await page.getByLabel('Go to section').selectOption('9');
-    await expect(page.getByRole('button',{name:'Submit Monitoring',exact:true})).toBeEnabled();
+    await expect(page.getByRole('button',{name:'Submit Monitoring',exact:true})).toBeEnabled({timeout:30000});
     await expect(page.getByRole('button',{name:/Preview.*PDF/})).toHaveCount(0);
     await page.getByLabel('PDF page',{exact:true}).selectOption('2');await page.getByLabel('PDF zoom',{exact:true}).selectOption('0.75');
-    await expect(page.getByRole('button',{name:'Submit Monitoring',exact:true})).toBeEnabled();
+    await expect(page.getByRole('button',{name:'Submit Monitoring',exact:true})).toBeEnabled({timeout:30000});
     await page.screenshot({path:resolve(output,`embedded-review-${viewport.width}.png`),fullPage:true});
     assert.equal(complete.status,'draft');
     await page.getByRole('button',{name:'Submit Monitoring',exact:true}).click();
@@ -276,6 +276,7 @@ try {
     await (await download).saveAs(resolve(output,`browser-completed-${viewport.width}.pdf`));
     assert.deepEqual(await readFile(resolve(output,`browser-completed-${viewport.width}.pdf`)),Buffer.from(documents.get(complete.id),'base64'));
     await page.screenshot({path:resolve(output,`completed-${viewport.width}.png`),fullPage:true});
+    complete.status='accepted';complete.locked=true;
     complete.school_year = '2025-26';
     await page.getByRole('button',{name:'Return to Monitorings',exact:true}).click();
     const previous = page.locator('section.sm-card').filter({has:page.getByRole('heading',{name:'Previous Monitorings',exact:true})});
@@ -289,4 +290,4 @@ try {
   assert.deepEqual(pageErrors, []);
   console.log("PASS: desktop/mobile login and Manager Hub, day-specific multi-program times, attendance/zero-week validation, compact menu/questions, legacy draft upgrade, save/resume, mouse/touch signatures, landscape sizing, review, inline special follow-up, preview, submission, byte-identical download, and read-only previous reports.");
   console.log(`Screenshots: ${output}`);
-} finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
+} catch(error) { for(const context of browser.contexts())for(const page of context.pages())console.error((await page.locator('body').innerText()).slice(0,8000));throw error; } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }

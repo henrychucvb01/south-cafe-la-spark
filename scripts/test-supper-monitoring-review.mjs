@@ -14,7 +14,7 @@ try {
  create function verify_manager_pin(text,text) returns boolean language sql as $$select $2='1234'$$;
  create function verify_covering_pin(text) returns boolean language sql as $$select $1='5678'$$;
  create function verify_supervisor_pin(text) returns boolean language sql as $$select $1='9999'$$;`);
- for(const file of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql','202609240003_monitoring_types_sites_restart.sql']) {
+ for(const file of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql','202609240003_monitoring_types_sites_restart.sql','202609240004_monitoring_current_records.sql']) {
   if(file.startsWith('202609240001')) await db.exec(`
    insert into supper_monitorings(location_id,created_by_employee_id,created_by_name,school_year,monitoring_date,status,submitted_at,template_version,pdf_storage_path,pdf_sha256)
    select 2,22,'Legacy Manager','2025-26','2026-06-01','completed',now(),'lausd-supper-2022-09-08','legacy','test' from generate_series(1,3);
@@ -22,10 +22,10 @@ try {
   `);
   await db.exec(await readFile(new URL('../supabase/migrations/'+file,import.meta.url),'utf8'));
  }
- const legacy=(await db.query('select * from supper_monitorings where location_id=2')).rows;
+ const legacy=(await db.query('select * from monitoring_records where location_id=2')).rows;
  assert.equal(legacy.length,3);assert.ok(legacy.every(r=>r.status==='submitted' && !r.locked && r.document_version===1));
  assert.equal(legacy.filter(r=>r.monitoring_slot===null).length,1,'Extra legacy records retained without a duplicate slot');
- assert.equal((await db.query('select * from supper_monitoring_document_versions')).rows.length,3,'Legacy original PDFs seeded as version 1');
+ assert.equal((await db.query('select * from monitoring_documents')).rows.length,3,'Current legacy PDFs preserved');
  const rpc=async(name,args,role='anon')=>{await db.exec('reset role;set role '+role);return (await db.query(`select to_jsonb(public.${name}(${Object.keys(args).map((k,i)=>k+'=> $'+(i+1)).join(',')})) as result`,Object.values(args))).rows[0].result;};
  const open=(loc,id)=>rpc('open_supper_monitoring_session',{p_location_id:loc,p_employee_id:id,p_pin:'1234'});
  const manager=await open(1,11),colleague=await open(1,12),other=await open(2,22);
@@ -70,9 +70,8 @@ try {
  assert.notEqual((await upload(manager,r)).code,200);
  await assert.rejects(()=>save(manager,r,makeFixture()),/read-only/);
  for(const action of ['unlock','delete','accept']) await assert.rejects(()=>review(manager,r,action,'Attempt'),/Supervisor authorization/);
- r=okay(await upload(supervisor,r));assert.equal(r.status,'accepted');assert.equal(r.locked,true);assert.equal(r.document_version,3);
- assert.equal((await request(manager,{action:'version',id:r.id,version:1})).code,403);
- assert.deepEqual((await request(supervisor,{action:'version',id:r.id,version:1})).body,template);
+ assert.notEqual((await upload(supervisor,r)).code,200,'Supervisor must intentionally unlock before replacement');
+ assert.equal((await request(supervisor,{action:'version',id:r.id,version:1})).code,400,'Historical PDF route removed');
  r=await review(supervisor,r,'unlock','Please correct the date.');assert.equal(r.locked,false);
  r=okay(await upload(manager,r));r=await review(manager,r,'resubmit');r=await review(supervisor,r,'accept');
  // Guided manager uses the other structured slot even with uploads OFF.
@@ -96,20 +95,18 @@ try {
  await assert.rejects(()=>save(manager,own,afss),/creator/);
  const pdf=await request(supervisor,{action:'download',id:own.id});assert.equal(pdf.code,200);
  await mkdir('test-results/supper-review-qa',{recursive:true});await writeFile('test-results/supper-review-qa/supervisor-official.pdf',pdf.body);
- assert.deepEqual(slotProgress(await list(manager),'2026-27').map(p=>p.record.status),['accepted','accepted','completed']);
+ assert.deepEqual(slotProgress(await list(manager),'2026-27').map(p=>p.record.status),['accepted','completed','accepted']);
  assert.equal(new Set((await list(manager)).map(r=>r.source)).size,2,'Unified uploaded/generated history');
  await db.exec('reset role;set role anon');
- const events=(await db.query('select * from supper_audit_history($1,$2)',[supervisor,r.id])).rows;
- for(const action of ['Uploaded','Submitted','Returned for Correction','PDF Replaced','Resubmitted','Accepted','Unlocked']) assert.ok(events.some(e=>e.action===action),action);
- assert.ok(events.every(e=>e.actor_name && e.actor_role && e.occurred_at));
- await assert.rejects(()=>rpc('supper_audit_history',{p_token:manager,p_id:r.id}),/Supervisor authorization/);
- r=await review(supervisor,r,'delete','Duplicate outside monitoring replaced.');assert.equal(r.status,'deleted');
- assert.equal((await list(manager)).length,2);assert.equal((await list(supervisor)).length,3);
- assert.deepEqual((await request(supervisor,{action:'version',id:r.id,version:1})).body,template,'Deletion retains audit documents');
- await assert.rejects(()=>get(manager,r.id),/not found/);
+ const deletedId=r.id;
+ assert.equal(await review(supervisor,r,'delete','Duplicate'),null);
+ assert.equal((await list(manager)).length,2);assert.equal((await list(supervisor)).length,2);
+ await assert.rejects(()=>get(manager,deletedId),/not found/);
+ await assert.rejects(()=>get(supervisor,deletedId),/not found/);
+ assert.notEqual((await request(supervisor,{action:'download',id:deletedId})).code,200);
  await rpc('set_supper_uploads',{p_pin:'9999',p_enabled:true});assert.equal(okay(await upload(manager)).status,'submitted','Deleted slot can be reused');
  await db.exec('reset role;set role anon');
- for(const table of ['supper_monitorings','supper_monitoring_events','supper_monitoring_document_versions','supper_monitoring_settings']) await assert.rejects(()=>db.query('select * from '+table),/permission denied/);
+ for(const table of ['monitoring_records','monitoring_documents','monitoring_pdf_review','monitoring_settings']) await assert.rejects(()=>db.query('select * from '+table),/permission denied/);
  await assert.rejects(()=>rpc('upload_supper_pdf',{p_token:manager,p_id:null,p_revision:null,p_metadata:metadata,p_pdf_base64:template.toString('base64'),p_pdf_sha256:'fake'}),/permission denied/);
 
  // Supervisor upload is a Manager monitoring, with authentic Supervisor attribution.
@@ -138,20 +135,17 @@ try {
  assert.deepEqual(reviewed[0].annotations,marks);assert.equal(reviewed[0].page_count,2);
  await assert.rejects(()=>rpc('supper_pdf_reviews_for_record',{p_token:other,p_id:behalf.id}),/not found/);
  behalf=okay(await upload(manager,behalf,behalfMeta));assert.equal(behalf.document_version,2);
- assert.equal((await rpc('supper_pdf_reviews_for_record',{p_token:manager,p_id:behalf.id}))[0].document_version,1,'Markup remains tied to original PDF after replacement');
- assert.deepEqual((await request(manager,{action:'version',id:behalf.id,version:1})).body,template,'Manager can view the reviewed old PDF');
+ assert.deepEqual(await rpc('supper_pdf_reviews_for_record',{p_token:manager,p_id:behalf.id}),[],'Replacement discards obsolete markup');
  behalf=await review(manager,behalf,'resubmit');assert.equal(behalf.submitted_by_name,'Monitor One');assert.equal(behalf.submitted_by_role,'manager');
  behalf=okay(await markRequest(supervisor,behalf,'accept',{annotations:[],comment:'Correction verified.'}));assert.equal(behalf.locked,true);
  assert.notEqual((await markRequest(supervisor,behalf)).code,200,'Accepted markup cannot change without unlock');
  await db.exec('reset role;set role anon');
- const behalfEvents=(await db.query('select * from supper_audit_history($1,$2)',[supervisor,behalf.id])).rows;
- assert.ok(behalfEvents.some(e=>e.action==='Uploaded by Supervisor on behalf of school/Manager' && e.actor_role==='supervisor'));
- assert.ok(behalfEvents.some(e=>e.action==='PDF comments and markup saved'));
- await assert.rejects(()=>db.query('select * from supper_pdf_reviews'),/permission denied/);
+ await assert.rejects(()=>db.query('select * from monitoring_pdf_review'),/permission denied/);
  await assert.rejects(()=>rpc('save_supper_pdf_review',{p_token:supervisor,p_id:behalf.id,p_revision:behalf.revision,p_document_version:2,p_page_count:2,p_annotations:[],p_comment:'',p_action:'save'}),/permission denied/);
  const unassigned=okay(await upload(supervisor,null,{...behalfMeta,monitoringSlot:'manager_2',managerEmployeeId:''}));
  assert.equal(unassigned.manager_employee_id,null);
- assert.equal(okay(await upload(colleague,unassigned,{...behalfMeta,monitoringSlot:'manager_2'})).status,'corrections_requested','School managers can correct an unassigned on-behalf upload');
+ const returnedUnassigned=await review(supervisor,unassigned,'return','Please correct');
+ assert.equal(okay(await upload(colleague,returnedUnassigned,{...behalfMeta,monitoringSlot:'manager_2'})).status,'corrections_requested','School managers can correct an unassigned on-behalf upload');
 
  // Generic monitoring identity and same-record restart, with real SQL permissions.
  assert.ok(legacy.every(r=>r.monitoring_type==='supper'&&r.monitoring_site_id&&r.monitoring_site_name==='Main Site'));
@@ -192,15 +186,11 @@ try {
  await assert.rejects(()=>restart(manager,restartable),/Submitted records/);
  restartable=await review(supervisor,restartable,'return','Start again with corrected observation.');
  const previousVersion=restartable.document_version;
- const oldBytes=(await request(supervisor,{action:'version',id:restartable.id,version:previousVersion})).body;
  restartable=await restart(manager,restartable);
  assert.equal(restartable.status,'draft');assert.equal(restartable.current_pdf_available,false);assert.equal(restartable.document_version,previousVersion);
  assert.notEqual((await request(manager,{action:'download',id:restartable.id})).code,200,'Abandoned PDF is not current');
- assert.deepEqual((await request(supervisor,{action:'version',id:restartable.id,version:previousVersion})).body,oldBytes,'Prior PDF retained unchanged');
- await db.exec('reset role;set role anon');
- const restartedEvents=(await db.query('select * from supper_audit_history($1,$2)',[supervisor,restartable.id])).rows;
- assert.equal(restartedEvents.filter(e=>e.action==='Monitoring restarted by Manager').length,2);
- assert.equal(restartedEvents.at(-1).metadata.monitoring_site_id,offsite.id);
+ await db.exec('reset role');
+ assert.equal((await db.query('select * from monitoring_documents where monitoring_id=$1',[restartable.id])).rows.length,0);
  restartable=await save(manager,restartable,sitePayload(offsite));
  restartable=okay(await request(manager,{action:'submit',id:restartable.id,revision:restartable.revision}));
  assert.equal(restartable.document_version,previousVersion+1);assert.equal(restartable.current_pdf_available,true);
@@ -213,6 +203,29 @@ try {
  assert.equal((await rpc('supper_supervisor_overview',{p_pin:'9999'})).records.find(r=>r.id===uploadedAtEec.id).monitoring_type,'supper');
  await db.exec('reset role;set role anon');
  await assert.rejects(()=>db.query('select * from monitoring_sites'),/permission denied/);
- console.log('PASS: monitoring types/sites backfill, per-site slots beyond three records, school isolation, scoped site creation, same-record restart, ownership/status/revision guards, historical PDF retention and audit.');
- console.log('PASS: all migrations; on-behalf uploads and attribution; version-bound PDF markup, atomic review and lock permissions; real API + SQL upload/return/replace/resubmit/accept/lock/unlock/delete; setting OFF; PDF versions; ownership/school/role restrictions; shared guided manager and AFSS completion; unified three-slot history; audit and private storage.');
+ // Generic existing-PDF records: no Supper slot or frequency assumptions.
+ await rpc('set_supper_uploads',{p_pin:'9999',p_enabled:true});
+ for(const monitoringType of ['breakfast','lunch','snack']) {
+  const meta={...metadata,monitoringType,monitoringNumber:'7',monitoringSiteId:eec.id,monitoringSlot:null};
+  let generic=okay(await upload(manager,null,meta));
+  assert.equal(generic.monitoring_type,monitoringType);assert.equal(generic.monitoring_slot,null);assert.equal(generic.monitoring_number,7);
+  assert.notEqual((await upload(manager,null,meta)).code,200,'Duplicate type/site/year/number is rejected');
+  assert.equal(okay(await upload(manager,null,{...meta,monitoringNumber:'8'})).monitoring_number,8);
+  assert.equal(okay(await upload(manager,null,{...meta,monitoringSiteId:offsite.id})).monitoring_site_id,offsite.id);
+  assert.deepEqual((await request(supervisor,{action:'download',id:generic.id})).body,template);
+  generic=await review(supervisor,generic,'accept');assert.equal(generic.locked,true);
+  assert.notEqual((await upload(supervisor,generic,meta)).code,200);
+  generic=await review(supervisor,generic,'unlock','Correct existing report');
+  generic=okay(await upload(manager,generic,meta));generic=await review(manager,generic,'resubmit');generic=await review(supervisor,generic,'accept');
+  await db.exec('reset role');
+  assert.equal((await db.query('select * from monitoring_documents where monitoring_id=$1',[generic.id])).rows.length,1);
+  await assert.rejects(()=>save(manager,null,{...makeFixture(),monitoringType,monitoringSiteId:eec.id}),/not available/);
+ }
+ const snackAfss=okay(await upload(supervisor,null,{...metadata,monitoringType:'snack',monitoringNumber:'9',monitoringSiteId:eec.id,onBehalf:true,performerRole:'supervisor'}));
+ assert.equal(snackAfss.monitor_role,'supervisor');assert.equal((await review(supervisor,snackAfss,'accept')).status,'accepted');
+ await db.exec('reset role');
+ for(const name of ['supper_monitoring_events','supper_monitoring_document_versions']) assert.equal((await db.query('select to_regclass($1) as value',[name])).rows[0].value,null);
+ console.log('PASS: Breakfast/Lunch/Snack current PDFs, per-type/site/year numbering beyond three, review/lock/unlock/replacement, distinct roles, and disabled unbuilt guided forms.');
+ console.log('PASS: monitoring types/sites backfill, per-site slots beyond three records, school isolation, scoped site creation, same-record restart, ownership/status/revision guards, current-only PDF storage.');
+ console.log('PASS: all migrations; on-behalf uploads and attribution; current PDF markup, atomic review and lock permissions; real API + SQL upload/return/replace/resubmit/accept/lock/unlock/delete; setting OFF; current PDF only; ownership/school/role restrictions; shared guided manager and AFSS completion; unified three-slot history; private storage.');
 }finally{await db.close();}

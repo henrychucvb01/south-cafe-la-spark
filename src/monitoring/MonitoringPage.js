@@ -1,8 +1,7 @@
 import React from "react";
-import SupperMonitoringPage from "../supperMonitoring/SupperMonitoringPage";
-// Register additional complete guided workflows here when they are ready.
-const guidedWorkflows = { supper: SupperMonitoringPage };
+import MonitoringWorkspace from "../supperMonitoring/SupperMonitoringPage";
+// The shared record workspace handles every monitoring type. Only Supper has a
+// guided editor; other types can use existing PDFs without invented form rules.
 export default function MonitoringPage({ monitoringType = "supper", ...props }) {
-  const Page = guidedWorkflows[monitoringType];
-  return Page ? <Page {...props} /> : <p>This monitoring type is not available yet.</p>;
+  return <MonitoringWorkspace monitoringType={monitoringType} {...props} />;
 }
