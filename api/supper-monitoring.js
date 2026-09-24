@@ -29,8 +29,8 @@ export function createHandler({ database, templateLoader = () => readFile(resolv
     if (request.method !== "POST") return response.status(405).json({ error: "Use POST." });
     const token = String(request.headers.authorization || "").replace(/^Bearer /, "");
     if (!/^[a-f0-9-]{72}$/.test(token)) return response.status(401).json({ error: "Re-enter your SPARK PIN to continue." });
-    const { action, id, revision, metadata, pdfBase64, version } = request.body || {};
-    if (!["preview", "submit", "download", "upload", "version"].includes(action) || (!(action === "upload" && !id) && !/^[a-f0-9-]{36}$/.test(id || ""))) return response.status(400).json({ error: "Choose a saved monitoring and a valid action." });
+    const { action, id, revision, metadata, pdfBase64, version, annotations, comment, reviewAction } = request.body || {};
+    if (!["preview", "submit", "download", "upload", "version", "review"].includes(action) || (!(action === "upload" && !id) && !/^[a-f0-9-]{36}$/.test(id || ""))) return response.status(400).json({ error: "Choose a saved monitoring and a valid action." });
     async function rpc(name, params) { const { data, error } = await database.rpc(name, params); if (error) throw new Error(error.message); return data; }
     function pdfResponse(bytes) { response.setHeader("Content-Type", "application/pdf"); response.setHeader("Content-Disposition", `attachment; filename="Supper-Monitoring-${id}.pdf"`); return response.status(200).send(Buffer.from(bytes)); }
     try {
@@ -42,9 +42,18 @@ export function createHandler({ database, templateLoader = () => readFile(resolv
         try {
           const uploaded = await PDFDocument.load(bytes);
           if (uploaded.isEncrypted || uploaded.getPageCount() < 1 || uploaded.getPageCount() > 20) throw Error();
-        } catch { return response.status(422).json({error:"Use an unencrypted PDF with 1–20 pages. The Supervisor will review its contents."}); }
+        } catch { return response.status(422).json({error:"Use an unencrypted PDF with 1-20 pages. The Supervisor will review its contents."}); }
         const saved = await rpc("upload_supper_pdf", {p_token:token,p_id:id || null,p_revision:revision || null,p_metadata:metadata,p_pdf_base64:pdfBase64,p_pdf_sha256:createHash("sha256").update(bytes).digest("hex")});
         return response.status(200).json({record:saved});
+      }
+      if (action === "review") {
+        const context = await rpc("supper_context", { p_token: token });
+        if (context.actor_role !== "supervisor") return response.status(403).json({error:"Supervisor authorization required."});
+        if (!Number.isInteger(version) || version < 1 || !Number.isInteger(revision)) return response.status(400).json({error:"Choose a saved PDF version and revision."});
+        const encoded = await rpc("read_supper_monitoring_pdf", {p_token:token,p_id:id});
+        const pdf = await PDFDocument.load(Buffer.from(encoded,"base64"));
+        const record = await rpc("save_supper_pdf_review", {p_token:token,p_id:id,p_revision:revision,p_document_version:version,p_page_count:pdf.getPageCount(),p_annotations:annotations,p_comment:comment || "",p_action:reviewAction || "save"});
+        return response.status(200).json({record});
       }
       if (action === "version") {
         if (!Number.isInteger(version) || version < 1) return response.status(400).json({error:"Choose a valid document version."});

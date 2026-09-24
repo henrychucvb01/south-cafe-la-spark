@@ -14,7 +14,7 @@ try {
  create function verify_manager_pin(text,text) returns boolean language sql as $$select $2='1234'$$;
  create function verify_covering_pin(text) returns boolean language sql as $$select $1='5678'$$;
  create function verify_supervisor_pin(text) returns boolean language sql as $$select $1='9999'$$;`);
- for(const file of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql']) {
+ for(const file of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql']) {
   if(file.startsWith('202609240001')) await db.exec(`
    insert into supper_monitorings(location_id,created_by_employee_id,created_by_name,school_year,monitoring_date,status,submitted_at,template_version,pdf_storage_path,pdf_sha256)
    select 2,22,'Legacy Manager','2025-26','2026-06-01','completed',now(),'lausd-supper-2022-09-08','legacy','test' from generate_series(1,3);
@@ -111,5 +111,46 @@ try {
  await db.exec('reset role;set role anon');
  for(const table of ['supper_monitorings','supper_monitoring_events','supper_monitoring_document_versions','supper_monitoring_settings']) await assert.rejects(()=>db.query('select * from '+table),/permission denied/);
  await assert.rejects(()=>rpc('upload_supper_pdf',{p_token:manager,p_id:null,p_revision:null,p_metadata:metadata,p_pdf_base64:template.toString('base64'),p_pdf_sha256:'fake'}),/permission denied/);
- console.log('PASS: all migrations; real API + SQL upload/return/replace/resubmit/accept/lock/unlock/delete; setting OFF; PDF versions; ownership/school/role restrictions; shared guided manager and AFSS completion; unified three-slot history; audit and private storage.');
+
+ // Supervisor upload is a Manager monitoring, with authentic Supervisor attribution.
+ const behalfMeta={...metadata,schoolYear:'2027-28',monitoringDate:'2027-09-15',onBehalf:true,managerEmployeeId:'11'};
+ assert.equal((await upload(manager,null,behalfMeta)).code,403,'Managers cannot forge an on-behalf upload');
+ assert.notEqual((await upload(supervisor,null,{...behalfMeta,managerEmployeeId:'22'})).code,200,'Assigned Manager must belong to school');
+ assert.notEqual((await upload(supervisor,null,{...behalfMeta,monitoringSlot:'supervisor'})).code,200,'On-behalf upload cannot consume AFSS slot');
+ await rpc('set_supper_uploads',{p_pin:'9999',p_enabled:false});
+ let behalf=okay(await upload(supervisor,null,behalfMeta));
+ assert.equal(behalf.monitor_role,'manager');assert.equal(behalf.status,'submitted');assert.equal(behalf.uploaded_on_behalf,true);
+ assert.equal(behalf.created_by_employee_id,null);assert.equal(behalf.created_by_name,'Supervisor / AFSS');assert.equal(behalf.manager_employee_id,11);assert.equal(behalf.submitted_by_role,'supervisor');
+ const peers=await rpc('supper_school_managers',{p_token:supervisor});assert.equal(peers.length,2);
+ await assert.rejects(()=>rpc('supper_school_managers',{p_token:manager}),/authorization/);
+ assert.equal((await upload(colleague,behalf,behalfMeta)).code,403,'Other managers cannot replace specifically assigned on-behalf record');
+ const marks=[{type:'comment',page:2,x:.35,y:.7,text:'Please sign here.'},{type:'draw',page:1,points:[[.1,.2],[.15,.25],[.2,.2]]}];
+ const markRequest=(t,r,action='save',changes={})=>request(t,{action:'review',id:r.id,revision:r.revision,version:r.document_version,annotations:marks,comment:'Please add the missing signature.',reviewAction:action,...changes});
+ assert.equal((await markRequest(manager,behalf)).code,403,'Managers cannot author supervisor review');
+ assert.equal((await markRequest(supervisor,{...behalf,revision:0})).code,409);
+ assert.equal((await markRequest(supervisor,behalf,'save',{version:99})).code,409);
+ for(const annotations of [[{...marks[0],page:3}],[{...marks[0],x:2}],[{...marks[1],points:[[0,0],[1,-1]]}],[{...marks[0],text:''}]]) assert.notEqual((await markRequest(supervisor,behalf,'save',{annotations})).code,200,'Invalid markup rejected');
+ assert.equal((await rpc('supper_pdf_reviews_for_record',{p_token:supervisor,p_id:behalf.id})).length,0,'Failed validation does not save review');
+ assert.notEqual((await markRequest(supervisor,behalf,'return',{comment:''})).code,200,'Return requires comment and rolls back review atomically');
+ assert.equal((await get(supervisor,behalf.id)).revision,behalf.revision);
+ behalf=okay(await markRequest(supervisor,behalf,'return'));assert.equal(behalf.status,'corrections_requested');
+ const reviewed=await rpc('supper_pdf_reviews_for_record',{p_token:manager,p_id:behalf.id});
+ assert.deepEqual(reviewed[0].annotations,marks);assert.equal(reviewed[0].page_count,2);
+ await assert.rejects(()=>rpc('supper_pdf_reviews_for_record',{p_token:other,p_id:behalf.id}),/not found/);
+ behalf=okay(await upload(manager,behalf,behalfMeta));assert.equal(behalf.document_version,2);
+ assert.equal((await rpc('supper_pdf_reviews_for_record',{p_token:manager,p_id:behalf.id}))[0].document_version,1,'Markup remains tied to original PDF after replacement');
+ assert.deepEqual((await request(manager,{action:'version',id:behalf.id,version:1})).body,template,'Manager can view the reviewed old PDF');
+ behalf=await review(manager,behalf,'resubmit');assert.equal(behalf.submitted_by_name,'Monitor One');assert.equal(behalf.submitted_by_role,'manager');
+ behalf=okay(await markRequest(supervisor,behalf,'accept',{annotations:[],comment:'Correction verified.'}));assert.equal(behalf.locked,true);
+ assert.notEqual((await markRequest(supervisor,behalf)).code,200,'Accepted markup cannot change without unlock');
+ await db.exec('reset role;set role anon');
+ const behalfEvents=(await db.query('select * from supper_audit_history($1,$2)',[supervisor,behalf.id])).rows;
+ assert.ok(behalfEvents.some(e=>e.action==='Uploaded by Supervisor on behalf of school/Manager' && e.actor_role==='supervisor'));
+ assert.ok(behalfEvents.some(e=>e.action==='PDF comments and markup saved'));
+ await assert.rejects(()=>db.query('select * from supper_pdf_reviews'),/permission denied/);
+ await assert.rejects(()=>rpc('save_supper_pdf_review',{p_token:supervisor,p_id:behalf.id,p_revision:behalf.revision,p_document_version:2,p_page_count:2,p_annotations:[],p_comment:'',p_action:'save'}),/permission denied/);
+ const unassigned=okay(await upload(supervisor,null,{...behalfMeta,monitoringSlot:'manager_2',managerEmployeeId:''}));
+ assert.equal(unassigned.manager_employee_id,null);
+ assert.equal(okay(await upload(colleague,unassigned,{...behalfMeta,monitoringSlot:'manager_2'})).status,'corrections_requested','School managers can correct an unassigned on-behalf upload');
+ console.log('PASS: all migrations; on-behalf uploads and attribution; version-bound PDF markup, atomic review and lock permissions; real API + SQL upload/return/replace/resubmit/accept/lock/unlock/delete; setting OFF; PDF versions; ownership/school/role restrictions; shared guided manager and AFSS completion; unified three-slot history; audit and private storage.');
 }finally{await db.close();}

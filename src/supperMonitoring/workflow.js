@@ -4,6 +4,7 @@ export function canEdit(record, context) {
   if (!record) return true;
   if (record.status === "deleted") return false;
   if (context?.actor_role === "supervisor") return true;
+  if (record.uploaded_on_behalf) return record.monitor_role === "manager" && !record.locked && !["accepted","completed"].includes(record.status) && (!record.manager_employee_id || record.manager_employee_id === context?.employee_id);
   return record.monitor_role !== "supervisor" && !record.locked && !["accepted","completed"].includes(record.status) && (context?.employee_id ? record.created_by_employee_id === context.employee_id : record.created_by_employee_id == null && record.created_by_name === context?.monitor_name);
 }
 export function editableGuided(record, context) { return record?.source !== "uploaded" && canEdit(record,context) && (!record || ["draft","corrections_requested"].includes(record.status)); }

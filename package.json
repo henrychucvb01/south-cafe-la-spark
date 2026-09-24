@@ -8,6 +8,7 @@
     "@supabase/supabase-js": "^2.0.0",
     "leaflet": "1.9.4",
     "pdf-lib": "1.17.1",
+    "pdfjs-dist": "6.3.289",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-scripts": "^5.0.0",
@@ -35,7 +36,9 @@
     "test:supper-browser": "node scripts/test-supper-monitoring-browser.mjs",
     "test": "react-scripts test --env=jsdom",
     "eject": "react-scripts eject",
-    "test:supper-report": "node scripts/test-supper-monitoring-report.mjs"
+    "test:supper-report": "node scripts/test-supper-monitoring-report.mjs",
+    "prebuild": "node scripts/prepare-pdf-viewer.mjs",
+    "prestart": "node scripts/prepare-pdf-viewer.mjs"
   },
   "browserslist": [
     ">0.2%",

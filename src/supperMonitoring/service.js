@@ -52,3 +52,13 @@ export async function downloadVersion(token,record,version) {
   const url=URL.createObjectURL(await response.blob()); const link=document.createElement("a");
   link.href=url;link.download=`Supper-Monitoring-version-${version}.pdf`;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
 }
+
+export const schoolManagers = token => rpc("supper_school_managers", {p_token:token});
+export const pdfReviews = (token,id) => rpc("supper_pdf_reviews_for_record", {p_token:token,p_id:id});
+export async function reportBytes(token,record,version=record.document_version) {
+  const response = await reportRequest(token,record,version===record.document_version ? "download" : "version",{version});
+  return new Uint8Array(await response.arrayBuffer());
+}
+export async function savePdfReview(token,record,annotations,comment,reviewAction="save") {
+  return (await (await reportRequest(token,record,"review",{version:record.document_version,annotations,comment,reviewAction})).json()).record;
+}

@@ -1,0 +1,11 @@
+import {cpSync,mkdirSync,copyFileSync} from 'node:fs';
+import {createRequire} from 'node:module';
+import {dirname,join} from 'node:path';
+const require=createRequire(import.meta.url);
+const source=dirname(require.resolve('pdfjs-dist/package.json'));
+const destination='public/pdfjs';
+mkdirSync(destination,{recursive:true});
+for(const name of ['pdf.mjs','pdf.worker.mjs']) copyFileSync(join(source,'build',name),join(destination,name));
+for(const name of ['cmaps','standard_fonts','wasm']) cpSync(join(source,name),join(destination,name),{recursive:true});
+copyFileSync(join(source,'LICENSE'),join(destination,'LICENSE'));
+console.log('Prepared local PDF.js viewer and worker assets.');

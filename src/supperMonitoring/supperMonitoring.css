@@ -72,3 +72,18 @@
 .sm-card > label, .sm-editor > label { display: block; margin: 12px 0; }
 .sm-card label > input:not([type=checkbox]), .sm-card label > select, .sm-card label > textarea { display: block; width: 100%; box-sizing: border-box; padding: 10px; margin-top: 6px; font: inherit; }
 @media (max-width: 650px) { .sm-slot-grid { grid-template-columns: 1fr; } }
+.sm-pdf-scroll { overflow: auto; max-height: 72vh; border: 1px solid #9aaabd; background: #e6e9ed; padding: 12px; }
+.sm-pdf-sheet { position: relative; background: white; margin: 0 auto; flex-shrink: 0; }
+.sm-pdf-sheet canvas { display: block; }
+.sm-pdf-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+.sm-pdf-toolbar label { display: flex; align-items: center; gap: 8px; }
+.sm-pdf-toolbar select { width: auto !important; }
+.sm-mark-list li { margin: 12px 0; overflow-wrap: anywhere; }
+.sm-mark-list button { margin: 0 10px 6px 0; }
+.sm-review-workspace > label { display: block; margin: 18px 0; }
+.sm-review-workspace textarea { width: 100%; box-sizing: border-box; padding: 12px; font: inherit; }
+.sm-review-workspace [aria-pressed=true] { background: #123459; color: white; }
+.sm-queue-scroll { overflow-x: auto; }
+.sm-review-queue { border-collapse: collapse; width: 100%; text-align: left; }
+.sm-review-queue th, .sm-review-queue td { padding: 12px; border-bottom: 1px solid #d3dbe5; vertical-align: top; }
+@media(max-width:650px) { .sm-pdf-scroll { padding: 4px; } .sm-review-workspace { padding: 14px; } }
