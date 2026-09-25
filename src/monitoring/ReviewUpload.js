@@ -3,6 +3,7 @@ import { usePageNavigation } from '../navigation/PageNavigation';
 import PdfUploadPicker from './PdfUploadPicker';
 import { recordLabel } from './types';
 import PdfMarkupViewer from '../supperMonitoring/PdfMarkupViewer';
+import { rotatePdf } from './pdfRotation';
 import { previewUpload } from '../supperMonitoring/service';
 
 export default function ReviewUpload({ token, metadata, school, siteName, files, onFiles, busy, error, onBack, onSubmit }) {
@@ -12,6 +13,13 @@ export default function ReviewUpload({ token, metadata, school, siteName, files,
   const [ready,setReady]=useState(false);
   const [confirmed,setConfirmed]=useState(false);
   const [retry,setRetry]=useState(0);
+  const [rotating,setRotating]=useState(false);
+  async function rotate(page, angle) {
+    setRotating(true);setReady(false);setConfirmed(false);setPreviewError('');
+    try { const bytes=await rotatePdf(preview.bytes,{[page]:angle});setPreview(value=>({...value,bytes})); }
+    catch(e){setPreviewError(e.message);}
+    finally{setRotating(false);}
+  }
   useEffect(()=>{
     let cancelled=false;
     setPreview(null);setPreviewError('');setReady(false);setConfirmed(false);
@@ -23,15 +31,15 @@ export default function ReviewUpload({ token, metadata, school, siteName, files,
   return <section className="sm-card">
     <h2>Review Your Monitoring</h2>
     <p><strong>{school.school_name} · {recordLabel({monitoring_type:metadata.monitoringType,monitoring_number:metadata.monitoringNumber,monitoring_slot:metadata.monitoringSlot,monitoring_site_name:siteName})}</strong> · {metadata.monitoringDate}</p>
-    <p>Review the document below before submitting. Make sure you uploaded the correct monitoring and the pages are in the correct order.</p>
+    <p>Review the document below before submitting. Make sure you uploaded the correct monitoring and the pages are in the correct order. Use Rotate Page Left or Right to fix sideways pages; the submitted PDF keeps that orientation.</p>
     {error && <p role="alert" className="sm-error">{error}</p>}
-    <fieldset className="sm-editor" disabled={busy}>
+    <fieldset className="sm-editor" disabled={busy||rotating}>
       <h3>File order</h3>
       <PdfUploadPicker files={files} onChange={changeFiles} disabled={busy}/>
       <button type="button" onClick={()=>changeFiles([])}>Replace File(s)</button>
       {previewError && <div role="alert"><p className="sm-error">{previewError}</p><button type="button" onClick={()=>setRetry(n=>n+1)}>Retry Preview</button></div>}
       {!previewError && files.length>0 && !current && <p role="status">Preparing your monitoring preview…</p>}
-      {current && <PdfMarkupViewer bytes={preview.bytes} annotations={[]} onReady={setReady}/>}
+      {current && <PdfMarkupViewer bytes={preview.bytes} annotations={[]} onReady={setReady} onRotate={rotate}/>}
       <label className="sm-check"><input type="checkbox" checked={confirmed} disabled={!current||!ready} onChange={e=>setConfirmed(e.target.checked)}/>I reviewed the monitoring and the correct document/pages are attached.</label>
       <div className="sm-actions"><button type="button" onClick={onBack}>Back to Upload</button><button type="button" className="sm-primary" disabled={!current||!ready||!confirmed} onClick={()=>onSubmit(preview.bytes)}>Submit for Supervisor Review</button></div>
     </fieldset>

@@ -43,6 +43,7 @@ try {
  await db.exec('reset role');await db.exec(migration);
  await db.exec(await readFile('supabase/migrations/202609250005_supervisor_monitoring_stars.sql','utf8'));
  await db.exec(await readFile('supabase/migrations/202609250006_supper_due_dates.sql','utf8'));
+ await db.exec(await readFile('supabase/migrations/202609250007_monitoring_pdf_rotation.sql','utf8'));
  assert.equal((await rpc('supper_context',{p_token:manager})).supper_schedules[0].due_date,'2026-10-30','Published due date survives migration');
  assert.equal((await get(legacy.id)).had_correction_requested,null);assert.equal(isPerfectMonitoring(await get(legacy.id)),false);
  assert.deepEqual((await request(manager,{action:'download',id:legacy.id})).body,template,'Migration preserves historical completed PDF');
@@ -117,5 +118,37 @@ try {
  perfect=await star(supervisor,perfect,false);perfect=await review(perfect,'unlock');assert.equal(perfect.perfect_monitoring_override,false);
  await db.exec('reset role;set role anon');await assert.rejects(()=>db.query('select * from supper_schedules'),/permission denied/);
  await assert.rejects(()=>db.query('update monitoring_records set had_correction_requested=false'),/permission denied/);
+ // Rotation saves one current PDF plus transformed annotations, atomically.
+ let rotatedRecord=okay(await upload(null,{...metadata(eec.id),monitoringType:'snack',monitoringNumber:1}));
+ const rotationBody=(r,extra={})=>({action:'review',id:r.id,revision:r.revision,version:r.document_version,annotations:[{type:'comment',page:1,x:.2,y:.3,text:'Keep here'},{type:'draw',page:1,points:[[.1,.2],[.4,.6]]}],comment:'Review',reviewAction:'save',rotations:{1:90},...extra});
+ const download=r=>request(manager,{action:'download',id:r.id});
+ const originalPdf=await PDFDocument.load(template);
+ assert.equal((await request(manager,rotationBody(rotatedRecord))).code,403);
+ assert.equal((await request(other,rotationBody(rotatedRecord))).code,403);
+ assert.equal((await request(supervisor,rotationBody(rotatedRecord,{rotations:{99:90}}))).code,422);
+ const beforeRotation=rotatedRecord;
+ rotatedRecord=okay(await request(supervisor,rotationBody(rotatedRecord)));
+ const turnedBytes=(await download(rotatedRecord)).body;
+ const turnedPdf=await PDFDocument.load(turnedBytes);
+ assert.equal(turnedPdf.getPageCount(),originalPdf.getPageCount());
+ assert.equal(turnedPdf.getPage(0).getRotation().angle,(originalPdf.getPage(0).getRotation().angle+90)%360);
+ assert.equal(turnedPdf.getPage(1).getRotation().angle,originalPdf.getPage(1).getRotation().angle);
+ assert.deepEqual(turnedPdf.getPage(0).getSize(),originalPdf.getPage(0).getSize());
+ const marks=await rpc('supper_pdf_reviews_for_record',{p_token:manager,p_id:rotatedRecord.id});
+ assert.equal(marks.length,1);assert.equal(marks[0].document_version,rotatedRecord.document_version);
+ assert.deepEqual(marks[0].annotations[0],{type:'comment',page:1,x:.7,y:.2,text:'Keep here'});
+ assert.deepEqual(marks[0].annotations[1].points,[[.8,.1],[.4,.4]]);
+ assert.equal((await request(supervisor,rotationBody(beforeRotation))).code,409,'Stale rotation cannot overwrite newer PDF');
+ assert.notEqual((await request(supervisor,rotationBody(rotatedRecord,{annotations:[{type:'invalid',page:1}]}))).code,200);
+ assert.deepEqual((await download(rotatedRecord)).body,turnedBytes,'Failed markup rolls back rotated PDF');
+ assert.equal((await get(rotatedRecord.id)).document_version,rotatedRecord.document_version);
+ rotatedRecord=okay(await request(supervisor,rotationBody(rotatedRecord,{reviewAction:'accept'})));
+ assert.equal(rotatedRecord.locked,true);
+ const lockedBytes=(await download(rotatedRecord)).body;
+ assert.notEqual((await request(supervisor,rotationBody(rotatedRecord))).code,200);
+ assert.deepEqual((await download(rotatedRecord)).body,lockedBytes,'Accepted PDF stays locked');
+ await db.exec('reset role');
+ assert.equal((await db.query('select count(*)::int n from monitoring_documents where monitoring_id=$1',[rotatedRecord.id])).rows[0].n,1);
+ console.log('PASS: persisted PDF rotation, transformed markup, same-school Supervisor authorization, stale revision protection, atomic rollback and accepted lock.');
  console.log('PASS: global publication/consolidation/conflict safety, permissions, site/year independence, strict sequence via draft/upload APIs, SQL/UI date parity, correction persistence, first-acceptance recognition for uploaded/generated records, legacy unknown, merged replacement/download, accepted lock, unlock and restart.');
 } catch(e){console.error(e.message,e.where||'',e.stack);process.exitCode=1;}finally{await db.close();}

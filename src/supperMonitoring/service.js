@@ -66,8 +66,8 @@ export async function reportBytes(token,record) {
   const response = await reportRequest(token,record,"download");
   return new Uint8Array(await response.arrayBuffer());
 }
-export async function savePdfReview(token,record,annotations,comment,reviewAction="save") {
-  return (await (await reportRequest(token,record,"review",{version:record.document_version,annotations,comment,reviewAction})).json()).record;
+export async function savePdfReview(token,record,annotations,comment,reviewAction="save",rotations={}) {
+  return (await (await reportRequest(token,record,"review",{version:record.document_version,annotations,comment,reviewAction,rotations})).json()).record;
 }
 
 export const monitoringSites = token => rpc("monitoring_sites_for_school", {p_token:token});

@@ -1,6 +1,8 @@
 import React from "react";
+import useMonitoringCorrections from "../monitoring/useMonitoringCorrections";
 
 function HomeBase({
+  managerPin,
   location,
   employee,
   onSchoolHub,
@@ -11,6 +13,7 @@ function HomeBase({
   onMonitoring,
   onExit,
 }) {
+  const { count, error } = useMonitoringCorrections(location, employee, managerPin);
   return (
     <div className="login-app">
       <header className="login-header">
@@ -90,11 +93,11 @@ function HomeBase({
               <div className="homebase-card-arrow">›</div>
             </button>
 
-            <button type="button" className="homebase-card" onClick={onMonitoring}>
+            <button type="button" className={`homebase-card${count ? " homebase-card-corrections" : ""}`} onClick={onMonitoring}>
               <div className="homebase-card-icon">📋</div>
               <div className="homebase-card-body">
                 <strong>Monitorings</strong>
-                <span>Prepare a monitoring, save a draft, and review your school's monitoring history.</span>
+                <span aria-live="polite">{count ? `${count} monitoring${count === 1 ? '' : 's'}: Corrections requested — resubmit your form.` : error ? 'Open Monitoring to check for corrections. The status could not be refreshed.' : "Prepare a monitoring, save a draft, and review your school's monitoring history."}</span>
               </div>
               <div className="homebase-card-arrow">›</div>
             </button>

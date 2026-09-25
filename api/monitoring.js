@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { PDFDocument } from "pdf-lib";
+import { rotatePdf, rotateAnnotations, validateRotations } from "../src/monitoring/pdfRotation.js";
 import { validate } from "../src/supperMonitoring/model.js";
 import { canonicalReport, TEMPLATE_VERSION, TEMPLATE_SHA256 } from "../src/supperMonitoring/officialForm.js";
 import { generateOfficialPdf } from "../src/supperMonitoring/pdf.js";
@@ -29,7 +30,7 @@ export function createHandler({ database, templateLoader = () => readFile(resolv
     if (request.method !== "POST") return response.status(405).json({ error: "Use POST." });
     const token = String(request.headers.authorization || "").replace(/^Bearer /, "");
     if (!/^[a-f0-9-]{72}$/.test(token)) return response.status(401).json({ error: "Re-enter your SPARK PIN to continue." });
-    const { action, id, revision, metadata, pdfBase64, pdfs, version, annotations, comment, reviewAction } = request.body || {};
+    const { action, id, revision, metadata, pdfBase64, pdfs, version, annotations, comment, reviewAction, rotations = {} } = request.body || {};
     if (!["preview", "submit", "download", "upload", "upload-preview", "review"].includes(action) || (!(["upload", "upload-preview"].includes(action) && !id) && !/^[a-f0-9-]{36}$/.test(id || ""))) return response.status(400).json({ error: "Choose a saved monitoring and a valid action." });
     async function rpc(name, params) { const { data, error } = await database.rpc(name, params); if (error) throw new Error(error.message); return data; }
     function pdfResponse(bytes) { response.setHeader("Content-Type", "application/pdf"); response.setHeader("Content-Disposition", `attachment; filename="Monitoring-${id}.pdf"`); return response.status(200).send(Buffer.from(bytes)); }
@@ -68,7 +69,17 @@ export function createHandler({ database, templateLoader = () => readFile(resolv
         if (!Number.isInteger(version) || version < 1 || !Number.isInteger(revision)) return response.status(400).json({error:"Choose the current saved PDF and record revision."});
         const encoded = await rpc("read_supper_monitoring_pdf", {p_token:token,p_id:id});
         const pdf = await PDFDocument.load(Buffer.from(encoded,"base64"));
-        const record = await rpc("save_supper_pdf_review", {p_token:token,p_id:id,p_revision:revision,p_document_version:version,p_page_count:pdf.getPageCount(),p_annotations:annotations,p_comment:comment || "",p_action:reviewAction || "save"});
+        try { validateRotations(rotations,pdf.getPageCount()); }
+        catch(e) { return response.status(422).json({error:e.message}); }
+        const rotated = Object.values(rotations).some(angle=>angle!==0);
+        if (!Array.isArray(annotations)) return response.status(422).json({error:"Invalid PDF markup."});
+        const args={p_token:token,p_id:id,p_revision:revision,p_document_version:version,p_page_count:pdf.getPageCount(),p_annotations:rotated ? rotateAnnotations(annotations,rotations) : annotations,p_comment:comment || "",p_action:reviewAction || "save"};
+        if (rotated) {
+          const bytes=Buffer.from(await rotatePdf(Buffer.from(encoded,"base64"),rotations));
+          if(bytes.length>2097152) return response.status(422).json({error:"The rotated PDF exceeds 2 MB. The original PDF is unchanged."});
+          args.p_pdf_base64=bytes.toString("base64");args.p_pdf_sha256=createHash("sha256").update(bytes).digest("hex");
+        }
+        const record = await rpc(rotated ? "save_monitoring_rotated_review" : "save_supper_pdf_review",args);
         return response.status(200).json({record});
       }
       // This function checks the opaque session, expiry, active school and assignment.

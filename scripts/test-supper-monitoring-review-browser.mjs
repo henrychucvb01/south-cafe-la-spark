@@ -15,7 +15,7 @@ insert into locations values(1,true,'Test School','1001');insert into employees 
 create function verify_manager_pin(text,text) returns boolean language sql as $$select $2='1234'$$;
 create function verify_covering_pin(text) returns boolean language sql as $$select $1='5678'$$;
 create function verify_supervisor_pin(text) returns boolean language sql as $$select $1='9999'$$;`);
-for(const name of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql','202609240003_monitoring_types_sites_restart.sql','202609240004_monitoring_current_records.sql','202609250001_monitoring_delete_draft.sql','202609250002_covering_monitoring_corrections.sql','202609250003_supper_scheduling.sql','202609250004_global_supper_sequence_recognition.sql','202609250005_supervisor_monitoring_stars.sql','202609250006_supper_due_dates.sql']) await db.exec(await readFile('supabase/migrations/'+name,'utf8'));
+for(const name of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql','202609240003_monitoring_types_sites_restart.sql','202609240004_monitoring_current_records.sql','202609250001_monitoring_delete_draft.sql','202609250002_covering_monitoring_corrections.sql','202609250003_supper_scheduling.sql','202609250004_global_supper_sequence_recognition.sql','202609250005_supervisor_monitoring_stars.sql','202609250006_supper_due_dates.sql','202609250007_monitoring_pdf_rotation.sql']) await db.exec(await readFile('supabase/migrations/'+name,'utf8'));
 // Serialize role-scoped requests on this single ephemeral database connection.
 let queue=Promise.resolve();
 function rpc(name,args,role='anon') {const task=queue.then(async()=>{await db.exec('reset role;set role '+role);const set=['list_supper_monitorings','supper_audit_history'].includes(name);const rows=(await db.query(`select to_jsonb(public.${name}(${Object.keys(args).map((k,i)=>k+' => $'+(i+1)).join(',')})) as result`,Object.values(args))).rows;return set ? rows.map(r=>r.result) : rows[0].result;});queue=task.catch(()=>{});return task;}
@@ -110,6 +110,10 @@ try{
  assert.notEqual(await manager.locator('.sm-pdf-sheet canvas').evaluate(c=>c.toDataURL()),reversedCanvas,'Reordered preview displays different first page');
  await expect(manager.getByRole('list',{name:'PDF upload order'}).locator('li').first()).toContainText('Monitoring Page 1.pdf');
  await manager.getByRole('button',{name:'Next Page',exact:true}).click();await expect(confirmUpload).toBeEnabled({timeout:30000});
+ await manager.getByRole('button',{name:'Rotate Page Right',exact:true}).click();
+ await expect(confirmUpload).not.toBeChecked();await expect(confirmUpload).toBeEnabled({timeout:30000});
+ await expect(manager.getByLabel('PDF page',{exact:true})).toHaveValue('2');
+ assert.ok(await manager.locator('.sm-pdf-sheet canvas').evaluate(c=>c.width>c.height),'Rotated upload preview is landscape');
  await mkdir('test-results/supper-review',{recursive:true});await manager.screenshot({path:'test-results/supper-review/manager-upload-review-mobile.png',fullPage:true});
  await supervisor.getByRole('button',{name:'Refresh Overview'}).click();await expect(supervisor.locator('.sm-review-queue:not(.sm-schedule-overview)').getByRole('button',{name:'Review',exact:true})).toHaveCount(0);
  await confirmUpload.check();await submitUpload.click();
@@ -117,7 +121,9 @@ try{
  await manager.getByRole('button',{name:'Back to History'}).click();await expect(cards.nth(0)).toHaveClass(/sm-status-pending/);await cards.nth(0).click();
  const checkToken=await rpc('open_supper_monitoring_session',{p_location_id:1,p_employee_id:11,p_pin:'1234'});
  const submitted=(await rpc('list_supper_monitorings',{p_token:checkToken}))[0];
- assert.deepEqual(Buffer.from(await rpc('read_supper_monitoring_pdf',{p_token:checkToken,p_id:submitted.id},'service_role'),'base64'),reviewedBytes,'Submitted bytes exactly match reviewed combined preview');
+ const uploadedPdf=await PDFDocument.load(Buffer.from(await rpc('read_supper_monitoring_pdf',{p_token:checkToken,p_id:submitted.id},'service_role'),'base64'));
+ assert.equal(uploadedPdf.getPage(1).getRotation().angle,90,'Upload stores selected page rotation');
+ assert.equal(uploadedPdf.getPageCount(),(await PDFDocument.load(reviewedBytes)).getPageCount());
 
  await supervisor.getByRole('button',{name:'Refresh Overview'}).click();
  const queueTable=supervisor.locator('.sm-review-queue:not(.sm-schedule-overview)');
@@ -146,6 +152,9 @@ try{
  await touch.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await touch.detach();
  await expect(supervisor.locator('.sm-mark-list li')).toHaveCount(3);
  await supervisor.setViewportSize({width:1440,height:950});
+ await supervisor.getByRole('button',{name:'Rotate Page Left',exact:true}).click();
+ await expect(supervisor.getByText('Loading PDF page…',{exact:true})).toHaveCount(0);
+ await expect(supervisor.locator('.sm-mark-list li')).toHaveCount(3);
  await supervisor.getByLabel('Supervisor comments',{exact:true}).fill('Please add the missing signature at the marked location.');
  await mkdir('test-results/supper-review',{recursive:true});
  await supervisor.screenshot({path:'test-results/supper-review/pdf-annotations.png',fullPage:true});
@@ -159,7 +168,13 @@ try{
  await supervisor.getByRole('navigation',{name:'Supervisor pages'}).getByRole('button',{name:'Monitorings',exact:true}).click();
  await expect(supervisor.getByRole('heading',{name:'Monitorings',exact:true})).toBeVisible();
  await supervisor.getByLabel('Allow Manager PDF Uploads').click();await expect(supervisor.getByLabel('Allow Manager PDF Uploads')).not.toBeChecked();
- await manager.getByRole('button',{name:'Back to History'}).click();await manager.getByRole('button',{name:'Refresh',exact:true}).click();
+ await manager.getByRole('button',{name:'Back to History'}).click();
+ await manager.getByRole('navigation',{name:'SPARK page navigation'}).getByRole('button',{name:'← Manager Hub',exact:true}).click();
+ const hubMonitoring=manager.locator('button.homebase-card').filter({hasText:'Monitorings'});
+ await expect(hubMonitoring).toHaveClass(/homebase-card-corrections/);
+ await expect(hubMonitoring).toContainText('Corrections requested');
+ await manager.screenshot({path:'test-results/supper-review/manager-corrections-hub-mobile.png',fullPage:true});
+ await hubMonitoring.click();await manager.getByRole('button',{name:'Refresh',exact:true}).click();
  await expect(manager.getByRole('button',{name:'Upload Existing Monitoring',exact:true})).toHaveCount(0);
  const corrections=manager.locator('section').filter({has:manager.getByRole('heading',{name:'Corrections Requested',exact:true})});
  await expect(corrections.getByRole('button')).toHaveCount(1);
