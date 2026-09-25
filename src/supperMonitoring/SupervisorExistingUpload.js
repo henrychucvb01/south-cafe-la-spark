@@ -1,4 +1,5 @@
 import PdfUploadPicker from '../monitoring/PdfUploadPicker';
+import { usePageNavigation } from '../navigation/PageNavigation';
 import React, { useEffect, useState } from 'react';
 import { openSupervisorSession, closeSession, schoolManagers, monitoringSites, listMonitorings, uploadPdf } from './service';
 import { schoolYear } from './model';
@@ -15,6 +16,7 @@ export default function SupervisorExistingUpload({ schools, supervisorPin, initi
   const [files,setFiles]=useState([]);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
+  usePageNavigation({ level: 2, title: 'Upload Existing Monitoring', destination: 'Supervisor Monitoring', disabled: busy, onNavigate: () => { if (!files.length || window.confirm('Discard this unsubmitted upload?')) onBack(); } });
   const school=schools.find(s=>String(s.id)===schoolId);
   useEffect(()=>{
     let cancelled=false,session;

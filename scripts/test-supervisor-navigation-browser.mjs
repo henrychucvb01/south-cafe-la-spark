@@ -20,6 +20,15 @@ await page.route('https://kkrcxqhfzepifhkryodd.supabase.co/**',async route=>{
 const origin='http://127.0.0.1:'+server.address().port;
 async function login(){await page.goto(origin);await page.getByRole('button',{name:'Supervisor Access',exact:true}).click();await page.locator('input[type=password]').fill('9999');await page.getByRole('button',{name:'Open Command Center'}).click();await expect(page.locator('.command-main')).toBeVisible();}
 const nav=page.getByRole('navigation',{name:'Supervisor pages'}),menu=page.getByRole('button',{name:'Open Supervisor menu'});
+const pageNav=page.getByRole('navigation',{name:'SPARK page navigation'});
+async function stickyParent(label) {
+ await page.evaluate(()=>window.scrollTo(0,document.documentElement.scrollHeight));
+ await expect(pageNav).toBeInViewport();
+ const box=await pageNav.boundingBox();assert.equal(Math.round(box.y),0);assert.ok(box.height<=56);
+ await pageNav.getByRole('button',{name:'← '+label,exact:true}).click();
+ await expect(page.locator('input[type=password]')).toHaveCount(0);
+ assert.equal(new URL(page.url()).origin,origin);
+}
 async function geometry(){
  const result=await nav.evaluate(node=>{const boxes=[...node.querySelectorAll('button')].map(b=>{const r=b.getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,width:r.width,height:r.height,scroll:b.scrollWidth,client:b.clientWidth};});return {boxes,scrollHeight:node.scrollHeight,clientHeight:node.clientHeight,scrollWidth:node.scrollWidth,clientWidth:node.clientWidth};});
  assert.equal(result.boxes.length,15);
@@ -51,7 +60,20 @@ try{
  for(const name of ['Finish Line','Meal Analytics','MPLH Report','SPARK Points','Manager PIN Reset','Dashboard']){await menu.click();await nav.getByRole('button',{name:new RegExp(name)}).click();await expect(nav).toBeHidden();await expect(page.locator('.command-main')).toBeVisible();}
  await menu.click();await page.screenshot({path:'test-results/supervisor-navigation/mobile-drawer.png',fullPage:true});
  await nav.getByRole('button',{name:'Monitoring',exact:true}).click();await expect(page.getByRole('heading',{name:'Monitoring',exact:true})).toBeVisible();
- await page.getByRole('button',{name:/Command Center/}).click();await expect(menu).toBeVisible();await expect(nav).toBeHidden();
+ await stickyParent('Command Center');await expect(menu).toBeVisible();await expect(nav).toBeHidden();
+ for(const width of [390,1440]){
+  await page.setViewportSize({width,height:600});
+  for(const name of ['Monthly Scorecards','Meal Audit','Labor Optimization','Staffing','Leaderboard','Location Directory','Feedback','Finish Line','Meal Analytics','MPLH Report','SPARK Points','Manager PIN Reset']){
+   if(width<760)await menu.click();
+   await nav.getByRole('button',{name:new RegExp(name)}).click();
+   if(name==='Monthly Scorecards'){
+    await page.evaluate(()=>window.scrollTo(0,document.documentElement.scrollHeight));
+    await page.screenshot({path:`test-results/supervisor-navigation/sticky-scorecards-${width}.png`});
+   }
+   await stickyParent('Command Center');await expect(pageNav).toContainText('Command Center');
+   await expect(pageNav.getByRole('button',{name:'← Command Center',exact:true})).toHaveCount(0);
+  }
+ }
  await page.setViewportSize({width:1440,height:400});await geometry();await page.screenshot({path:'test-results/supervisor-navigation/short-desktop.png',fullPage:true});
  await page.setViewportSize({width:390,height:600});await menu.click();await nav.getByRole('button',{name:/Exit Supervisor/}).click();await expect(page.getByRole('heading',{name:'Welcome, Manager'})).toBeVisible();
  await login();await page.setViewportSize({width:1440,height:400});await nav.getByRole('button',{name:/Exit Supervisor/}).click();await expect(page.getByRole('heading',{name:'Welcome, Manager'})).toBeVisible();

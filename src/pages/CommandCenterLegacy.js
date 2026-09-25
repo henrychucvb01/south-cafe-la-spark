@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { usePageNavigation } from "../navigation/PageNavigation";
 import {
   LineChart,
   Line,
@@ -63,6 +64,8 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("all");
   const [view, setView] = useState("dashboard");
+  const viewTitles = { dashboard: 'Command Center', 'finish-line': 'Finish Line', 'recent-changes': 'Recent Changes', 'meal-trends': 'Meal Analytics', 'mplh-report': 'MPLH Report', 'monthly-scorecards': 'Monthly Scorecards', 'meal-audit': 'Meal Audit', 'labor-optimization': 'Labor Optimization', 'staff-management': 'Staffing', 'spark-points': 'SPARK Points', leaderboard: 'Leaderboard', 'location-directory': 'Location Directory', feedback: 'Feedback', 'pin-reset': 'Manager PIN Reset' };
+  usePageNavigation({ title: viewTitles[view] || 'Command Center', destination: view === 'dashboard' ? undefined : 'Command Center', onNavigate: () => { openDashboard(); setNavigationOpen(false); }, level: 1 });
   const [mobileNavigation, setMobileNavigation] = useState(() => window.matchMedia('(max-width: 760px)').matches);
   const [navigationOpen, setNavigationOpen] = useState(false);
   const navigationRef = useRef(null);
@@ -3072,6 +3075,7 @@ function MplhReportView({ schools, dashboardDate, formatDate }) {
   }, [schools, startDate, endDate]);
 
   const selectedReport = selectedSchoolId === "all" ? null : model?.schools.find((item) => String(item.school.id) === String(selectedSchoolId));
+  usePageNavigation({ active: !!selectedReport, level: 2, title: selectedReport?.school.school_name || 'School MPLH', destination: 'MPLH Report', onNavigate: () => setSelectedSchoolId('all') });
   const reports = model?.schools || [];
   const counts = ["below", "target", "high", "no-data"].reduce((acc, key) => ({ ...acc, [key]: reports.filter((item) => item.summary.status === key).length }), {});
   const multi = startDate !== endDate;

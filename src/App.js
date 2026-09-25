@@ -21,6 +21,7 @@ import ManagerFeedback from "./feedback/ManagerFeedback";
 import ManagerMonthlyScorecardPage from "./monthlyScorecards/ManagerMonthlyScorecardPage";
 import SupervisorMonitoringPage from "./monitoring/SupervisorMonitoringPage";
 import MonitoringPage from "./monitoring/MonitoringPage";
+import PageNavigationProvider, { usePageNavigation } from "./navigation/PageNavigation";
 
 function App() {
   const [screen, setScreen] = useState("login");
@@ -31,6 +32,26 @@ function App() {
   const [editingCheck, setEditingCheck] = useState(null);
   const [installPrompt, setInstallPrompt] = useState(null);
   const [canInstall, setCanInstall] = useState(false);
+  const supervisorContext = !!supervisorSessionPin;
+  const destinations = {
+    homeBase: ["Manager Hub"], commandCenter: ["Command Center"],
+    monitoring: ["Monitoring", "Manager Hub", "homeBase"],
+    supervisorMonitoring: ["Monitoring", "Command Center", "commandCenter"],
+    managerMonthlyScorecard: ["Monthly Scorecard", "Manager Hub", "homeBase"],
+    managerResources: ["Manager Resources", "Manager Hub", "homeBase"],
+    howToEarnPoints: ["How to Earn Points", "Manager Resources", "managerResources"],
+    operationsHelp: ["Operations Help", "Manager Resources", "managerResources"],
+    askSpark: ["Ask SPARK", "Manager Resources", "managerResources"],
+    locationInformation: ["Location Information", "Manager Resources", "managerResources"],
+    dailyBites: ["Daily Bites", "Manager Hub", "homeBase"],
+    incidentHelper: ["Incident Record Helper", "Manager Hub", "homeBase"],
+    schoolHub: ["School Dashboard", "Manager Hub", "homeBase"],
+    schoolDashboard: ["Finish Line History", "School Dashboard", "schoolHub"],
+    mealAnalytics: ["Meal Analytics", supervisorContext ? "Command Center" : "School Dashboard", supervisorContext ? "commandCenter" : "schoolHub"],
+    finishLine: ["Finish Line", supervisorContext ? "Command Center" : editingCheck ? "Finish Line History" : "School Dashboard", supervisorContext ? "commandCenter" : editingCheck ? "schoolDashboard" : "schoolHub"],
+  };
+  const navigation = destinations[screen];
+  usePageNavigation({ active: !!navigation, level: 0, title: navigation?.[0], destination: navigation?.[1], onNavigate: () => { setEditingCheck(null); setScreen(navigation[2]); } });
 
   useEffect(() => {
     function handleBeforeInstallPrompt(event) { event.preventDefault(); setInstallPrompt(event); setCanInstall(true); }
@@ -67,10 +88,13 @@ function App() {
   if (screen === "dailyBites") return managerPage(<DailyBitesPage location={selectedLocation} employee={selectedEmployee} onBack={() => setScreen("homeBase")} />);
   if (screen === "incidentHelper") return managerPage(<IncidentRecordHelper location={selectedLocation} employee={selectedEmployee} onBack={() => setScreen("homeBase")} />);
   if (screen === "schoolHub") return managerPage(<SchoolHub location={selectedLocation} employee={selectedEmployee} onFinishLine={() => { setEditingCheck(null); setScreen("finishLine"); }} onDashboard={() => setScreen("schoolDashboard")} onMealAnalytics={() => setScreen("mealAnalytics")} onExit={() => setScreen("homeBase")} />);
-  if (screen === "mealAnalytics") return managerPage(<MealAnalyticsPage location={selectedLocation} employee={selectedEmployee} onBack={() => setScreen("schoolHub")} />);
+  if (screen === "mealAnalytics") {
+    const page = <MealAnalyticsPage location={selectedLocation} employee={selectedEmployee} backLabel={supervisorContext ? "Command Center" : "School Dashboard"} onBack={() => setScreen(supervisorContext ? "commandCenter" : "schoolHub")} />;
+    return supervisorContext ? page : managerPage(page);
+  }
 
   if (screen === "finishLine") {
-    const page = <FinishLinePage location={selectedLocation} employee={selectedEmployee} existingCheck={editingCheck} onBack={() => { if (editingCheck?.previewMode) { setEditingCheck(null); setScreen("commandCenter"); return; } setEditingCheck(null); setScreen("schoolDashboard"); }} onComplete={() => { setEditingCheck(null); setScreen("schoolDashboard"); }} />;
+    const page = <FinishLinePage location={selectedLocation} employee={selectedEmployee} existingCheck={editingCheck} onBack={() => { const parent = supervisorContext ? "commandCenter" : editingCheck ? "schoolDashboard" : "schoolHub"; setEditingCheck(null); setScreen(parent); }} onComplete={() => { setEditingCheck(null); setScreen(supervisorContext ? "commandCenter" : "schoolDashboard"); }} />;
     return editingCheck?.previewMode ? page : managerPage(page);
   }
 
@@ -80,4 +104,4 @@ function App() {
   return null;
 }
 
-export default App;
+export default function SparkApp() { return <PageNavigationProvider><App /></PageNavigationProvider>; }

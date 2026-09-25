@@ -107,7 +107,13 @@ try{
  await supervisor.screenshot({path:'test-results/supper-review/pdf-annotations.png',fullPage:true});
  await supervisor.getByRole('button',{name:'Return for Correction',exact:true}).click();
  await expect(supervisor.getByText('Returned to the Manager for correction.',{exact:true})).toBeVisible();
- await supervisor.getByRole('button',{name:'Back to Monitorings',exact:true}).click();
+ await supervisor.evaluate(()=>window.scrollTo(0,document.documentElement.scrollHeight));
+ const supervisorPageNav=supervisor.getByRole('navigation',{name:'SPARK page navigation'});
+ await expect(supervisorPageNav).toBeInViewport();
+ await supervisorPageNav.getByRole('button',{name:'← Supervisor Monitoring',exact:true}).click();
+ await supervisorPageNav.getByRole('button',{name:'← Command Center',exact:true}).click();
+ await supervisor.getByRole('navigation',{name:'Supervisor pages'}).getByRole('button',{name:'Monitoring',exact:true}).click();
+ await expect(supervisor.getByRole('heading',{name:'Monitoring',exact:true})).toBeVisible();
  await supervisor.getByLabel('Allow Manager PDF Uploads').click();await expect(supervisor.getByLabel('Allow Manager PDF Uploads')).not.toBeChecked();
  await manager.getByRole('button',{name:'Back to History'}).click();await manager.getByRole('button',{name:'Refresh',exact:true}).click();
  await expect(manager.getByRole('button',{name:'Upload Existing Monitoring',exact:true})).toHaveCount(0);

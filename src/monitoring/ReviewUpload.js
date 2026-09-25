@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
+import { usePageNavigation } from '../navigation/PageNavigation';
 import PdfUploadPicker from './PdfUploadPicker';
 import { recordLabel } from './types';
 import PdfMarkupViewer from '../supperMonitoring/PdfMarkupViewer';
 import { previewUpload } from '../supperMonitoring/service';
 
 export default function ReviewUpload({ token, metadata, school, siteName, files, onFiles, busy, error, onBack, onSubmit }) {
+  usePageNavigation({ level: 3, title: 'Review Upload', destination: 'Upload Existing Monitoring', disabled: busy, onNavigate: onBack });
   const [preview,setPreview]=useState(null);
   const [previewError,setPreviewError]=useState('');
   const [ready,setReady]=useState(false);

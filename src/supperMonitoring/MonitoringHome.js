@@ -1,4 +1,5 @@
 import ReviewUpload from '../monitoring/ReviewUpload';
+import { usePageNavigation } from '../navigation/PageNavigation';
 import PdfUploadPicker from '../monitoring/PdfUploadPicker';
 import React, { useEffect, useState } from "react";
 import RestartMonitoringButton from "../monitoring/RestartMonitoringButton";
@@ -28,6 +29,7 @@ export default function MonitoringHome({ token, records, context, location, onOp
   const [comment,setComment]=useState("");
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
+  usePageNavigation({ active: !!(selected || upload), level: 2, title: upload ? 'Upload Existing Monitoring' : selected ? recordLabel(selected) : 'Monitoring', destination: 'Monitoring', disabled: busy, onNavigate: () => { if (upload && files.length && !window.confirm('Discard this unsubmitted upload?')) return; setSelected(null);setUpload(false);setReviewUpload(false);setFiles([]);setError(''); } });
   const role=selected?.monitor_role || context?.actor_role || "manager";
   const slots=Object.keys(SLOTS).filter(s=>role === "supervisor" ? s === "supervisor" : s !== "supervisor");
   const occupied=s=>metadata.monitoringType==="supper" && records.some(r=>r.id!==selected?.id && r.school_year===metadata.schoolYear && sameAssignment(r,metadata.monitoringSiteId,metadata.monitoringType) && r.monitoring_slot===s && r.status!=="deleted");
@@ -57,7 +59,7 @@ export default function MonitoringHome({ token, records, context, location, onOp
     if(!supervisor && ['Corrections Requested','Completed / Accepted'].includes(title)) return <section className="sm-card sm-compact-section"><h2>{title}</h2>{rows.length===0 ? <p>No monitorings in this group.</p> : <ul className="sm-compact-records">{rows.map(r=><li key={r.id}><strong>{label(r)}</strong><span>{r.monitoring_date || 'Date pending'}</span><span className="sm-compact-comment">{title==='Corrections Requested' ? (r.review_comments ? `Supervisor: ${r.review_comments}` : 'Review the requested corrections.') : STATUSES[r.status]}</span><button type="button" disabled={busy} onClick={()=>open(r)}>View</button></li>)}</ul>}</section>;
     return <section className="sm-card"><h2>{title}</h2>{rows.length===0 ? <p>No monitorings in this group.</p> : <ul className="sm-records">{rows.map(r=><li key={r.id}><div><strong>{label(r)} · {r.monitoring_date || "Date pending"}</strong><span>{r.school_year} · {STATUSES[r.status]}</span><span>{r.monitor_role==='supervisor' ? 'Supervisor / AFSS' : 'Manager'} · {r.source==='uploaded' ? 'Uploaded PDF' : 'Created in SPARK'}</span><span>Monitor: {r.payload?.monitorName || r.created_by_name || r.monitor_name}</span>{r.review_comments && <p className="sm-notice">Supervisor: {r.review_comments}</p>}</div><button type="button" disabled={busy} onClick={()=>open(r)}>{!supervisor && r.source!=='uploaded' && editableGuided(r,context) ? 'Resume' : 'View'}</button>{hasCurrentPdf(r) && <button type="button" disabled={busy} onClick={()=>run(async()=>setReviewing(await getMonitoring(token,r.id)))}>{supervisor?'Review PDF':'View PDF & Supervisor Markup'}</button>}</li>)}</ul>}</section>; }
   const active=records.filter(r=>r.school_year===year && r.status!=='deleted' && (supervisor || sameAssignment(r,siteId,monitoringType)));
-  if(reviewing) return <PdfReviewWorkspace token={token} initialRecord={reviewing} school={location} supervisor={supervisor} onBack={result=>run(async()=>{if(result?.deleted)setSelected(null);else if(selected)setSelected(await getMonitoring(token,selected.id));setReviewing(null);await onRefresh();})}/>;
+  if(reviewing) return <PdfReviewWorkspace token={token} initialRecord={reviewing} school={location} supervisor={supervisor} backLabel={selected ? 'Monitoring Details' : undefined} onBack={result=>run(async()=>{if(result?.deleted)setSelected(null);else if(selected)setSelected(await getMonitoring(token,selected.id));setReviewing(null);await onRefresh();})}/>;
   if(upload && reviewUpload) return <ReviewUpload token={token} metadata={metadata} school={location} siteName={sites.find(s=>s.id===metadata.monitoringSiteId)?.name || "Main Site"} files={files} onFiles={setFiles} busy={busy} error={error} onBack={()=>{setReviewUpload(false);setError("");}} onSubmit={bytes=>run(async()=>{
     let saved=await submitReviewedUpload(token,selected,metadata,bytes);
     // Keep a saved correction recoverable if the separate resubmit request fails.

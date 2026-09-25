@@ -1,0 +1,18 @@
+.spark-navigation-layout { --spark-nav-height: 56px; padding-top: var(--spark-nav-height); }
+.spark-page-navigation { position: fixed; inset: 0 0 auto; z-index: 90; height: 56px; box-sizing: border-box; display: flex; align-items: center; gap: 12px; padding: 6px 16px; background: #fff; border-bottom: 1px solid #cbd5e1; box-shadow: 0 2px 8px #152a4212; color: #1b2f50; }
+.spark-page-navigation button { flex-shrink: 0; min-height: 44px; border: 1px solid #b7c7da; border-radius: 8px; background: white; color: #1b2f50; padding: 6px 12px; font: inherit; font-size: 14px; cursor: pointer; }
+.spark-page-navigation button:disabled { opacity: .55; cursor: wait; }
+.spark-page-navigation button:focus-visible { outline: 3px solid #d99511; outline-offset: 1px; }
+.spark-page-navigation-title { min-width: 0; flex: 1; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; font-weight: 700; font-size: 14px; }
+.spark-navigation-layout .command-sidebar { top: var(--spark-nav-height); height: calc(100dvh - var(--spark-nav-height)); }
+.spark-navigation-layout .spark-feedback-trigger { top: calc(var(--spark-nav-height) + 17px); }
+.spark-navigation-layout .login-header { top: var(--spark-nav-height); }
+.spark-navigation-layout .detail-panel { top: calc(var(--spark-nav-height) + 14px); }
+.spark-navigation-layout [tabindex], .spark-navigation-layout input, .spark-navigation-layout select { scroll-margin-top: 70px; }
+.spark-nav-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+@media (max-width: 600px) {
+  .spark-page-navigation { gap: 8px; padding: 6px 8px; }
+  .spark-page-navigation button { font-size: 13px; padding: 6px 8px; }
+  .spark-page-navigation-title { font-size: 12px; }
+}
+@media print { .spark-page-navigation { display: none; } .spark-navigation-layout { padding-top: 0; } }

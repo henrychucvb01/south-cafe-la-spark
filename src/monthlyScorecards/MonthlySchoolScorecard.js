@@ -1,4 +1,5 @@
 import React from "react";
+import { usePageNavigation } from "../navigation/PageNavigation";
 import {
   LineChart,
   Line,
@@ -134,7 +135,8 @@ function WeekSummary({ label, week }) {
   );
 }
 
-export default function MonthlySchoolScorecard({ card, onBack, backLabel = "All schools", showToolbar = true }) {
+export default function MonthlySchoolScorecard({ card, onBack, backLabel = "Monthly Scorecards", showToolbar = true }) {
+  usePageNavigation({ active: showToolbar, level: 2, title: card.school.school_name || 'School Scorecard', destination: backLabel, onNavigate: onBack });
   const { school, current, previous, changes, summary } = card;
   const previousLabel = previous
     ? readableMonth(previous.month).split(" ")[0]

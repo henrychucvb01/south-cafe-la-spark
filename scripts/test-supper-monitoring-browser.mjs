@@ -156,7 +156,10 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "History must fit the viewport without horizontal scrolling");
     assert.equal(await page.evaluate(() => document.querySelector('.login-header').getBoundingClientRect().bottom <= document.querySelector('.sm-main').getBoundingClientRect().top), true, "Wrapped header must not overlap the page");
     await page.screenshot({ path: resolve(output, `history-${viewport.width}.png`), fullPage: true });
-    await page.getByRole("button", { name: "Save & Return to Monitorings", exact: true }).click();
+    await page.evaluate(()=>window.scrollTo(0,document.documentElement.scrollHeight));
+    const pageNav=page.getByRole('navigation',{name:'SPARK page navigation'});
+    await expect(pageNav).toBeInViewport();
+    await pageNav.getByRole('button',{name:'← Monitoring',exact:true}).click();
     await page.getByRole("button", { name: "Resume", exact: true }).last().click();
     assert.equal(await page.getByLabel("Tuesday attendance", { exact: true }).inputValue(), "101");
     await page.getByLabel('Go to section').selectOption('2');
@@ -289,6 +292,13 @@ try {
     await expect(page.getByRole('button',{name:'Download Official PDF',exact:true})).toBeVisible();
     await page.getByLabel('Go to section').selectOption('0');
     await expect(page.getByLabel('Monitoring date',{exact:true})).toBeDisabled();
+    await pageNav.getByRole('button',{name:'← Monitoring',exact:true}).click();
+    await pageNav.getByRole('button',{name:'← Manager Hub',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'Manager Tools',exact:true})).toBeVisible();
+    await page.getByRole('button',{name:/Manager Resources/}).click();
+    await pageNav.getByRole('button',{name:'← Manager Hub',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'Manager Tools',exact:true})).toBeVisible();
+    await expect(page.getByLabel('4-Digit PIN')).toHaveCount(0);
     await context.close();
   }
   assert.deepEqual(pageErrors, []);

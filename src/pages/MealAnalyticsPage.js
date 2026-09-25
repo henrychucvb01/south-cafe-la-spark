@@ -81,7 +81,7 @@ function ParticipationDonut({ value, meals, attendance, label }) {
    PAGE
 ========================================================= */
 
-function MealAnalyticsPage({ location, employee, onBack }) {
+function MealAnalyticsPage({ location, employee, onBack, backLabel = "School Dashboard" }) {
   const [range, setRange] = useState("weekly");
   const [chartView, setChartView] = useState("total");
 
@@ -550,7 +550,7 @@ function MealAnalyticsPage({ location, employee, onBack }) {
         </div>
 
         <button type="button" className="supervisor-link" onClick={onBack}>
-          ← School Dashboard
+          ← {backLabel}
         </button>
       </header>
 

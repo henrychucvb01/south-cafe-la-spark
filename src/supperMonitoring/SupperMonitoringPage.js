@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { usePageNavigation } from "../navigation/PageNavigation";
 import RestartMonitoringButton from "../monitoring/RestartMonitoringButton";
 import { typeLabel, siteLabel, hasCurrentPdf } from "../monitoring/types";
 import FinalPdfReview from "./FinalPdfReview";
@@ -39,6 +40,8 @@ export default function SupperMonitoringPage({ location, employee, managerPin, s
   const [serverIssues, setServerIssues] = useState([]);
   const errors = data ? [...validate(data), ...serverIssues] : [];
   const visibleErrors = showErrors ? errors : [];
+  function returnToParent() { if (data) return leaveEditor(); return run(async () => { if (token) await closeSession(token); onBack(); }); }
+  usePageNavigation({ level: 1, title: data ? `Supper ${data.monitoringSlot === 'manager_1' ? '1' : data.monitoringSlot === 'supervisor' ? '2' : '3'}` : 'Monitoring', destination: data ? 'Monitoring' : supervisorPin ? 'Supervisor Monitoring' : 'Manager Hub', disabled: busy || reviewActive, onNavigate: returnToParent });
 
   useEffect(() => {
     const warn = event => { if (dirty) { event.preventDefault(); event.returnValue = ""; } };
