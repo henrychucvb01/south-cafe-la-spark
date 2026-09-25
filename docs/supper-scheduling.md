@@ -1,116 +1,54 @@
-# Supper scheduling
+# Supper scheduling, progression and recognition
 
-Supervisor Command Center → Monitorings → Supper Scheduling / Matrix publishes
-one current schedule per monitored site, school year and Supper slot. Select a
-school/site and Supper number, enter Available Start Date, Available End Date and
-Due Date, then Publish Schedule. The overview shows all sites, their three
-statuses/completed dates/due dates and the next outstanding due date. School
-filtering and Open Matrix make the overview usable across many locations.
+Supervisor Command Center → Monitorings → Supper Scheduling / Matrix now publishes one schedule per school year and Supper number across all schools/sites. The site selector is only for the matrix. New sites inherit schedules automatically.
 
-Managers see due dates and completed dates on their existing boxes. Supper 1 and
-Supper 3 expose every eligible date through View available dates. The guided form
-uses an eligible-date select instead of a free-form date input. Its questions,
-service-time logic, signatures and PDF generation are unchanged. Supervisors see
-the same calculation for Supper 2 when opening a school/site.
+## Migration
 
-## Exact calculation and assumptions
+Apply `supabase/migrations/202609250004_global_supper_sequence_recognition.sql` after migration 003 and before deploying this application change. This task does not apply it to the live database.
 
-- School year uses SPARK's existing July 1–June 30 definition.
-- Week of month is `floor((day_of_month - 1) / 7) + 1`: days 1–7, 8–14,
-  15–21, 22–28, and 29–31. This is **not** the row in a calendar grid. This
-  definition was stated during implementation; the user has not yet confirmed it.
-- Supper 1 has no prior slots. Supper 2 uses Supper 1. Supper 3 uses Supper 1
-  and Supper 2. Only `accepted` or `completed` Supper records at the same site
-  and in the same school year contribute restrictions.
-- The source is the record's structured `monitoring_date`, regardless of whether
-  its document was uploaded or generated. PDF contents and filenames are unused.
-- Each prior date excludes its entire weekday column and week-of-month row.
-  Calendar dates are enumerated inclusively from start through end; only Monday
-  through Friday outside all excluded rows/columns are returned. There is no
-  three-date cap or six-month rule. UTC/calendar-only arithmetic avoids DST shifts.
-- Due dates are displayed deadlines, not an extra cutoff on the available window.
-  All three dates must be within the selected school year; start must not exceed
-  end. No holiday, closure, frequency or additional chronological-spacing rule
-  was invented. Supervisors control the window.
-- Missing prior completions do not create inferred restrictions or an extra
-  prerequisite gate. Later acceptance/completion updates the next matrix on
-  opening/refreshing the page. Returning/unlocking a prior record removes it from
-  completed-date calculations until it is accepted/completed again.
-- No schedule means no invented dates; the control explains that dates have not
-  been scheduled. Blank drafts can still be saved. A saved date that becomes
-  unavailable is shown as unavailable and must be corrected before submission.
-- Existing-PDF uploads keep their historical monitoring dates and existing
-  upload/review behavior. Scheduling enforcement applies to guided dates and
-  submission, not retrospective PDF entry.
+- `supper_schedules` now uses `(school_year, monitoring_slot)` as its key. Site/location columns are removed. Dates and revision conflict protection remain.
+- Identical prior schedules consolidate. Conflicting dates for a year/number stop and roll back the migration. Align those schedules in the existing screen and retry; the migration does not choose a site's dates arbitrarily.
+- `save_global_supper_schedule` verifies the existing Supervisor PIN. The old site publishing RPC is removed. Manager context and Supervisor overview return shared schedules. Direct table access remains denied.
+- `monitoring_records.had_correction_requested` is unknown/null for old records, true for existing corrections-requested records, and false for new records. A database trigger prevents resetting it after a correction, unlock, replacement, resubmission or restart.
+- No audit logs or PDF version history are added. Existing PDFs, completed records, dates, roles and site information are preserved.
 
-## Data and authorization
+## Sequence and dates
 
-Apply `supabase/migrations/202609250003_supper_scheduling.sql` after the existing
-migrations, including `202609250002_covering_monitoring_corrections.sql`.
-No live database changes are part of the scheduling implementation.
+Supper 2 requires locked accepted/completed Supper 1. Supper 3 requires both earlier monitorings locked and accepted/completed. Draft, submitted and returned records do not qualify. Each site's and school year's progression is independent.
 
-`supper_schedules` is keyed by `(monitoring_site_id, school_year, monitoring_slot)`
-and has a composite school/site foreign key. Main Site, Offsite, EEC and other
-programs cannot share settings or prior dates accidentally. It stores current
-start/end/due values and a revision for concurrent-edit protection, not history.
+The UI displays lock explanations, hides premature available dates, disables premature starts/uploads, and shows Resume Draft on Manager draft cards. The database checks creation, changed work, uploads and submission/acceptance to prevent direct-API bypasses. Prior records are held stable during a dependent write. An earlier unlock blocks new later work without deleting completed records.
 
-`save_supper_schedule` requires a valid Supervisor school session and a site at
-that school. Managers can read their school's schedules in `supper_context` but
-cannot publish or read the table directly. `supper_supervisor_overview` includes
-schedules within the existing Command Center authorization scope (active schools).
-This work does not introduce a new Supervisor assignment model.
+The existing matrix remains Monday–Friday by Weeks 1–5. Week ranges remain 1–7, 8–14, 15–21, 22–28 and 29–31. Completed/accepted structured dates exclude entire weekday columns and week rows in light red. Each site has independent restrictions under the shared window.
 
-The private SQL `supper_eligible_dates` calculation matches the browser engine.
-A record trigger runs after the existing identity trigger and rejects new/changed
-guided dates outside the published schedule, and checks eligibility again at
-guided submission. Existing accepted/completed records are not rewritten.
+Every eligible weekday in the inclusive window appears after sequence unlock. No three-date cap, six-month rule or invented holiday rule. Due date is displayed separately from the window. July–June validation and guided-date enforcement remain. Uploaded PDFs retain historical dates but creation follows the sequence.
 
-The separately committed covering-Manager fix permits an authenticated covering
-Manager to replace and resubmit an unlocked, returned, uploaded **Supper** PDF at
-the same school. It does not grant edits to other schools, guided drafts or locked
-records. Its migration returns the verified `covering` flag to the UI.
+## Recognition and UX
 
-## Verification commands
+Perfect Monitoring requires a locked accepted Manager record with `had_correction_requested === false`. Uploaded and guided Manager records qualify. Supervisor Supper 2, unknown old records, and corrected records do not. Unlocking for correction permanently removes eligibility.
 
-- `npm test -- --watchAll=false --runInBand --testMatch '**/*.test.js'`
-- `node scripts/test-supper-scheduling.mjs`
-- `node scripts/test-supper-monitoring-db.mjs`
-- `node scripts/test-supper-monitoring-report.mjs`
-- `node scripts/test-supper-monitoring-review.mjs`
-- `npm run build`
-- `node scripts/test-supper-monitoring-review-browser.mjs`
-- `node scripts/test-supper-monitoring-browser.mjs`
-
-Tests use isolated databases and synthetic schools/PDFs. They do not change live
-monitoring records. The scheduling browser suite publishes all three settings,
-checks Manager dates and matrix progression, switches years/sites, and exercises
-a 31-site overview at desktop/tablet widths alongside upload, correction, review,
-signature, lock and draft regressions.
+Stars appear on Manager cards, completed/accepted rows, record details and Supervisor overview cells. Completed/accepted overview cells are light green with dark text. Submitted is pale blue; corrections requested is pale amber. Red matrix restrictions are unchanged.
 
 ## Files changed
 
-Scheduling UI/calculation:
-`src/monitoring/SupperScheduling.js`, `SupperScheduleDetails.js`,
-`ScheduledMonitoringDate.js`, `supperSchedule.js`, `SupervisorMonitoringPage.js`.
+- Shared rules: `src/monitoring/supperSchedule.js`.
+- Settings and overview: `src/monitoring/SupperScheduling.js`.
+- Dates: `src/monitoring/SupperScheduleDetails.js`, `ScheduledMonitoringDate.js`.
+- Manager UX: `src/supperMonitoring/MonitoringHome.js`.
+- Guided entry and Supervisor uploads: `SupperMonitoringPage.js`, `SupervisorExistingUpload.js`.
+- RPC and styling: `src/supperMonitoring/service.js`, `supperMonitoring.css`.
+- Migration: `supabase/migrations/202609250004_global_supper_sequence_recognition.sql`.
+- Tests: `src/monitoring/supperProgression.test.js`, `MonitoringRecognition.test.js`, `supperSchedule.test.js`, `src/supperMonitoring/SupperMonitoringPage.test.js`, `scripts/test-supper-global-workflow.mjs`, `test-supper-scheduling.mjs`, `test-supper-monitoring-review-browser.mjs`.
 
-Integration:
-`src/App.js`, `src/pages/CommandCenterLegacy.js`,
-`src/supperMonitoring/MonitoringHome.js`, `SupperMonitoringPage.js`,
-`GuidedSections.js`, `service.js`, `supperMonitoring.css`.
+## Verification
 
-Scheduling schema:
-`supabase/migrations/202609250003_supper_scheduling.sql`.
+Tests use isolated databases and synthetic records. Run:
 
-Verification:
-`src/monitoring/supperSchedule.test.js`,
-`src/supperMonitoring/SupperMonitoringPage.test.js`,
-`scripts/test-supper-scheduling.mjs`,
-`scripts/test-supper-monitoring-browser.mjs`,
-`scripts/test-supper-monitoring-review-browser.mjs`, and this document.
+```
+npm test -- --watchAll=false --runInBand --testMatch '**/*.test.js'
+node scripts/test-supper-scheduling.mjs
+npm run build
+node scripts/test-supper-monitoring-review-browser.mjs
+node scripts/test-supper-monitoring-browser.mjs
+```
 
-The isolated covering-Manager fix additionally changes
-`src/supperMonitoring/workflow.js`, `src/monitoring/CoveringCorrections.test.js`,
-`scripts/test-supper-monitoring-review.mjs`, and
-`supabase/migrations/202609250002_covering_monitoring_corrections.sql`, with its
-button text in `MonitoringHome.js` and browser regression in the shared review
-browser script.
+Database tests cover migration consolidation/rollback, authorization, shared visibility, immutable correction state, legacy unknown, generated/uploaded stars, direct-API sequence checks, merged replacement/download/lock, and SQL/UI date parity. Browser tests cover actual Manager and Supervisor screens, guided signatures/PDFs, merge/preview/annotations, covering corrections, site/year switching, stars, and 31-site overview layouts.

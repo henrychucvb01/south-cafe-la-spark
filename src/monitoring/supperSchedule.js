@@ -14,7 +14,8 @@ export function displayDate(value) {
 }
 export function supperSchedule({ schedules = [], records = [], siteId, year, slot }) {
   const number = SUPPER_NUMBERS[slot];
-  const setting = schedules.find(s => s.monitoring_site_id === siteId && s.school_year === year && s.monitoring_slot === slot);
+  const blockedReason = supperSequence(records, siteId, year, slot);
+  const setting = schedules.find(s => s.school_year === year && s.monitoring_slot === slot);
   const prior = records.filter(r => r.monitoring_type === 'supper' && r.monitoring_site_id === siteId && r.school_year === year &&
     ['accepted', 'completed'].includes(r.status) && SUPPER_NUMBERS[r.monitoring_slot] < number && dateParts(r.monitoring_date));
   const weekdays = new Set(prior.map(r => dateParts(r.monitoring_date).weekday));
@@ -22,10 +23,20 @@ export function supperSchedule({ schedules = [], records = [], siteId, year, slo
   const start = dateParts(setting?.available_start), end = dateParts(setting?.available_end);
   const configured = !!(start && end && start.date <= end.date);
   const dates = [];
-  if (configured) {
+  if (configured && !blockedReason) {
     for (const day = new Date(start.date); day <= end.date; day.setUTCDate(day.getUTCDate() + 1)) {
       if (day.getUTCDay() >= 1 && day.getUTCDay() <= 5 && !weekdays.has(day.getUTCDay()) && !weeks.has(Math.ceil(day.getUTCDate() / 7))) dates.push(day.toISOString().slice(0, 10));
     }
   }
-  return { setting, prior, weekdays, weeks, dates, configured };
+  return { setting, prior, weekdays, weeks, dates, configured, blockedReason };
+}
+
+export function supperSequence(records = [], siteId, year, slot) {
+  const done = key => records.some(r => r.monitoring_type === 'supper' && r.monitoring_site_id === siteId && r.school_year === year && r.monitoring_slot === key && r.locked === true && ['accepted','completed'].includes(r.status));
+  if (slot === 'supervisor' && !done('manager_1')) return 'Waiting for Supper 1 to be accepted.';
+  if (slot === 'manager_2' && (!done('manager_1') || !done('supervisor'))) return 'Complete Supper 1 and Supper 2 first.';
+  return '';
+}
+export function isPerfectMonitoring(record) {
+  return record?.monitor_role === 'manager' && record.locked === true && record.status === 'accepted' && record.had_correction_requested === false;
 }

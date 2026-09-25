@@ -93,11 +93,11 @@ test("Manager restart requires confirmation and Cancel preserves the saved draft
   expect(container.textContent).toContain("Monitoring restarted");
 });
 
- test("Manager yearly cards preserve Supper roles and start Supper 3", async()=>{
+ test("Manager yearly cards preserve Supper roles and lock Supper 3 until prior completions", async()=>{
   const cards=container.querySelectorAll('.sm-status-card');
   expect(cards).toHaveLength(3);expect(cards[1].disabled).toBe(true);expect(cards[1].textContent).toContain('Supervisor / AFSS');
   expect(cards[0].className).toContain('sm-status-incomplete');
-  await click('Supper 3 - Test SchoolManagerNot Started');
-  await click('Save Draft');
-  expect(service.saveDraft.mock.calls[0][2].monitoringSlot).toBe('manager_2');
+  expect(cards[2].disabled).toBe(true);
+  expect(cards[2].textContent).toContain('Complete Supper 1 and Supper 2 first');
+  expect(service.saveDraft).not.toHaveBeenCalled();
  });

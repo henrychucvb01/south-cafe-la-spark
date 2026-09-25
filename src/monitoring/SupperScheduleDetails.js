@@ -2,7 +2,7 @@ import React from 'react';
 import { displayDate, WEEKDAYS, UNSCHEDULED } from './supperSchedule';
 
 export function AvailableDates({ schedule }) {
-  return <div className="sm-available-dates"><strong>Available Dates</strong>{!schedule.configured ? <p>{UNSCHEDULED}</p> : !schedule.dates.length ? <p>No eligible dates in this window. Ask your Supervisor to adjust the window.</p> : <ul aria-label="Available monitoring dates">{schedule.dates.map(date => <li key={date}>{displayDate(date)}</li>)}</ul>}</div>;
+  return <div className="sm-available-dates"><strong>Available Dates</strong>{schedule.blockedReason ? <p>🔒 {schedule.blockedReason}</p> : !schedule.configured ? <p>{UNSCHEDULED}</p> : !schedule.dates.length ? <p>No eligible dates in this window. Ask your Supervisor to adjust the window.</p> : <ul aria-label="Available monitoring dates">{schedule.dates.map(date => <li key={date}>{displayDate(date)}</li>)}</ul>}</div>;
 }
 export default function SupperScheduleDetails({ schedule }) {
   return <div className="sm-schedule-details">

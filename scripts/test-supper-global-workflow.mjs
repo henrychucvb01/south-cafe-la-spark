@@ -1,0 +1,98 @@
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+import {readFile} from 'node:fs/promises';
+import {PGlite} from '@electric-sql/pglite';
+import {PDFDocument} from 'pdf-lib';
+import {supperSchedule,isPerfectMonitoring} from '../src/monitoring/supperSchedule.js';
+import {makeFixture} from './supper-monitoring-fixture.mjs';
+import {createHandler} from '../api/supper-monitoring.js';
+const db=new PGlite();
+try {
+ await db.exec(`create role anon;create role authenticated;create role service_role;
+ create table locations(id bigint primary key,active boolean,school_name text,location_code text);
+ create table employees(id bigint primary key,location_id bigint,employee_name text,active boolean);
+ insert into locations values(1,true,'School One','1001'),(2,true,'School Two','1002');
+ insert into employees values(11,1,'Manager One',true),(22,2,'Manager Two',true);
+ create function verify_manager_pin(text,text) returns boolean language sql as $$select $2='1234'$$;
+ create function verify_covering_pin(text) returns boolean language sql as $$select $1='5678'$$;
+ create function verify_supervisor_pin(text) returns boolean language sql as $$select $1='9999'$$;`);
+ for(const name of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql','202609240003_monitoring_types_sites_restart.sql','202609240004_monitoring_current_records.sql','202609250001_monitoring_delete_draft.sql','202609250002_covering_monitoring_corrections.sql','202609250003_supper_scheduling.sql']) await db.exec(await readFile('supabase/migrations/'+name,'utf8'));
+ const rpc=async(name,args,role='anon')=>{await db.exec('reset role;set role '+role);return (await db.query(`select to_jsonb(public.${name}(${Object.keys(args).map((key,i)=>key+' => $'+(i+1)).join(',')})) as result`,Object.values(args))).rows[0].result;};
+ const manager=await rpc('open_supper_monitoring_session',{p_location_id:1,p_employee_id:11,p_pin:'1234'});
+ const supervisor=await rpc('open_supper_supervisor_session',{p_location_id:1,p_pin:'9999'});
+ const other=await rpc('open_supper_supervisor_session',{p_location_id:2,p_pin:'9999'});
+ const main=(await rpc('supper_context',{p_token:manager})).monitoring_sites[0];
+ const offsite=await rpc('create_monitoring_site',{p_token:supervisor,p_name:'Offsite',p_kind:'offsite'});
+ const eec=await rpc('create_monitoring_site',{p_token:supervisor,p_name:'EEC',p_kind:'eec'});
+ const template=await readFile('public/supper-monitoring-2022-09-08.pdf');
+ const pdfHash=createHash('sha256').update(template).digest('hex');
+ const database={rpc:async(name,args)=>{try{return {data:await rpc(name,args,'service_role')};}catch(e){return {error:{message:e.message}};}},from:()=>({select:()=>({eq:()=>({single:async()=>({data:{school_name:'School One',location_code:'1001'}})})})})};
+ const handler=createHandler({database,templateLoader:async()=>template});
+ async function request(token,body){const res={code:0,setHeader(){},status(n){this.code=n;return this;},json(b){this.body=b;return this;},send(b){this.body=b;return this;}};await handler({method:'POST',headers:{authorization:'Bearer '+token},body},res);return res;}
+ const metadata=(site=main.id,slot='manager_1',year='2026-27')=>({monitoringType:'supper',monitoringSiteId:site,monitoringSlot:slot,schoolYear:year,monitoringDate:year==='2025-26'?'2026-06-01':'2026-09-14',monitorName:'Manager One'});
+ const upload=(record=null,meta=metadata(),pdfs=[template])=>request(manager,{action:'upload',id:record?.id,revision:record?.revision,metadata:meta,pdfs:pdfs.map(b=>b.toString('base64'))});
+ const okay=res=>{assert.equal(res.code,200,JSON.stringify(res.body));return res.body.record;};
+ const review=(r,action,token=supervisor)=>rpc('supper_review_action',{p_token:token,p_id:r.id,p_revision:r.revision,p_action:action,p_comment:'Test review'});
+ const get=id=>rpc('get_supper_monitoring',{p_token:manager,p_id:id});
+ let legacy=okay(await upload(null,metadata(main.id,'manager_1','2025-26')));legacy=await review(legacy,'accept');
+ const oldSetting=site=>({p_token:supervisor,p_site_id:site,p_year:'2026-27',p_slot:'manager_1',p_start:'2026-09-01',p_end:'2026-10-31',p_due:'2026-10-30'});
+ await rpc('save_supper_schedule',oldSetting(main.id));await rpc('save_supper_schedule',{...oldSetting(offsite.id),p_due:'2026-10-29'});
+ const migration=await readFile('supabase/migrations/202609250004_global_supper_sequence_recognition.sql','utf8');
+ await db.exec('reset role');await assert.rejects(()=>db.exec(migration),/Conflicting site schedules/);await db.exec('rollback');
+ await rpc('save_supper_schedule',{...oldSetting(offsite.id),p_revision:1});
+ await db.exec('reset role');await db.exec(migration);
+ assert.equal((await get(legacy.id)).had_correction_requested,null);assert.equal(isPerfectMonitoring(await get(legacy.id)),false);
+ assert.deepEqual((await request(manager,{action:'download',id:legacy.id})).body,template,'Migration preserves historical completed PDF');
+ const setting=slot=>({p_pin:'9999',p_year:'2026-27',p_slot:slot,p_start:'2026-09-01',p_end:'2027-05-31',p_due:'2027-05-09',p_revision:null});
+ await assert.rejects(()=>rpc('save_global_supper_schedule',{...setting('supervisor'),p_pin:'1234'}),/Supervisor authorization/);
+ await assert.rejects(()=>rpc('save_global_supper_schedule',{...setting('supervisor'),p_due:'2027-07-01'}),/selected school year/);
+ const existing=(await rpc('supper_context',{p_token:manager})).supper_schedules[0];
+ await rpc('save_global_supper_schedule',{...setting('manager_1'),p_revision:existing.revision});
+ for(const slot of ['supervisor','manager_2'])await rpc('save_global_supper_schedule',setting(slot));
+ await assert.rejects(()=>rpc('save_global_supper_schedule',setting('supervisor')),/Schedule changed/);
+ const schedules=(await rpc('supper_context',{p_token:manager})).supper_schedules;
+ assert.equal(schedules.length,3);assert.ok(schedules.every(s=>!('monitoring_site_id' in s)));
+ assert.deepEqual((await rpc('supper_context',{p_token:other})).supper_schedules,schedules,'One publication applies across schools');
+ const payload=(slot,site=main.id,date='')=>({...makeFixture(),monitoringType:'supper',monitoringSiteId:site,monitoringSlot:slot,monitoringDate:date});
+ const save=(slot,r=null,site=main.id,date='',token=slot==='supervisor'?supervisor:manager)=>rpc('save_supper_monitoring_draft',{p_token:token,p_id:r?.id||null,p_revision:r?.revision||null,p_section:0,p_payload:payload(slot,site,date)});
+ const blocked=async()=>{
+  await assert.rejects(()=>save('supervisor'),/Waiting for Supper 1/);
+  await assert.rejects(()=>save('manager_2'),/Complete Supper 1 and Supper 2/);
+  assert.notEqual((await upload(null,metadata(main.id,'manager_2'))).code,200,'Upload API cannot bypass sequence');
+ };
+ await blocked();let draft=await save('manager_1');await blocked();
+ await rpc('delete_monitoring_draft',{p_token:manager,p_id:draft.id,p_revision:draft.revision});
+ let first=okay(await upload());await blocked();first=await review(first,'return');assert.equal(first.had_correction_requested,true);await blocked();
+ first=okay(await upload(first,metadata(),[template,template]));assert.equal(first.had_correction_requested,true);
+ assert.equal((await PDFDocument.load((await request(manager,{action:'download',id:first.id})).body)).getPageCount(),4);
+ first=await review(first,'resubmit',manager);first=await review(first,'accept');assert.equal(isPerfectMonitoring(first),false);
+ let second=await save('supervisor',null,main.id,'2026-09-30');await assert.rejects(()=>save('manager_2'),/Complete Supper 1/);
+ // Actual guided finalization through the established SQL endpoint.
+ second=await rpc('finalize_supper_monitoring',{p_token:supervisor,p_id:second.id,p_revision:second.revision,p_template_version:'lausd-supper-2022-09-08',p_pdf_base64:template.toString('base64'),p_pdf_sha256:pdfHash},'service_role');
+ assert.equal(second.status,'completed');assert.equal(isPerfectMonitoring(second),false);
+ let third=await save('manager_2',null,main.id,'2027-04-01');
+ await assert.rejects(()=>save('manager_2',third,main.id,'2027-04-05'),/unavailable/);
+ await assert.rejects(()=>save('manager_2',null,offsite.id),/Complete Supper 1/);
+ await assert.rejects(()=>save('supervisor',null,eec.id),/Waiting for Supper 1/);
+ let perfect=okay(await upload(null,metadata(offsite.id)));perfect=await review(perfect,'accept');assert.equal(isPerfectMonitoring(perfect),true);
+ assert.notEqual((await upload(perfect,metadata(offsite.id))).code,200,'Accepted PDF cannot be replaced');
+ const overview=await rpc('supper_supervisor_overview',{p_pin:'9999'});assert.equal(isPerfectMonitoring(overview.records.find(r=>r.id===perfect.id)),true);
+ for(const siteId of [main.id,offsite.id,eec.id]) {
+  await db.exec('reset role');const actual=(await db.query("select eligible_date::text from supper_eligible_dates($1,'2026-27','manager_2')",[siteId])).rows.map(r=>r.eligible_date);
+  assert.deepEqual(actual,supperSchedule({schedules,records:overview.records,siteId,year:'2026-27',slot:'manager_2'}).dates);
+ }
+ assert.ok(supperSchedule({schedules,records:overview.records,siteId:main.id,year:'2026-27',slot:'manager_2'}).dates.length>3);
+ perfect=await review(perfect,'unlock');assert.equal(perfect.had_correction_requested,true);perfect=okay(await upload(perfect,metadata(offsite.id)));perfect=await review(perfect,'resubmit',manager);perfect=await review(perfect,'accept');assert.equal(isPerfectMonitoring(perfect),false);
+ // Generated manager monitoring qualifies on first acceptance, and restart never erases a correction.
+ let generated=await save('manager_1',null,eec.id,'2026-09-23');
+ generated=await rpc('finalize_supper_monitoring',{p_token:manager,p_id:generated.id,p_revision:generated.revision,p_template_version:'lausd-supper-2022-09-08',p_pdf_base64:template.toString('base64'),p_pdf_sha256:pdfHash},'service_role');
+ generated=await review(generated,'accept');assert.equal(isPerfectMonitoring(generated),true);
+ generated=await review(generated,'unlock');generated=await rpc('restart_monitoring',{p_token:manager,p_id:generated.id,p_revision:generated.revision});assert.equal(generated.had_correction_requested,true);
+ // A prior unlock re-locks later work without deleting already completed records.
+ first=await review(first,'unlock');await assert.rejects(()=>save('manager_2',third,main.id,'2027-04-02'),/Complete Supper 1/);
+ assert.equal((await get(second.id)).status,'completed');
+ await db.exec('reset role');await db.query('update monitoring_records set had_correction_requested=false where id=$1',[first.id]);assert.equal((await get(first.id)).had_correction_requested,true);
+ await db.exec('reset role;set role anon');await assert.rejects(()=>db.query('select * from supper_schedules'),/permission denied/);
+ await assert.rejects(()=>db.query('update monitoring_records set had_correction_requested=false'),/permission denied/);
+ console.log('PASS: global publication/consolidation/conflict safety, permissions, site/year independence, strict sequence via draft/upload APIs, SQL/UI date parity, correction persistence, first-acceptance recognition for uploaded/generated records, legacy unknown, merged replacement/download, accepted lock, unlock and restart.');
+} catch(e){console.error(e.message,e.where||'',e.stack);process.exitCode=1;}finally{await db.close();}

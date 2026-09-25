@@ -157,3 +157,10 @@
 .sm-schedule-overview { min-width:800px; }
 .sm-supervisor-schedule { margin:20px 0; }
 .sm-sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+
+.sm-schedule-overview td.sm-overview-completed { background: #e8f5e9; color: #173d27; }
+.sm-schedule-overview td.sm-overview-submitted { background: #eef4ff; }
+.sm-schedule-overview td.sm-overview-corrections_requested { background: #fff4dc; }
+.sm-perfect { display: inline-block; font-weight: 700; margin: .2rem .35rem; color: #664d00; }
+.sm-sequence-lock { font-weight: 600; }
+.sm-status-card:disabled .sm-sequence-lock { opacity: 1; }
