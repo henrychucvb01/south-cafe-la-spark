@@ -15,7 +15,7 @@ insert into locations values(1,true,'Test School','1001');insert into employees 
 create function verify_manager_pin(text,text) returns boolean language sql as $$select $2='1234'$$;
 create function verify_covering_pin(text) returns boolean language sql as $$select $1='5678'$$;
 create function verify_supervisor_pin(text) returns boolean language sql as $$select $1='9999'$$;`);
-for(const name of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql','202609240003_monitoring_types_sites_restart.sql','202609240004_monitoring_current_records.sql','202609250001_monitoring_delete_draft.sql','202609250002_covering_monitoring_corrections.sql','202609250003_supper_scheduling.sql','202609250004_global_supper_sequence_recognition.sql']) await db.exec(await readFile('supabase/migrations/'+name,'utf8'));
+for(const name of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql','202609240003_monitoring_types_sites_restart.sql','202609240004_monitoring_current_records.sql','202609250001_monitoring_delete_draft.sql','202609250002_covering_monitoring_corrections.sql','202609250003_supper_scheduling.sql','202609250004_global_supper_sequence_recognition.sql','202609250005_supervisor_monitoring_stars.sql']) await db.exec(await readFile('supabase/migrations/'+name,'utf8'));
 // Serialize role-scoped requests on this single ephemeral database connection.
 let queue=Promise.resolve();
 function rpc(name,args,role='anon') {const task=queue.then(async()=>{await db.exec('reset role;set role '+role);const set=['list_supper_monitorings','supper_audit_history'].includes(name);const rows=(await db.query(`select to_jsonb(public.${name}(${Object.keys(args).map((k,i)=>k+' => $'+(i+1)).join(',')})) as result`,Object.values(args))).rows;return set ? rows.map(r=>r.result) : rows[0].result;});queue=task.catch(()=>{});return task;}
@@ -35,6 +35,8 @@ try{
  const manager=await pageFor('manager'),supervisor=await pageFor('supervisor');
  await mkdir('test-results/supper-review',{recursive:true});
  const scheduling=supervisor.locator('.sm-scheduling');
+ const sections=supervisor.locator('main > section');await expect(sections.nth(1).getByRole('heading',{name:'Submitted for Review',exact:true})).toBeVisible();
+ await supervisor.screenshot({path:'test-results/supper-review/supervisor-review-priority.png',fullPage:false});
  for(const slot of ['manager_1','supervisor','manager_2']) {
   await scheduling.getByLabel('Supper monitoring number',{exact:true}).selectOption(slot);
   await scheduling.getByLabel('Available Start Date',{exact:true}).fill('2026-09-01');
@@ -407,8 +409,21 @@ try{
  await manager.getByRole('button',{name:'Refresh',exact:true}).click();
  await expect(manager.locator('.sm-status-card').nth(2)).toContainText('⭐ Perfect Monitoring');
  await expect(manager.locator('.sm-compact-records')).toContainText('⭐ Perfect Monitoring');
+ // Explicit star controls update both Supervisor and Manager, without unlocking.
+ await queue;await db.exec('reset role;delete from supper_monitoring_attempts;');
+ await mainRow.locator('td').nth(2).getByRole('button',{name:/Remove Star/}).click();
+ await expect(mainRow.locator('td').nth(2).getByRole('button',{name:/Award Star/})).toBeVisible();
+ await manager.getByRole('button',{name:'Refresh',exact:true}).click();await expect(manager.locator('.sm-status-card').nth(2)).not.toContainText('Perfect Monitoring');
+ await mainRow.locator('td').nth(0).getByRole('button',{name:/Award Star/}).click();
+ await expect(mainRow.locator('td').nth(0).getByRole('button',{name:/Remove Star/})).toBeVisible();
+ await manager.getByRole('button',{name:'Refresh',exact:true}).click();await expect(manager.locator('.sm-status-card').nth(0)).toContainText('Perfect Monitoring');
+ await expect(manager.locator('.sm-status-card').nth(0)).toContainText('Accepted / Locked');
+ await expect(mainRow.locator('td').nth(1).getByRole('button')).toHaveCount(0);
+ await mainRow.locator('td').nth(2).getByRole('button',{name:/Award Star/}).click();
+ await expect(mainRow.locator('td').nth(2).getByRole('button',{name:/Remove Star/})).toBeVisible();
+ await manager.getByRole('button',{name:'Refresh',exact:true}).click();
  await manager.setViewportSize({width:390,height:950});await manager.screenshot({path:'test-results/supper-review/perfect-manager-mobile.png',fullPage:true});
- await supervisor.setViewportSize({width:1440,height:1000});await scheduling.scrollIntoViewIfNeeded();await supervisor.screenshot({path:'test-results/supper-review/global-schedule-recognition.png',fullPage:true});
+ await supervisor.setViewportSize({width:1440,height:1000});await scheduling.scrollIntoViewIfNeeded();await mainRow.scrollIntoViewIfNeeded();await supervisor.screenshot({path:'test-results/supper-review/supervisor-star-controls.png'});
  console.log('PASS: Supervisor publishes all three schedules; Manager due/eligible dates; completed uploaded + guided matrix rows/columns; year/site separation; 31-site desktop/tablet overview.');
  assert.ok(!supervisorCalls.some(n=>['verify_manager_pin','open_supper_monitoring_session','has_manager_pin'].includes(n)),'Supervisor never asks for or uses Manager authentication');
  assert.deepEqual(errors,[]);

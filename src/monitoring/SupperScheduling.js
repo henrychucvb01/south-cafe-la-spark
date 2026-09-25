@@ -3,6 +3,7 @@ import { saveSupperSchedule } from '../supperMonitoring/service';
 import { SLOTS, STATUSES } from '../supperMonitoring/workflow';
 import { displayDate, supperSchedule, isPerfectMonitoring } from './supperSchedule';
 import SupperScheduleDetails from './SupperScheduleDetails';
+import MonitoringStarButton from './MonitoringStarButton';
 
 export default function SupperScheduling({ overview, year, schoolFilter, supervisorPin, onRefresh }) {
   const sites = (overview.sites || []).filter(site => !schoolFilter || String(site.location_id) === schoolFilter);
@@ -49,7 +50,7 @@ export default function SupperScheduling({ overview, year, schoolFilter, supervi
           return {key,record,scheduled,done:['accepted','completed'].includes(record?.status)};
         });
         const next=progress.filter(p=>!p.done && p.scheduled?.due_date).sort((a,b)=>a.scheduled.due_date.localeCompare(b.scheduled.due_date))[0];
-        return <tr key={site.id}><th scope="row">{name(site)}</th>{progress.map(p=><td key={p.key} className={p.done ? "sm-overview-completed" : `sm-overview-${p.record?.status || "not-started"}`}>{p.record ? STATUSES[p.record.status] : 'Not Started'}{isPerfectMonitoring(p.record) && <span className="sm-perfect">⭐ Perfect Monitoring</span>}<br/>{p.done && <>Completed: {displayDate(p.record.monitoring_date)}<br/></>}Due: {displayDate(p.scheduled?.due_date)}</td>)}<td>{next ? `${SLOTS[next.key].split(' · ')[0]}: ${displayDate(next.scheduled.due_date)}` : '—'}</td><td><button type="button" disabled={busy} onClick={()=>{setSelected(site.id);setSlot(progress.find(p=>!p.done)?.key || 'manager_2');detail.current?.scrollIntoView({block:'start',behavior:'smooth'});}}>Open Matrix<span className="sm-sr-only"> for {name(site)}</span></button></td></tr>;
+        return <tr key={site.id}><th scope="row">{name(site)}</th>{progress.map(p=><td key={p.key} className={p.done ? "sm-overview-completed" : `sm-overview-${p.record?.status || "not-started"}`}>{p.record ? STATUSES[p.record.status] : 'Not Started'}{isPerfectMonitoring(p.record) && <span className="sm-perfect">⭐ Perfect Monitoring</span>}<br/>{p.done && <>Completed: {displayDate(p.record.monitoring_date)}<br/></>}Due: {displayDate(p.scheduled?.due_date)}<MonitoringStarButton record={p.record} school={schoolFor(site)} supervisorPin={supervisorPin} onRefresh={onRefresh}/></td>)}<td>{next ? `${SLOTS[next.key].split(' · ')[0]}: ${displayDate(next.scheduled.due_date)}` : '—'}</td><td><button type="button" disabled={busy} onClick={()=>{setSelected(site.id);setSlot(progress.find(p=>!p.done)?.key || 'manager_2');detail.current?.scrollIntoView({block:'start',behavior:'smooth'});}}>Open Matrix<span className="sm-sr-only"> for {name(site)}</span></button></td></tr>;
       })}</tbody></table></div>
     </>
   </section>;

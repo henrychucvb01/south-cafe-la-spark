@@ -164,3 +164,6 @@
 .sm-perfect { display: inline-block; font-weight: 700; margin: .2rem .35rem; color: #664d00; }
 .sm-sequence-lock { font-weight: 600; }
 .sm-status-card:disabled .sm-sequence-lock { opacity: 1; }
+
+.sm-star-control { margin-top: 8px; }
+.sm-star-control button { padding: 6px 10px; font-size: .85rem; }

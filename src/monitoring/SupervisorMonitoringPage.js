@@ -56,13 +56,13 @@ export default function SupervisorMonitoringPage({ supervisorPin, onBack }) {
       <label>Performed by<select value={role} onChange={e=>setRole(e.target.value)}><option value="">Manager and Supervisor</option><option value="manager">Manager</option><option value="supervisor">Supervisor / AFSS</option></select></label></div>
       <button type="button" disabled={busy} onClick={load}>Refresh Overview</button>
     </section>
-    {(!monitoringType || monitoringType==='supper') && <SupperScheduling overview={overview} year={year} schoolFilter={schoolFilter} supervisorPin={supervisorPin} onRefresh={load}/>}
     <section className="sm-card"><h2>Submitted for Review</h2><p>Manager monitorings awaiting your review for the selected school and school year.</p>
       {!queue.length?<p>No submitted monitorings awaiting review.</p>:<div className="sm-queue-scroll"><table className="sm-review-queue"><thead><tr>{['School','Type / Site','Monitoring slot','Monitoring date','Submitted by','Submitted date','Status','Review'].map(label=><th scope="col" key={label}>{label}</th>)}</tr></thead><tbody>{queue.map(r=><tr key={r.id}>
         <td>{overview.schools.find(s=>s.id===r.location_id)?.school_name}</td><td>{typeLabel(r.monitoring_type)} · {siteLabel(r)}</td><td>{recordLabel(r)}</td><td>{r.monitoring_date}</td>
         <td>{r.submitted_by_name||r.created_by_name}{r.uploaded_on_behalf&&r.submitted_by_role==='supervisor'?' (on behalf of school/Manager)':''}</td><td>{r.submitted_at?new Date(r.submitted_at).toLocaleString():'—'}</td><td>{STATUSES[r.status]}</td><td><button type="button" disabled={busy} onClick={()=>openReview(r)}>Review</button></td>
       </tr>)}</tbody></table></div>}
     </section>
+    {(!monitoringType || monitoringType==='supper') && <SupperScheduling overview={overview} year={year} schoolFilter={schoolFilter} supervisorPin={supervisorPin} onRefresh={load}/>}
     {rows.map(s=><section key={s.id} className="sm-card"><h2>{s.school_name}</h2>{s.records.length ? <ul>{s.records.map(r=><li key={r.id}>{typeLabel(r.monitoring_type)} · {siteLabel(r)} · {recordLabel(r)} · {STATUSES[r.status]}</li>)}</ul> : <p>No monitorings started for this school year.</p>}<button type="button" onClick={()=>setSchool(s)}>Open School Monitorings</button></section>)}
     {!busy&&!rows.length&&<p>No schools match these filters.</p>}
   </main></div>;

@@ -38,5 +38,5 @@ export function supperSequence(records = [], siteId, year, slot) {
   return '';
 }
 export function isPerfectMonitoring(record) {
-  return record?.monitor_role === 'manager' && record.locked === true && record.status === 'accepted' && record.had_correction_requested === false;
+  return record?.monitor_role === 'manager' && record.locked === true && record.status === 'accepted' && (record.perfect_monitoring_override ?? (record.had_correction_requested === false));
 }

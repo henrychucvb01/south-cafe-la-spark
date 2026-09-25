@@ -41,6 +41,7 @@ try {
  await db.exec('reset role');await assert.rejects(()=>db.exec(migration),/Conflicting site schedules/);await db.exec('rollback');
  await rpc('save_supper_schedule',{...oldSetting(offsite.id),p_revision:1});
  await db.exec('reset role');await db.exec(migration);
+ await db.exec(await readFile('supabase/migrations/202609250005_supervisor_monitoring_stars.sql','utf8'));
  assert.equal((await get(legacy.id)).had_correction_requested,null);assert.equal(isPerfectMonitoring(await get(legacy.id)),false);
  assert.deepEqual((await request(manager,{action:'download',id:legacy.id})).body,template,'Migration preserves historical completed PDF');
  const setting=slot=>({p_pin:'9999',p_year:'2026-27',p_slot:slot,p_start:'2026-09-01',p_end:'2027-05-31',p_due:'2027-05-09',p_revision:null});
@@ -92,6 +93,22 @@ try {
  first=await review(first,'unlock');await assert.rejects(()=>save('manager_2',third,main.id,'2027-04-02'),/Complete Supper 1/);
  assert.equal((await get(second.id)).status,'completed');
  await db.exec('reset role');await db.query('update monitoring_records set had_correction_requested=false where id=$1',[first.id]);assert.equal((await get(first.id)).had_correction_requested,true);
+ // Supervisor overrides recognition without changing a locked PDF or correction facts.
+ const star=(token,r,awarded)=>rpc('set_monitoring_star',{p_token:token,p_id:r.id,p_revision:r.revision,p_awarded:awarded});
+ legacy=await get(legacy.id);const legacyBefore=legacy;
+ await assert.rejects(()=>star(manager,legacy,true),/Supervisor authorization/);
+ await assert.rejects(()=>star(other,legacy,true),/not found/);
+ await assert.rejects(()=>star(supervisor,{...legacy,revision:legacy.revision-1},true),/changed/);
+ await assert.rejects(()=>star(supervisor,first,true),/accepted, locked/);
+ await assert.rejects(()=>star(supervisor,second,true),/accepted, locked/);
+ legacy=await star(supervisor,legacy,true);assert.equal(isPerfectMonitoring(legacy),true);
+ assert.equal(legacy.had_correction_requested,null);assert.equal(legacy.status,'accepted');assert.equal(legacy.locked,true);
+ for(const key of ['pdf_sha256','document_version','monitoring_date','monitoring_site_id','school_year'])assert.equal(legacy[key],legacyBefore[key]);
+ assert.deepEqual((await request(manager,{action:'download',id:legacy.id})).body,template);
+ legacy=await star(supervisor,legacy,false);assert.equal(isPerfectMonitoring(await get(legacy.id)),false);
+ legacy=await star(supervisor,legacy,true);legacy=await review(legacy,'unlock');assert.equal(legacy.perfect_monitoring_override,null);assert.equal(isPerfectMonitoring(legacy),false);
+ perfect=await star(supervisor,perfect,true);assert.equal(perfect.had_correction_requested,true);assert.equal(isPerfectMonitoring(perfect),true);
+ perfect=await star(supervisor,perfect,false);perfect=await review(perfect,'unlock');assert.equal(perfect.perfect_monitoring_override,false);
  await db.exec('reset role;set role anon');await assert.rejects(()=>db.query('select * from supper_schedules'),/permission denied/);
  await assert.rejects(()=>db.query('update monitoring_records set had_correction_requested=false'),/permission denied/);
  console.log('PASS: global publication/consolidation/conflict safety, permissions, site/year independence, strict sequence via draft/upload APIs, SQL/UI date parity, correction persistence, first-acceptance recognition for uploaded/generated records, legacy unknown, merged replacement/download, accepted lock, unlock and restart.');

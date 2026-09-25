@@ -24,7 +24,7 @@ Every eligible weekday in the inclusive window appears after sequence unlock. No
 
 ## Recognition and UX
 
-Perfect Monitoring requires a locked accepted Manager record with `had_correction_requested === false`. Uploaded and guided Manager records qualify. Supervisor Supper 2, unknown old records, and corrected records do not. Unlocking for correction permanently removes eligibility.
+Automatic Perfect Monitoring requires a locked accepted Manager record with `had_correction_requested === false`. Uploaded and guided Manager records qualify. Supervisors can explicitly award or remove a star using the controls described in `monitoring-supervisor-stars.md`, including for old/previously corrected records. Supervisor Supper 2 never qualifies. An unlock cancels an explicit award; a deliberate removal stays removed.
 
 Stars appear on Manager cards, completed/accepted rows, record details and Supervisor overview cells. Completed/accepted overview cells are light green with dark text. Submitted is pale blue; corrections requested is pale amber. Red matrix restrictions are unchanged.
 
