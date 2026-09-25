@@ -2,6 +2,10 @@ import { OFFICIAL_FORM } from "./officialForm.js";
 export { OFFICIAL_FORM } from "./officialForm.js";
 export const SECTIONS = ["Monitoring Information", "Five-Day History", "Today's Supper Information", "Menu & Serving Sizes", "Monitoring Questions", "Findings / Corrective Action", "Comments", "Names & Signatures", "Final Review", "Submit"];
 export const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+export const MILK_FAT_TYPES = ["1%", "Nonfat", "2%", "Whole"];
+export const PROGRAM_NAME_MESSAGE = "Enter the name of the After School Program. Beyond the Bell (BTB) is the division, not the program name.";
+export const isDivisionName = value => ["btb", "beyondthebell", "btbbeyondthebell", "beyondthebellbtb"].includes(String(value || "").toLowerCase().replace(/[^a-z0-9]/g, ""));
+export const blankMilks = () => [{fatType:"",description:"",serving:""},{fatType:"",description:"",serving:""}];
 export const MENU = ["Milk", "Meat/Alternate", "Grains/Breads", "Fruit", "Vegetable", "Additional Meat/Alternate", "Other"];
 export const QUESTION_IDS = [...Array.from({ length: 17 }, (_, i) => String(i + 1)), "18a", "18b", "19", "20"];
 
@@ -31,7 +35,7 @@ export function weekDates(date) {
   });
 }
 export function newDraft(monitor = "", role = "manager") {
-  return { schemaVersion: 1, guidedVersion: 3, schoolYear: schoolYear(localDate()), monitoringSlot: role === "supervisor" ? "supervisor" : "manager_1", unannounced: true, adultMeals: "0", serviceTimes: [], todayAttendanceConfirmed: "", historyVerified: "", correctiveActionDue: "", followUpRequired: null, extraFollowUp: "", approvedServiceTime: "", monitoringDate: "", arrivalTime: "", departureTime: "", serviceStart: "", serviceEnd: "", programName: "", programType: "", todayAttendance: "", todayMeals: "", weekStart: "", history: [], menu: MENU.map(category => ({ category, applicable: true, item: "", serving: "" })), answers: {}, correctiveActions: {}, repeatedFindings: "", repeatedAction: "", comments: "", monitorName: monitor, coordinatorName: "", signatures: { monitor: null, coordinator: null } };
+  return { schemaVersion: 1, guidedVersion: 3, schoolYear: schoolYear(localDate()), monitoringSlot: role === "supervisor" ? "supervisor" : "manager_1", unannounced: true, adultMeals: "0", serviceTimes: [], todayAttendanceConfirmed: "", historyVerified: "", correctiveActionDue: "", followUpRequired: null, extraFollowUp: "", approvedServiceTime: "", monitoringDate: "", arrivalTime: "", departureTime: "", serviceStart: "", serviceEnd: "", programName: "", programType: "", todayAttendance: "", todayMeals: "", weekStart: "", history: [], milks: blankMilks(), menu: MENU.map(category => ({ category, applicable: true, item: "", serving: "" })), answers: {}, correctiveActions: {}, repeatedFindings: "", repeatedAction: "", comments: "", monitorName: monitor, coordinatorName: "", signatures: { monitor: null, coordinator: null } };
 }
 export const SERVICE_DAYS = [...DAYS, "Saturday", "Sunday"];
 export const timeValid = value => /^([01]\d|2[0-3]):[0-5]\d$/.test(value || "");
@@ -76,6 +80,7 @@ export function resumeDraft(payload) {
     data.legacyServiceTime = payload.approvedServiceTime || "";
     data.signatures = { monitor: null, coordinator: null };
   }
+  if (!Array.isArray(payload.milks)) { data.milks=blankMilks(); data.signatures={monitor:null,coordinator:null}; }
   data.serviceTimes = data.serviceTimes.map(row => ({...row, end: serviceEnd(row.start)}));
   if (payload.guidedVersion !== 3) data.signatures = { monitor: null, coordinator: null };
   return { ...data, schemaVersion: 1, guidedVersion: 3, unannounced: true, adultMeals: "0" };
@@ -110,6 +115,7 @@ export function validate(data, form = OFFICIAL_FORM) {
   if (!services.length) add(0, "serviceTimes", "Add the CDE-approved Supper service times for the After School Program.");
   services.forEach((row, i) => {
     if (!row.program?.trim()) add(0, `program-${i}`, "Enter the After School Program name.");
+    else if(isDivisionName(row.program)) add(0, `program-${i}`, PROGRAM_NAME_MESSAGE);
     if (!SERVICE_DAYS.includes(row.day)) add(0, `day-${i}`, "Choose the day of week for this approved service time.");
     if (!timeValid(row.start)) add(0, `start-${i}`, "Enter the CDE-approved service start time.");
     if (row.end !== serviceEnd(row.start)) add(0, `end-${i}`, "Service end must be exactly 30 minutes after its start. Reopen this draft to recalculate.");
@@ -142,10 +148,21 @@ export function validate(data, form = OFFICIAL_FORM) {
     if (Number(data.todayAttendance) < Number(data.todayMeals)) add(2, "todayAttendance", "Attendance cannot be lower than the Supper meal count. Verify the attendance and Community Roster.");
     if (Number(data.todayAttendance) === Number(data.todayMeals) && data.todayAttendanceConfirmed !== attendanceKey(data.monitoringDate, data.todayMeals, data.todayAttendance)) add(2, "todayAttendance", "Verify the attendance and Community Roster, then confirm these equal numbers are correct.");
   }
+  const milks=Array.isArray(data.milks)?data.milks:[];
+  [0,1].forEach(i=>{
+    const milk=milks[i];
+    if(!milk || !MILK_FAT_TYPES.includes(milk.fatType)) add(3,`milk-fat-${i}`,i===1 ? "Add a second milk with a different fat type." : "Choose the Milk 1 fat type.");
+    if(!milk?.description?.trim()) add(3,`milk-description-${i}`,`Enter the Milk ${i+1} description/flavor.`);
+    if(!milk?.serving?.trim()) add(3,`milk-serving-${i}`,`Enter the Milk ${i+1} serving size.`);
+  });
+  if(milks[0]?.fatType && milks[0].fatType===milks[1]?.fatType) add(3,'milk-fat-1',"Two different milk fat types are required. Flavor alone does not make them different milk types.");
   MENU.forEach((category, i) => {
     const item = data.menu[i];
-    if (!item || item.category !== category || typeof item.applicable !== "boolean") add(3, `menu-${i}`, `Review the ${category} category.`);
-    else if (item.applicable && (!!item.item.trim() !== !!item.serving.trim())) add(3, `menu-${i}`, `Enter the specific ${category} item and serving size, or confirm it is not applicable.`);
+    if(i===0)return;
+    const name={"Meat/Alternate":"Meat/Meat Alternate","Grains/Breads":"Grain/Bread"}[category] || category;
+    if (!item || item.category !== category || typeof item.applicable !== "boolean") add(3, `menu-${i}`, `Review the ${name} category.`);
+    else if(i<5 && (!item.applicable || !item.item?.trim() || !item.serving?.trim())) add(3,`menu-${i}`,`Enter the ${name} item and serving size.`);
+    else if(i>=5 && (!!item.item?.trim() !== !!item.serving?.trim())) add(3,`menu-${i}`,`Enter the ${name} item and serving size, or leave both blank.`);
   });
   if (!form.ready) add(4, "officialForm", "Official monitoring questions are awaiting the approved two-page form. Drafts can be saved; submission is unavailable.");
   if (!form.ready || applicableQuestions(data, form).some(q => !q.options.includes(data.answers[q.id]))) add(5, "findingsPending", "Complete the official monitoring questions before reviewing required corrective actions.");

@@ -103,6 +103,13 @@ export async function generateOfficialPdf(template, data, school, { monitorRole 
   const menuRows = [635, 618, 601, 583, 564, 543, 521];
   const menuX = [374, 400, 397, 378, 389, 400, 382];
   data.menu.forEach((item, i) => {
+    if(i===0 && Array.isArray(data.milks)) {
+      data.milks.slice(0,2).forEach((milk,n)=>{
+        text(0,`${milk.fatType} ${milk.description}`,374,638-n*8,154,`Milk ${n+1} description`,3,7,7);
+        text(0,milk.serving,535,638-n*8,45,`Milk ${n+1} serving size`,3,7,7);
+      });
+      return;
+    }
     text(0, item.applicable && item.item.trim() ? item.item : "N/A", menuX[i], menuRows[i], 528 - menuX[i], `${item.category} menu item`, 3, 8.5);
     text(0, item.applicable ? item.serving : "", 535, menuRows[i], 45, `${item.category} serving size`, 3, 8);
   });

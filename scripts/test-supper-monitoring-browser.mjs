@@ -113,7 +113,7 @@ try {
     await page.getByLabel("Departure time").fill("16:00");
     assert.equal(await page.getByText("Was this visit unannounced?",{exact:true}).count(),0);
     await page.getByRole('button',{name:'+ Add Service Time',exact:true}).click();
-    await page.locator('#program-0').fill('Beyond the Bell');
+    await page.locator('#program-0').fill('Youth Enrichment');
     await page.locator('#start-0').fill('15:02');await expect(page.locator('#end-0')).toHaveValue('15:32');await expect(page.locator('#end-0')).toHaveAttribute('readonly','');await page.locator('#start-0').fill('14:30');await expect(page.locator('#end-0')).toHaveValue('15:00');
     await page.getByRole("button", { name: "Save & Continue →", exact: true }).click();
     await page.getByLabel("Go to section").selectOption("0");
@@ -121,7 +121,7 @@ try {
     await page.locator('#program-1').fill('Community Learning');
     await page.locator('#start-1').fill('16:00');await expect(page.locator('#end-1')).toHaveValue('16:30');
     await page.getByRole('button',{name:'+ Add Service Time',exact:true}).click();
-    await page.locator('#program-2').fill('Beyond the Bell');
+    await page.locator('#program-2').fill('Youth Enrichment');
     await page.getByLabel('Day for service 3',{exact:true}).selectOption('Tuesday');
     await page.locator('#start-2').fill('12:00');await expect(page.locator('#end-2')).toHaveValue('12:30');
     await page.getByLabel('Arrival time',{exact:true}).fill('14:30');
@@ -173,8 +173,10 @@ try {
     await page.getByLabel('Confirm Numbers Are Correct',{exact:true}).check();
     await page.getByRole('button',{name:'Save & Continue →',exact:true}).click();
     await expect(page.getByRole('heading',{name:'Menu & Serving Sizes',exact:true})).toBeVisible();
-    await page.locator('#menu-0').fill('Chocolate lowfat');await page.locator('#serving-0').fill('8 oz');
-    assert.equal(await page.locator('.sm-menu-row').count(),7);
+    await page.getByLabel('Milk 1 fat type',{exact:true}).selectOption('1%');await page.getByLabel('Milk 1 description/flavor',{exact:true}).fill('White');await page.getByLabel('Milk 1 serving size',{exact:true}).fill('8 oz');
+    await page.getByLabel('Milk 2 fat type',{exact:true}).selectOption('Nonfat');await page.getByLabel('Milk 2 description/flavor',{exact:true}).fill('Chocolate');await page.getByLabel('Milk 2 serving size',{exact:true}).fill('8 oz');
+    for(let i=1;i<5;i++){await page.locator('#menu-'+i).fill(['','Chicken','Whole-grain roll','Apples','Carrots'][i]);await page.locator('#serving-'+i).fill('1/2 cup');}
+    assert.equal(await page.locator('.sm-menu-row').count(),8);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),true,'Menu fits desktop/mobile');
     await page.screenshot({path:resolve(output,`menu-${viewport.width}.png`),fullPage:true});
     await page.getByRole('button',{name:'Save & Continue →',exact:true}).click();

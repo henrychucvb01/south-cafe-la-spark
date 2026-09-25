@@ -78,6 +78,7 @@ const task=getDocument({data:multiBytes.slice(),useSystemFonts:true});
 const doc=await task.promise;
 const page1=await doc.getPage(1),page2=await doc.getPage(2);
 const first=(await page1.getTextContent()).items;
+assert.ok(first.some(i=>i.str==='1% White'));assert.ok(first.some(i=>i.str==='Nonfat Chocolate'));assert.ok(first.filter(i=>i.str==='8 oz').length>=2);
 const second=(await page2.getTextContent()).items.map(i=>i.str).join(' ');
 assert.ok(second.includes('North Offsite'));
 assert.ok(first.some(i=>i.str==='98' && Math.abs(i.transform[4]-322)<1 && Math.abs(i.transform[5]-543)<1),'Average is a whole number in the official location');

@@ -6,8 +6,9 @@ const fixture = { ready: true, questions: QUESTION_IDS.map(id => ({ id, options:
 function completeDraft() {
   const data = newDraft("A Monitor");
   Object.assign(data, { unannounced: true, adultMeals: "0", approvedServiceTime: "14:30-15:30", followUpRequired: false, monitoringDate: "2026-09-23", arrivalTime: "14:00", departureTime: "16:00", serviceStart: "14:30", serviceEnd: "15:30", programName: "ASP", todayAttendance: "101", todayMeals: "100", weekStart: "2026-09-14", coordinatorName: "B Coordinator", comments: "No Findings" });
-  data.serviceTimes = [{program:"Beyond the Bell",day:"Wednesday",start:"14:30",end:"15:00",observed:true}];
+  data.serviceTimes = [{program:"Youth Enrichment",day:"Wednesday",start:"14:30",end:"15:00",observed:true}];
   data.history = weekDates(data.weekStart).map(date => ({ date, meals: "100", attendance: "101" }));
+  data.milks = [{fatType:"1%",description:"White",serving:"8 oz"},{fatType:"Nonfat",description:"Chocolate",serving:"8 oz"}];
   data.menu = data.menu.map(row => ({ ...row, item: "Menu item", serving: "1 cup" }));
   data.answers = Object.fromEntries(QUESTION_IDS.map(id => [id, id === "18a" || id === "19" ? "no" : "yes"]));
   ["monitor", "coordinator"].forEach(role => { data.signatures[role] = { contentHash: "a".repeat(64), strokes: [[[0.1, 0.2], [0.4, 0.8]]], printedName: data[`${role}Name`], date: "2026-09-23", pages: [1, 2], acceptedAt: "2026-09-23T20:00:00Z" }; });
@@ -79,8 +80,8 @@ test("blank comment, names, signature date, page consent and stale signature nam
   expect(validate(draft, fixture).map(e => e.field)).toEqual(expect.arrayContaining(["comments", "coordinatorName", "monitorSignature", "coordinatorSignature"]));
 });
 test("missing menu information, invalid times and incomplete questions fail review", () => {
-  const draft = completeDraft(); draft.menu[0].serving = ""; draft.departureTime = "13:00"; delete draft.answers["20"];
-  expect(validate(draft, fixture).map(e => e.field)).toEqual(expect.arrayContaining(["menu-0", "departureTime", "question-20"]));
+  const draft = completeDraft(); draft.milks[0].serving = ""; draft.departureTime = "13:00"; delete draft.answers["20"];
+  expect(validate(draft, fixture).map(e => e.field)).toEqual(expect.arrayContaining(["milk-serving-0", "departureTime", "question-20"]));
 });
 test("official template cannot be bypassed by otherwise complete answers", () => {
   expect(validate(completeDraft(), { ready: false, questions: [] }).map(e => e.field)).toEqual(expect.arrayContaining(["officialForm", "officialPdf"]));
@@ -94,7 +95,7 @@ test("school-year boundary uses July and does not parse invalid dates", () => {
 test("service validation uses only observed programs on the monitoring weekday and strict boundaries", () => {
   const data = completeDraft();
   data.serviceTimes.push({program:"Other program",day:"Wednesday",start:"16:00",end:"16:30",observed:true});
-  data.serviceTimes.push({program:"Beyond the Bell",day:"Tuesday",start:"12:00",end:"12:30",observed:true});
+  data.serviceTimes.push({program:"Youth Enrichment",day:"Tuesday",start:"12:00",end:"12:30",observed:true});
   expect(validate(data,fixture).find(e=>e.field === "departureTime").message).toContain("4:30 PM");
   data.departureTime="16:31";
   expect(validate(data,fixture)).toEqual([]);
@@ -160,4 +161,24 @@ test("both monitoring roles preserve the first signature when the second signer 
     expect(resumeDraft(JSON.parse(JSON.stringify(data))).signatures.monitor).toEqual(accepted);
     data=changeDraft(data,"comments","Changed");expect(data.signatures.monitor).toBeNull();
   }
+});
+
+test.each(['BTB','btb','B.T.B.','B T B','Beyond the Bell','BEYOND - THE - BELL','Beyond the Bell (BTB)'])('rejects division program name %s in each row', name=>{
+ const d=completeDraft();d.serviceTimes.push({...d.serviceTimes[0],program:name});
+ expect(validate(d,fixture).filter(e=>e.field==='program-1')[0].message).toContain('division, not the program name');
+ expect(validate(d,fixture).filter(e=>e.field==='program-0')).toHaveLength(0);
+});
+test.each([['1%','Nonfat'],['Nonfat','1%']])('accepts distinct milk fat types %s / %s',(first,second)=>{const d=completeDraft();d.milks[0].fatType=first;d.milks[1].fatType=second;expect(validate(d,fixture).filter(e=>e.section===3)).toHaveLength(0);});
+test.each(['1%','Nonfat'])('rejects same fat type despite different flavors: %s', fat=>{const d=completeDraft();d.milks.forEach(m=>m.fatType=fat);expect(validate(d,fixture).some(e=>e.message.includes('Flavor alone'))).toBe(true);});
+test('requires both milks and their servings',()=>{const d=completeDraft();d.milks.pop();expect(validate(d,fixture).some(e=>e.message.includes('second milk'))).toBe(true);d.milks[0].serving='';expect(validate(d,fixture).some(e=>e.field==='milk-serving-0')).toBe(true);});
+test.each([1,2,3,4])('requires component %s and serving',i=>{const d=completeDraft();d.menu[i].item='';expect(validate(d,fixture).some(e=>e.field===`menu-${i}`)).toBe(true);d.menu[i].item='Food';d.menu[i].serving='';expect(validate(d,fixture).some(e=>e.field===`menu-${i}`)).toBe(true);});
+test('optional components may be blank but partial entries need a serving',()=>{const d=completeDraft();[5,6].forEach(i=>{d.menu[i].item='';d.menu[i].serving='';});expect(validate(d,fixture).filter(e=>e.section===3)).toHaveLength(0);d.menu[6].item='Extra';expect(validate(d,fixture).some(e=>e.field==='menu-6')).toBe(true);});
+test('saved milk entries resume unchanged; legacy drafts require explicit fat types',()=>{
+ const d=completeDraft();
+ expect(resumeDraft(JSON.parse(JSON.stringify(d))).milks).toEqual(d.milks);
+ delete d.milks;
+ const resumed=resumeDraft(d);
+ expect(resumed.milks).toEqual([{fatType:'',description:'',serving:''},{fatType:'',description:'',serving:''}]);
+ expect(resumed.signatures).toEqual({monitor:null,coordinator:null});
+ expect(validate(resumed,fixture).some(e=>e.field==='milk-fat-1')).toBe(true);
 });

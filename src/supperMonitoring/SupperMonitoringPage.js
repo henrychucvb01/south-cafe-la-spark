@@ -110,7 +110,7 @@ export default function SupperMonitoringPage({ location, employee, managerPin, s
   }
   function openRecord(loaded) {
     setRecord(loaded); setData({ ...(editableGuided(loaded, context) ? resumeDraft(loaded.payload) : { ...newDraft(), ...loaded.payload }), schoolYear: loaded.school_year, monitoringSlot: loaded.monitoring_slot });
-    setSection(editableGuided(loaded, context) ? loaded.current_section : 8); setDirty(false); setNotice(editableGuided(loaded, context) && loaded.payload.guidedVersion !== 3 ? "Service times have been updated to 30 minutes. Review the report and accept both signatures again." : ""); setShowErrors(false);
+    setSection(editableGuided(loaded, context) ? loaded.current_section : 8); setDirty(false); setNotice(editableGuided(loaded, context) && !loaded.payload.milks ? "Enter two milk fat types and review the required menu components. Accept both signatures again after correcting the report." : editableGuided(loaded, context) && loaded.payload.guidedVersion !== 3 ? "Service times have been updated to 30 minutes. Review the report and accept both signatures again." : ""); setShowErrors(false);
   }
   async function acceptSignature(role, value) {
     if (!value) { change("signatures", { ...data.signatures, [role]: null }); return; }
