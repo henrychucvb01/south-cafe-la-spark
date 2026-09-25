@@ -7,6 +7,7 @@ export function canEdit(record, context) {
   if (record.locked || ["accepted","completed"].includes(record.status)) return false;
   if (!["draft","corrections_requested"].includes(record.status)) return false;
   if (context?.actor_role === "supervisor") return true;
+  if (context?.actor_role === 'manager' && context.covering === true && record.monitoring_type === 'supper' && record.monitor_role === 'manager' && record.source === 'uploaded' && record.status === 'corrections_requested') return true;
   if (record.uploaded_on_behalf) return record.monitor_role === "manager" && !record.locked && !["accepted","completed"].includes(record.status) && (!record.manager_employee_id || record.manager_employee_id === context?.employee_id);
   return record.monitor_role !== "supervisor" && !record.locked && !["accepted","completed"].includes(record.status) && (context?.employee_id ? record.created_by_employee_id === context.employee_id : record.created_by_employee_id == null && record.created_by_name === context?.monitor_name);
 }

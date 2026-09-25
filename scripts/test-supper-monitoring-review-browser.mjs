@@ -13,9 +13,9 @@ create table locations(id bigint primary key,active boolean,school_name text,loc
 create table employees(id bigint primary key,location_id bigint,employee_name text,active boolean);
 insert into locations values(1,true,'Test School','1001');insert into employees values(11,1,'Test Monitor',true);
 create function verify_manager_pin(text,text) returns boolean language sql as $$select $2='1234'$$;
-create function verify_covering_pin(text) returns boolean language sql as $$select false$$;
+create function verify_covering_pin(text) returns boolean language sql as $$select $1='5678'$$;
 create function verify_supervisor_pin(text) returns boolean language sql as $$select $1='9999'$$;`);
-for(const name of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql','202609240003_monitoring_types_sites_restart.sql','202609240004_monitoring_current_records.sql','202609250001_monitoring_delete_draft.sql']) await db.exec(await readFile('supabase/migrations/'+name,'utf8'));
+for(const name of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql','202609240003_monitoring_types_sites_restart.sql','202609240004_monitoring_current_records.sql','202609250001_monitoring_delete_draft.sql','202609250002_covering_monitoring_corrections.sql']) await db.exec(await readFile('supabase/migrations/'+name,'utf8'));
 // Serialize role-scoped requests on this single ephemeral database connection.
 let queue=Promise.resolve();
 function rpc(name,args,role='anon') {const task=queue.then(async()=>{await db.exec('reset role;set role '+role);const set=['list_supper_monitorings','supper_audit_history'].includes(name);const rows=(await db.query(`select to_jsonb(public.${name}(${Object.keys(args).map((k,i)=>k+' => $'+(i+1)).join(',')})) as result`,Object.values(args))).rows;return set ? rows.map(r=>r.result) : rows[0].result;});queue=task.catch(()=>{});return task;}
@@ -27,10 +27,10 @@ await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin='http://127.0.
 const browser=await chromium.launch({channel:process.env.SPARK_TEST_BROWSER||'chrome',headless:true});const errors=[];const supervisorCalls=[];
 async function pageFor(role){const context=await browser.newContext({viewport:{width:role==='manager'?390:1440,height:950},hasTouch:true,serviceWorkers:'block'});const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.addInitScript(()=>sessionStorage.setItem('sparkIntroPlayed','yes'));
 await page.route('**/*',async route=>{const request=route.request(),url=new URL(request.url());if(url.origin===origin)return route.continue();if(url.hostname!=='kkrcxqhfzepifhkryodd.supabase.co')return route.abort();const name=url.pathname.split('/').at(-1),args=request.postDataJSON()||{};if(role==='supervisor')supervisorCalls.push(name);try{let body=[];
-if(name==='locations')body={id:1,location_code:'1001',school_name:'Test School',active:true};else if(name==='employees')body=[{id:11,location_id:1,employee_name:'Test Monitor',active:true}];else if(['has_manager_pin','verify_manager_pin','verify_supervisor_pin'].includes(name))body=true;else if(/supper|monitoring/.test(name))body=await rpc(name,args);
+if(name==='locations')body={id:1,location_code:'1001',school_name:'Test School',active:true};else if(name==='employees')body=[{id:11,location_id:1,employee_name:'Test Monitor',active:true}];else if(['has_manager_pin','verify_manager_pin','verify_supervisor_pin','verify_covering_pin'].includes(name))body=true;else if(/supper|monitoring/.test(name))body=await rpc(name,args);
 await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});}catch(e){await route.fulfill({status:400,contentType:'application/json',body:JSON.stringify({message:e.message})});}});
-await page.goto(origin);if(role==='manager'){await page.getByLabel('Location Code').fill('1001');await page.getByRole('button',{name:'Continue',exact:true}).click();await page.getByRole('button',{name:/Test Monitor/}).click();await page.getByLabel('4-Digit PIN').fill('1234');}else{await page.getByRole('button',{name:'Supervisor Access',exact:true}).click();await page.locator('input[type=password]').fill('9999');await page.getByRole('button',{name:'Open Command Center'}).click();}
-await page.getByRole('button',{name:role==='manager'?/Monitoring/:'Monitoring',exact:role==='supervisor'}).click();return page;}
+await page.goto(origin);if(role!=='supervisor'){await page.getByLabel('Location Code').fill('1001');await page.getByRole('button',{name:'Continue',exact:true}).click();if(role==='covering'){await page.getByRole('button',{name: /I'm covering this location/}).click();await page.getByLabel('First and Last Name').fill('Covering Manager');await page.getByRole('button',{name:/Continue/}).click();}else await page.getByRole('button',{name:/Test Monitor/}).click();await page.getByLabel('4-Digit PIN').fill(role==='covering'?'5678':'1234');}else{await page.getByRole('button',{name:'Supervisor Access',exact:true}).click();await page.locator('input[type=password]').fill('9999');await page.getByRole('button',{name:'Open Command Center'}).click();}
+await page.getByRole('button',{name:role!=='supervisor'?/Monitoring/:'Monitoring',exact:role==='supervisor'}).click();return page;}
 try{
  const manager=await pageFor('manager'),supervisor=await pageFor('supervisor');
  await mkdir('test-results/supper-review',{recursive:true});
@@ -157,7 +157,7 @@ try{
  await manager.screenshot({path:'test-results/supper-review/manager-markup.png',fullPage:true});
  await manager.getByRole('button',{name:'Back to Monitorings',exact:true}).click();
  await manager.setViewportSize({width:1440,height:950});
- await manager.getByRole('button',{name:'Replace PDF',exact:true}).click();await manager.getByLabel('Upload PDF(s)').setInputFiles('public/supper-monitoring-2022-09-08.pdf');
+ await manager.getByRole('button',{name:'Upload Corrected PDF',exact:true}).click();await manager.getByLabel('Upload PDF(s)').setInputFiles('public/supper-monitoring-2022-09-08.pdf');
  await manager.getByRole('button',{name:'Review Upload',exact:true}).click();
  await expect(confirmUpload).toBeEnabled({timeout:30000});await confirmUpload.check();await submitUpload.click();
  await expect(manager.getByText('Submitted for Review',{exact:true})).toBeVisible();
@@ -167,10 +167,18 @@ try{
  await expect(supervisor.getByText('Returned to the Manager for correction.',{exact:true})).toBeVisible();
  await supervisor.getByRole('button',{name:'Back to Monitorings',exact:true}).click();
  await manager.getByRole('button',{name:'Back to History'}).click();await manager.getByRole('button',{name:'Refresh',exact:true}).click();await manager.getByRole('button',{name:'View',exact:true}).click();
- await manager.getByRole('button',{name:'Replace PDF',exact:true}).click();
- await manager.setViewportSize({width:390,height:844});
- await manager.getByLabel('Upload PDF(s)').setInputFiles(split);
- await manager.getByRole('button',{name:'Review Upload',exact:true}).click();await expect(confirmUpload).toBeEnabled({timeout:30000});await confirmUpload.check();await submitUpload.click();
+ const covering=await pageFor('covering');await covering.setViewportSize({width:390,height:844});
+ await covering.getByRole('button',{name:'View',exact:true}).click();
+ await expect(covering.getByRole('button',{name:'Upload Corrected PDF',exact:true})).toBeVisible();
+ await covering.screenshot({path:'test-results/supper-review/covering-correction.png',fullPage:true});
+ await covering.getByRole('button',{name:'Upload Corrected PDF',exact:true}).click();
+ await covering.getByLabel('Upload PDF(s)').setInputFiles(split);
+ await covering.getByRole('button',{name:'Review Upload',exact:true}).click();
+ const coveringConfirm=covering.getByRole('checkbox',{name:'I reviewed the monitoring and the correct document/pages are attached.'});
+ await expect(coveringConfirm).toBeEnabled({timeout:30000});await coveringConfirm.check();await covering.getByRole('button',{name:'Submit for Supervisor Review',exact:true}).click();
+ await expect(covering.getByText('Submitted for Review',{exact:true})).toBeVisible();
+ await expect(covering.getByRole('button',{name:'Upload Corrected PDF',exact:true})).toHaveCount(0);
+ await manager.getByRole('button',{name:'Back to History'}).click();await manager.getByRole('button',{name:'Refresh',exact:true}).click();await manager.getByRole('button',{name:'View',exact:true}).click();
  const downloadEvent=manager.waitForEvent('download');
  await manager.getByRole('button',{name:'View / Download PDF',exact:true}).click();
  const download=await downloadEvent;
@@ -194,7 +202,7 @@ try{
  assert.ok((await completedRow.boundingBox()).height<100,'Completed row remains compact on desktop');
  await manager.screenshot({path:'test-results/supper-review/manager-yearly-cards.png',fullPage:true});
  await cards.nth(0).click();
- await expect(manager.getByText('Accepted / Locked',{exact:true}).first()).toBeVisible();await expect(manager.getByRole('button',{name:'Replace PDF',exact:true})).toHaveCount(0);
+ await expect(manager.getByText('Accepted / Locked',{exact:true}).first()).toBeVisible();await expect(manager.getByRole('button',{name:'Upload Corrected PDF',exact:true})).toHaveCount(0);
  // Supervisor upload on behalf uses only the Supervisor session and remains a Manager slot.
  await supervisor.getByRole('button',{name:'Back to Monitorings',exact:true}).click();await supervisor.getByRole('button',{name:'Upload Existing Monitoring',exact:true}).click();
  await supervisor.getByLabel('Upload school',{exact:true}).selectOption('1');

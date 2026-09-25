@@ -15,7 +15,7 @@ try {
  create function verify_manager_pin(text,text) returns boolean language sql as $$select $2='1234'$$;
  create function verify_covering_pin(text) returns boolean language sql as $$select $1='5678'$$;
  create function verify_supervisor_pin(text) returns boolean language sql as $$select $1='9999'$$;`);
- for(const file of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql','202609240003_monitoring_types_sites_restart.sql','202609240004_monitoring_current_records.sql','202609250001_monitoring_delete_draft.sql']) {
+ for(const file of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql','202609240003_monitoring_types_sites_restart.sql','202609240004_monitoring_current_records.sql','202609250001_monitoring_delete_draft.sql','202609250002_covering_monitoring_corrections.sql']) {
   if(file.startsWith('202609240001')) await db.exec(`
    insert into supper_monitorings(location_id,created_by_employee_id,created_by_name,school_year,monitoring_date,status,submitted_at,template_version,pdf_storage_path,pdf_sha256)
    select 2,22,'Legacy Manager','2025-26','2026-06-01','completed',now(),'lausd-supper-2022-09-08','legacy','test' from generate_series(1,3);
@@ -259,6 +259,23 @@ try {
   assert.equal((await db.query('select * from monitoring_documents where monitoring_id=$1',[generic.id])).rows.length,1);
   await assert.rejects(()=>save(manager,null,{...makeFixture(),monitoringType,monitoringSiteId:eec.id}),/not available/);
  }
+
+ const covering=await rpc('open_supper_monitoring_session',{p_location_id:1,p_employee_id:null,p_pin:'5678',p_covering_name:'Covering Manager'});
+ const coveringOther=await rpc('open_supper_monitoring_session',{p_location_id:2,p_employee_id:null,p_pin:'5678',p_covering_name:'Other Covering'});
+ assert.equal((await ctx(covering)).covering,true);
+ let returned=uploadedAtEec;
+ const correctionMeta={...metadata,monitoringType:'supper',monitoringSiteId:eec.id,monitoringSlot:'manager_2'};
+ assert.notEqual((await upload(covering,returned,correctionMeta)).code,200,'Covering cannot replace submitted PDF');
+ returned=await review(supervisor,returned,'return','Correct and resubmit');
+ assert.notEqual((await upload(coveringOther,returned,correctionMeta)).code,200,'Covering cannot cross schools');
+ returned=okay(await upload(covering,returned,correctionMeta,pair));
+ returned=await review(covering,returned,'resubmit');assert.equal(returned.status,'submitted');
+ returned=await review(supervisor,returned,'return','One corrected PDF');
+ returned=okay(await upload(covering,returned,correctionMeta,template));
+ returned=await review(covering,returned,'resubmit');returned=await review(supervisor,returned,'accept');
+ assert.notEqual((await upload(covering,returned,correctionMeta)).code,200,'Covering cannot replace locked PDF');
+ await assert.rejects(()=>save(covering,restartable,sitePayload(offsite)),/Only the creator/);
+ console.log('PASS: covering Manager same-school returned PDF replacement with one/two files and resubmission; submitted/locked/other-school/guided ownership protected.');
  const snackAfss=okay(await upload(supervisor,null,{...metadata,monitoringType:'snack',monitoringNumber:'9',monitoringSiteId:eec.id,onBehalf:true,performerRole:'supervisor'}));
  assert.equal(snackAfss.monitor_role,'supervisor');assert.equal((await review(supervisor,snackAfss,'accept')).status,'accepted');
  await db.exec('reset role');
