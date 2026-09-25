@@ -1,0 +1,68 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { PGlite } from '@electric-sql/pglite';
+import { supperSchedule } from '../src/monitoring/supperSchedule.js';
+import { makeFixture } from './supper-monitoring-fixture.mjs';
+const db=new PGlite();
+try {
+ await db.exec(`create role anon;create role authenticated;create role service_role;
+ create table locations(id bigint primary key,active boolean,school_name text,location_code text);
+ create table employees(id bigint primary key,location_id bigint,employee_name text,active boolean);
+ insert into locations values(1,true,'School One','1001'),(2,true,'School Two','1002');
+ insert into employees values(11,1,'Manager One',true),(22,2,'Manager Two',true);
+ create function verify_manager_pin(text,text) returns boolean language sql as $$select $2='1234'$$;
+ create function verify_covering_pin(text) returns boolean language sql as $$select false$$;
+ create function verify_supervisor_pin(text) returns boolean language sql as $$select $1='9999'$$;`);
+ for(const name of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql','202609240003_monitoring_types_sites_restart.sql','202609240004_monitoring_current_records.sql','202609250001_monitoring_delete_draft.sql','202609250002_covering_monitoring_corrections.sql','202609250003_supper_scheduling.sql']) await db.exec(await readFile('supabase/migrations/'+name,'utf8'));
+ const rpc=async(name,args)=>{await db.exec('reset role;set role anon');return (await db.query(`select to_jsonb(public.${name}(${Object.keys(args).map((key,i)=>key+' => $'+(i+1)).join(',')})) as result`,Object.values(args))).rows[0].result;};
+ const manager=await rpc('open_supper_monitoring_session',{p_location_id:1,p_employee_id:11,p_pin:'1234'});
+ const supervisor=await rpc('open_supper_supervisor_session',{p_location_id:1,p_pin:'9999'});
+ const other=await rpc('open_supper_supervisor_session',{p_location_id:2,p_pin:'9999'});
+ const ctx=await rpc('supper_context',{p_token:manager}),main=ctx.monitoring_sites[0];
+ assert.deepEqual(ctx.supper_schedules,[]);
+ const offsite=await rpc('create_monitoring_site',{p_token:supervisor,p_name:'Offsite',p_kind:'offsite'});
+ const eec=await rpc('create_monitoring_site',{p_token:supervisor,p_name:'EEC',p_kind:'eec'});
+ const setting=(slot,site=main.id)=>({p_token:supervisor,p_site_id:site,p_year:'2026-27',p_slot:slot,p_start:'2027-04-01',p_end:'2027-05-31',p_due:'2027-05-09',p_revision:null});
+ const payload=date=>({...makeFixture(),monitoringType:'supper',monitoringSiteId:main.id,monitoringSlot:'manager_2',monitoringDate:date});
+ const save=(date,record=null)=>rpc('save_supper_monitoring_draft',{p_token:manager,p_id:record?.id||null,p_revision:record?.revision||null,p_section:0,p_payload:payload(date)});
+ await assert.rejects(()=>save('2027-04-01'),/not been scheduled/);
+ let blank=await save('');assert.equal(blank.monitoring_date,null);
+ await assert.rejects(()=>rpc('save_supper_schedule',{...setting('manager_1'),p_token:manager}),/Supervisor authorization/);
+ await assert.rejects(()=>rpc('save_supper_schedule',{...setting('manager_1'),p_token:other}),/authorized school/);
+ await assert.rejects(()=>rpc('save_supper_schedule',{...setting('manager_1'),p_start:'2027-06-01'}),/valid school year/);
+ await assert.rejects(()=>rpc('save_supper_schedule',{...setting('manager_1'),p_due:'2027-07-01'}),/selected school year/);
+ for(const slot of ['manager_1','supervisor','manager_2']) assert.equal((await rpc('save_supper_schedule',setting(slot))).due_date,'2027-05-09');
+ await assert.rejects(()=>rpc('save_supper_schedule',setting('manager_1')),/Schedule changed/);
+ let revised=await rpc('save_supper_schedule',{...setting('supervisor'),p_start:'2026-09-01',p_end:'2026-09-30',p_due:'2026-09-30',p_revision:1});assert.equal(revised.revision,2);
+ await db.exec('reset role');
+ const insert=async(slot,date,status,source,site=main.id,year='2026-27')=>(await db.query(`insert into public.monitoring_records(location_id,created_by_employee_id,created_by_name,monitor_role,source,status,locked,monitoring_date,school_year,monitoring_slot,payload,submitted_at,template_version,pdf_storage_path,pdf_sha256) values(1,11,'Manager One',$1,$2,$3,true,$4,$5,$6,$7,now(),'fixture','fixture','fixture') returning *`,[slot==='supervisor'?'supervisor':'manager',source,status,date,year,slot,JSON.stringify({monitoringType:'supper',monitoringSiteId:site,monitoringSlot:slot})])).rows[0];
+ await insert('manager_1','2026-09-14','accepted','uploaded');
+ await insert('supervisor','2026-09-30','completed','generated');
+ await insert('manager_1','2026-09-15','accepted','uploaded',offsite.id);
+ await insert('manager_1','2025-09-19','accepted','uploaded',main.id,'2025-26');
+ await rpc('save_supper_schedule',setting('manager_2',offsite.id));
+ await rpc('save_supper_schedule',setting('manager_2',eec.id));
+ const access=await rpc('supper_context',{p_token:manager});
+ await db.exec('reset role');
+ const records=(await db.query('select * from public.monitoring_records')).rows;
+ for(const siteId of [main.id,offsite.id,eec.id]) {
+  const actual=(await db.query('select eligible_date::text from public.supper_eligible_dates($1,$2,$3)',[siteId,'2026-27','manager_2'])).rows.map(r=>r.eligible_date);
+  const expected=supperSchedule({schedules:access.supper_schedules,records:records.map(r=>({...r,monitoring_date:r.monitoring_date?.toISOString?.().slice(0,10)||r.monitoring_date})),siteId,year:'2026-27',slot:'manager_2'}).dates;
+  assert.deepEqual(actual,expected,'Database/UI scheduling parity for each site');assert.ok(actual.length>3);
+ }
+ blank=await save('2027-04-01',blank);assert.equal(blank.monitoring_date,'2027-04-01');
+ for(const date of ['2027-04-05','2027-04-08','2027-04-10','2027-04-28','2027-06-01']) await assert.rejects(()=>save(date,blank),/unavailable/);
+
+ await rpc('save_supper_schedule',{...setting('manager_2'),p_start:'2027-04-02',p_revision:1});
+ await db.exec('reset role');
+ await assert.rejects(()=>db.query("update public.monitoring_records set status='submitted' where id=$1",[blank.id]),/unavailable/);
+ await rpc('save_supper_schedule',{...setting('manager_2'),p_revision:2});
+ await db.exec('reset role');
+ await db.query("update public.monitoring_records set status='submitted' where id=$1",[blank.id]);
+ const overview=await rpc('supper_supervisor_overview',{p_pin:'9999'});assert.equal(overview.supper_schedules.length,5);
+ assert.deepEqual((await rpc('supper_context',{p_token:other})).supper_schedules,[]);
+ await db.exec('reset role;set role anon');
+ await assert.rejects(()=>db.query('select * from public.supper_schedules'),/permission denied/);
+ await assert.rejects(()=>db.query("select * from public.supper_eligible_dates($1,'2026-27','manager_2')",[main.id]),/permission denied/);
+ console.log('PASS: scheduling publication, role/school isolation, revisions, year validation, due dates for all slots, matrix progression, unlimited dates, SQL/UI parity, site independence and server-side date enforcement.');
+} catch(e) {console.error(e.message,e.where || '');process.exitCode=1;} finally {await db.close();}

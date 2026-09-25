@@ -36,7 +36,7 @@ function App() {
   const destinations = {
     homeBase: ["Manager Hub"], commandCenter: ["Command Center"],
     monitoring: ["Monitorings", "Manager Hub", "homeBase"],
-    supervisorMonitoring: ["Monitoring", "Command Center", "commandCenter"],
+    supervisorMonitoring: ["Monitorings", "Command Center", "commandCenter"],
     managerMonthlyScorecard: ["Monthly Scorecard", "Manager Hub", "homeBase"],
     managerResources: ["Manager Resources", "Manager Hub", "homeBase"],
     howToEarnPoints: ["How to Earn Points", "Manager Resources", "managerResources"],

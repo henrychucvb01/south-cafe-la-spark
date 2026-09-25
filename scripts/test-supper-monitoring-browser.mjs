@@ -69,7 +69,7 @@ try {
       else if (path.endsWith("/employees")) body = [{ id: 11, location_id: 1, employee_name: "Test Monitor", active: true }];
       else if (path.endsWith("/has_manager_pin") || path.endsWith("/verify_manager_pin")) body = true;
       else if (path.endsWith("/open_supper_monitoring_session")) body = token;
-      else if (path.endsWith("/supper_context")) body = {actor_role:"manager",employee_id:11,monitor_name:"Test Monitor",allow_manager_uploads:true};
+      else if (path.endsWith("/supper_context")) body = {actor_role:"manager",employee_id:11,monitor_name:"Test Monitor",allow_manager_uploads:true,supper_schedules:['manager_1','manager_2'].map(monitoring_slot=>({school_year:'2026-27',monitoring_slot,available_start:'2026-09-01',available_end:'2026-10-31',due_date:'2026-09-25'}))};
       else if (path.endsWith("/close_supper_monitoring_session")) body = null;
       else if (path.endsWith("/list_supper_monitorings")) body = records.map(record => ({ ...record, monitor_name: record.payload.monitorName }));
       else if (path.endsWith("/get_supper_monitoring")) body = records.find(record => record.id === args.p_id);
@@ -108,7 +108,7 @@ try {
     await expect(page.getByRole("button", { name: /Supper 1 - Test School.*Not Started/ })).toBeVisible();
     await expect(page.locator("input[type=password]")).toHaveCount(0);
     await page.getByRole("button", { name: /Supper 1 - Test School.*Not Started/ }).click();
-    await page.getByLabel("Monitoring date", { exact: true }).fill("2026-09-23");
+    await page.getByLabel("Monitoring date", { exact: true }).selectOption("2026-09-23");
     await page.getByLabel("Arrival time").fill("14:00");
     await page.getByLabel("Departure time").fill("16:00");
     assert.equal(await page.getByText("Was this visit unannounced?",{exact:true}).count(),0);

@@ -74,6 +74,7 @@ export const monitoringSites = token => rpc("monitoring_sites_for_school", {p_to
 export const createMonitoringSite = (token,name,kind) => rpc("create_monitoring_site", {p_token:token,p_name:name,p_kind:kind});
 export const restartMonitoring = (token,record) => rpc("restart_monitoring", {p_token:token,p_id:record.id,p_revision:record.revision});
 export const deleteDraft = (token,record) => rpc("delete_monitoring_draft", {p_token:token,p_id:record.id,p_revision:record.revision});
+export const saveSupperSchedule = (token,setting) => rpc('save_supper_schedule', {p_token:token,p_site_id:setting.siteId,p_year:setting.year,p_slot:setting.slot,p_start:setting.start,p_end:setting.end,p_due:setting.due,p_revision:setting.revision ?? null});
 
 export async function previewReport(token, record) {
   const response = await reportRequest(token, record, "preview");

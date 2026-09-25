@@ -1346,7 +1346,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
             Location Directory
           </button>
 
-          <button className="command-nav-button" onClick={onMonitoring}>Monitoring</button>
+          <button className="command-nav-button" onClick={onMonitoring}>Monitorings</button>
           <button className={`command-nav-button ${view === "feedback" ? "active" : ""}`} onClick={() => setView("feedback")}>
             <span>💬</span>
             Feedback

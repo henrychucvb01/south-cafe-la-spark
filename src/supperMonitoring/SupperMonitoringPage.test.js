@@ -22,19 +22,19 @@ beforeEach(async () => {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   jest.clearAllMocks();
   container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container);
-  service.getContext.mockResolvedValue({actor_role:"manager",employee_id:11,monitor_name:"Test Monitor",allow_manager_uploads:true});
+  service.getContext.mockResolvedValue({actor_role:"manager",employee_id:11,monitor_name:"Test Monitor",allow_manager_uploads:true,supper_schedules:['manager_1','manager_2'].map(monitoring_slot=>({school_year:'2026-27',monitoring_slot,available_start:'2026-09-01',available_end:'2026-10-31',due_date:'2026-09-25'}))});
   service.openSession.mockResolvedValue("scoped-token"); service.listMonitorings.mockResolvedValue([]);
   service.saveDraft.mockImplementation(async (_token, record, payload, section) => ({ id: "draft-id", revision: (record?.revision || 0) + 1, status: "draft", source: "generated", monitor_role: "manager", created_by_employee_id: 11, school_year: "2026-27", monitoring_slot: "manager_1", payload, current_section: section }));
   await act(async () => root.render(<SupperMonitoringPage location={{ id: 1, school_name: "Test School", location_code: "1001" }} employee={{ id: 11, employee_name: "Test Monitor" }} managerPin="1234" onBack={() => {}} />));
 });
 afterEach(() => { act(() => root.unmount()); container.remove(); globalThis.IS_REACT_ACT_ENVIRONMENT = false; });
 async function click(text) {
-  const button = [...container.querySelectorAll("button")].find(b => b.textContent === text);
+  const button = [...container.querySelectorAll("button")].find(b => b.textContent.startsWith(text));
   expect(button).toBeDefined();
   await act(async () => button.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 }
 async function input(selector, value) {
-  await act(async () => { const el = container.querySelector(selector); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(el, value); el.dispatchEvent(new Event("input", { bubbles: true })); });
+  await act(async () => { const el = container.querySelector(selector); Object.getOwnPropertyDescriptor(el.tagName === "SELECT" ? HTMLSelectElement.prototype : HTMLInputElement.prototype, "value").set.call(el, value); el.dispatchEvent(new Event(el.tagName === "SELECT" ? "change" : "input", { bubbles: true })); });
 }
 test("starts, saves, and resumes at the server's saved section", async () => {
   await click("Supper 1 - Test SchoolManagerNot Started");

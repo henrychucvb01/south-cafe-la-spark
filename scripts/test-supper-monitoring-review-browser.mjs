@@ -15,7 +15,7 @@ insert into locations values(1,true,'Test School','1001');insert into employees 
 create function verify_manager_pin(text,text) returns boolean language sql as $$select $2='1234'$$;
 create function verify_covering_pin(text) returns boolean language sql as $$select $1='5678'$$;
 create function verify_supervisor_pin(text) returns boolean language sql as $$select $1='9999'$$;`);
-for(const name of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql','202609240003_monitoring_types_sites_restart.sql','202609240004_monitoring_current_records.sql','202609250001_monitoring_delete_draft.sql','202609250002_covering_monitoring_corrections.sql']) await db.exec(await readFile('supabase/migrations/'+name,'utf8'));
+for(const name of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql','202609240003_monitoring_types_sites_restart.sql','202609240004_monitoring_current_records.sql','202609250001_monitoring_delete_draft.sql','202609250002_covering_monitoring_corrections.sql','202609250003_supper_scheduling.sql']) await db.exec(await readFile('supabase/migrations/'+name,'utf8'));
 // Serialize role-scoped requests on this single ephemeral database connection.
 let queue=Promise.resolve();
 function rpc(name,args,role='anon') {const task=queue.then(async()=>{await db.exec('reset role;set role '+role);const set=['list_supper_monitorings','supper_audit_history'].includes(name);const rows=(await db.query(`select to_jsonb(public.${name}(${Object.keys(args).map((k,i)=>k+' => $'+(i+1)).join(',')})) as result`,Object.values(args))).rows;return set ? rows.map(r=>r.result) : rows[0].result;});queue=task.catch(()=>{});return task;}
@@ -30,10 +30,25 @@ await page.route('**/*',async route=>{const request=route.request(),url=new URL(
 if(name==='locations')body={id:1,location_code:'1001',school_name:'Test School',active:true};else if(name==='employees')body=[{id:11,location_id:1,employee_name:'Test Monitor',active:true}];else if(['has_manager_pin','verify_manager_pin','verify_supervisor_pin','verify_covering_pin'].includes(name))body=true;else if(/supper|monitoring/.test(name))body=await rpc(name,args);
 await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});}catch(e){await route.fulfill({status:400,contentType:'application/json',body:JSON.stringify({message:e.message})});}});
 await page.goto(origin);if(role!=='supervisor'){await page.getByLabel('Location Code').fill('1001');await page.getByRole('button',{name:'Continue',exact:true}).click();if(role==='covering'){await page.getByRole('button',{name: /I'm covering this location/}).click();await page.getByLabel('First and Last Name').fill('Covering Manager');await page.getByRole('button',{name:/Continue/}).click();}else await page.getByRole('button',{name:/Test Monitor/}).click();await page.getByLabel('4-Digit PIN').fill(role==='covering'?'5678':'1234');}else{await page.getByRole('button',{name:'Supervisor Access',exact:true}).click();await page.locator('input[type=password]').fill('9999');await page.getByRole('button',{name:'Open Command Center'}).click();}
-await page.getByRole('button',{name:role!=='supervisor'?/Monitoring/:'Monitoring',exact:role==='supervisor'}).click();return page;}
+await page.getByRole('button',{name:role!=='supervisor'?/Monitoring/:'Monitorings',exact:role==='supervisor'}).click();return page;}
 try{
  const manager=await pageFor('manager'),supervisor=await pageFor('supervisor');
  await mkdir('test-results/supper-review',{recursive:true});
+ const scheduling=supervisor.locator('.sm-scheduling');
+ for(const slot of ['manager_1','supervisor','manager_2']) {
+  await scheduling.getByLabel('Supper monitoring number',{exact:true}).selectOption(slot);
+  await scheduling.getByLabel('Available Start Date',{exact:true}).fill('2026-09-01');
+  await scheduling.getByLabel('Available End Date',{exact:true}).fill('2026-10-31');
+  await scheduling.getByLabel('Due Date',{exact:true}).fill({manager_1:'2026-09-25',supervisor:'2026-10-02',manager_2:'2026-10-30'}[slot]);
+  await scheduling.getByRole('button',{name:'Publish Schedule',exact:true}).click();
+  await expect(scheduling.getByRole('status')).toContainText('Schedule published');
+ }
+ await queue;await db.exec('reset role;delete from supper_monitoring_attempts;');
+ await manager.getByRole('button',{name:'Refresh',exact:true}).click();
+ await expect(manager.locator('.sm-status-card').nth(0)).toContainText('Due: Sep 25, 2026');
+ await manager.locator('.sm-slot-with-dates').nth(0).getByText('View available dates',{exact:true}).click();
+ assert.ok(await manager.locator('.sm-slot-with-dates').nth(0).locator('.sm-available-dates li').count()>3);
+
  for(const [width,slot] of [[390,0],[1440,2]]) {
   await manager.setViewportSize({width,height:900});
   await expect(manager.getByRole('heading',{name:'Monitorings',exact:true})).toBeVisible();
@@ -79,7 +94,7 @@ try{
  const confirmUpload=manager.getByRole('checkbox',{name:'I reviewed the monitoring and the correct document/pages are attached.'});
  const submitUpload=manager.getByRole('button',{name:'Submit for Supervisor Review',exact:true});
  await expect(confirmUpload).toBeEnabled({timeout:30000});await expect(submitUpload).toBeDisabled();
- await supervisor.getByRole('button',{name:'Refresh Overview'}).click();await expect(supervisor.locator('.sm-review-queue').getByRole('button',{name:'Review',exact:true})).toHaveCount(0);
+ await supervisor.getByRole('button',{name:'Refresh Overview'}).click();await expect(supervisor.locator('.sm-review-queue:not(.sm-schedule-overview)').getByRole('button',{name:'Review',exact:true})).toHaveCount(0);
  await manager.getByRole('button',{name:'Replace File(s)',exact:true}).click();await expect(submitUpload).toBeDisabled();
  await manager.getByLabel('Upload PDF(s)').setInputFiles([split[1],split[0]]);
  await expect(confirmUpload).toBeEnabled({timeout:30000});
@@ -93,7 +108,7 @@ try{
  await expect(manager.getByRole('list',{name:'PDF upload order'}).locator('li').first()).toContainText('Monitoring Page 1.pdf');
  await manager.getByRole('button',{name:'Next Page',exact:true}).click();await expect(confirmUpload).toBeEnabled({timeout:30000});
  await mkdir('test-results/supper-review',{recursive:true});await manager.screenshot({path:'test-results/supper-review/manager-upload-review-mobile.png',fullPage:true});
- await supervisor.getByRole('button',{name:'Refresh Overview'}).click();await expect(supervisor.locator('.sm-review-queue').getByRole('button',{name:'Review',exact:true})).toHaveCount(0);
+ await supervisor.getByRole('button',{name:'Refresh Overview'}).click();await expect(supervisor.locator('.sm-review-queue:not(.sm-schedule-overview)').getByRole('button',{name:'Review',exact:true})).toHaveCount(0);
  await confirmUpload.check();await submitUpload.click();
  await expect(manager.getByText('Submitted for Review',{exact:true})).toBeVisible();
  await manager.getByRole('button',{name:'Back to History'}).click();await expect(cards.nth(0)).toHaveClass(/sm-status-pending/);await cards.nth(0).click();
@@ -102,7 +117,7 @@ try{
  assert.deepEqual(Buffer.from(await rpc('read_supper_monitoring_pdf',{p_token:checkToken,p_id:submitted.id},'service_role'),'base64'),reviewedBytes,'Submitted bytes exactly match reviewed combined preview');
 
  await supervisor.getByRole('button',{name:'Refresh Overview'}).click();
- const queueTable=supervisor.locator('.sm-review-queue');
+ const queueTable=supervisor.locator('.sm-review-queue:not(.sm-schedule-overview)');
  await expect(queueTable).toContainText('Test School');await expect(queueTable).toContainText('Test Monitor');
  await expect(queueTable.getByRole('columnheader',{name:'Submitted date',exact:true})).toBeVisible();
  await queueTable.getByRole('button',{name:'Review',exact:true}).click();
@@ -138,8 +153,8 @@ try{
  await expect(supervisorPageNav).toBeInViewport();
  await supervisorPageNav.getByRole('button',{name:'← Supervisor Monitoring',exact:true}).click();
  await supervisorPageNav.getByRole('button',{name:'← Command Center',exact:true}).click();
- await supervisor.getByRole('navigation',{name:'Supervisor pages'}).getByRole('button',{name:'Monitoring',exact:true}).click();
- await expect(supervisor.getByRole('heading',{name:'Monitoring',exact:true})).toBeVisible();
+ await supervisor.getByRole('navigation',{name:'Supervisor pages'}).getByRole('button',{name:'Monitorings',exact:true}).click();
+ await expect(supervisor.getByRole('heading',{name:'Monitorings',exact:true})).toBeVisible();
  await supervisor.getByLabel('Allow Manager PDF Uploads').click();await expect(supervisor.getByLabel('Allow Manager PDF Uploads')).not.toBeChecked();
  await manager.getByRole('button',{name:'Back to History'}).click();await manager.getByRole('button',{name:'Refresh',exact:true}).click();
  await expect(manager.getByRole('button',{name:'Upload Existing Monitoring',exact:true})).toHaveCount(0);
@@ -161,7 +176,7 @@ try{
  await manager.getByRole('button',{name:'Review Upload',exact:true}).click();
  await expect(confirmUpload).toBeEnabled({timeout:30000});await confirmUpload.check();await submitUpload.click();
  await expect(manager.getByText('Submitted for Review',{exact:true})).toBeVisible();
- await supervisor.getByRole('button',{name:'Refresh Overview'}).click();await supervisor.locator('.sm-review-queue').getByRole('button',{name:'Review',exact:true}).click();
+ await supervisor.getByRole('button',{name:'Refresh Overview'}).click();await supervisor.locator('.sm-review-queue:not(.sm-schedule-overview)').getByRole('button',{name:'Review',exact:true}).click();
  await supervisor.getByLabel('Supervisor comments',{exact:true}).fill('Please replace both pages.');
  await supervisor.getByRole('button',{name:'Return for Correction',exact:true}).click();
  await expect(supervisor.getByText('Returned to the Manager for correction.',{exact:true})).toBeVisible();
@@ -185,7 +200,7 @@ try{
  const downloaded=await PDFDocument.load(await readFile(await download.path()));
  assert.equal(downloaded.getPageCount(),2,'One downloaded PDF contains both uploaded pages');
  await expect(manager.getByText('Submitted for Review',{exact:true})).toBeVisible();
- await supervisor.getByRole('button',{name:'Refresh Overview'}).click();await supervisor.locator('.sm-review-queue').getByRole('button',{name:'Review',exact:true}).click();
+ await supervisor.getByRole('button',{name:'Refresh Overview'}).click();await supervisor.locator('.sm-review-queue:not(.sm-schedule-overview)').getByRole('button',{name:'Review',exact:true}).click();
  await expect(supervisor.getByText('Opening the stored PDF and review…',{exact:true})).toHaveCount(0);
  await expect(supervisor.locator('.sm-mark-list li')).toHaveCount(0);
  await expect(supervisor.getByLabel('PDF version',{exact:true})).toHaveCount(0);
@@ -193,7 +208,7 @@ try{
  await supervisor.getByRole('button',{name:'Accept & Lock',exact:true}).click();await expect(supervisor.getByText('Monitoring accepted and locked.',{exact:true})).toBeVisible();
  await expect(supervisor.getByRole('button',{name:'Draw',exact:true})).toHaveCount(0);
  await manager.getByRole('button',{name:'Back to History'}).click();await manager.getByRole('button',{name:'Refresh',exact:true}).click();
- await expect(cards.nth(0)).toHaveClass(/sm-status-done/);
+ await expect(cards.nth(0)).toHaveClass(/sm-status-done/);await expect(cards.nth(0)).toContainText('Completed: Sep 23, 2026');
  await manager.getByLabel('School year',{exact:true}).selectOption('2025-26');
  await expect(cards.nth(0)).toContainText('Not Started');await expect(manager.locator('.sm-compact-records li')).toHaveCount(0);
  await manager.getByLabel('School year',{exact:true}).selectOption('2026-27');await expect(cards.nth(0)).toContainText('Accepted / Locked');
@@ -235,10 +250,10 @@ try{
  await supervisor.getByRole('button',{name:'Upload Existing Monitoring',exact:true}).click();await supervisor.getByLabel('Upload school',{exact:true}).selectOption('1');await supervisor.getByLabel('Monitoring slot').selectOption('manager_2');await supervisor.getByLabel('Monitoring date',{exact:true}).fill('2026-09-24');await supervisor.getByLabel('Manager responsible for corrections').selectOption('11');await supervisor.getByLabel('Upload PDF(s)').setInputFiles(split);await supervisor.getByRole('button',{name:'Upload Manager Monitoring',exact:true}).click();await expect(supervisor.getByRole('heading',{name:'Supervisor PDF Review',exact:true})).toBeVisible();
 
  await supervisor.getByRole('button',{name:'Back to Monitorings',exact:true}).click();
- await expect(supervisor.locator('.sm-review-queue')).toContainText('Supervisor / AFSS (on behalf of school/Manager)');
+ await expect(supervisor.locator('.sm-review-queue:not(.sm-schedule-overview)')).toContainText('Supervisor / AFSS (on behalf of school/Manager)');
  await supervisor.getByRole('button',{name:'Open School Monitorings',exact:true}).click();
  await supervisor.getByRole('button',{name:'+ Start Supervisor Monitoring',exact:true}).click();
- await supervisor.getByLabel('Monitoring date',{exact:true}).fill('2026-09-24');await supervisor.getByLabel('Go to section').selectOption('1');
+ await supervisor.getByLabel('Monitoring date',{exact:true}).selectOption('2026-10-01');await supervisor.getByLabel('Go to section').selectOption('1');
  await expect(supervisor.getByRole('heading',{name:'Five-Day History',exact:true})).toBeVisible();await supervisor.getByLabel('Go to section').selectOption('7');
  await expect(supervisor.getByLabel('Supervisor / AFSS printed name',{exact:true})).toBeVisible();await expect(supervisor.getByRole('button',{name:'Sign with Finger',exact:true})).toHaveCount(2);
  // Seed only the other report sections in the isolated database; sign through the actual UI.
@@ -246,7 +261,7 @@ try{
  const afssToken=await rpc('open_supper_supervisor_session',{p_location_id:1,p_pin:'9999'});
  const afssList=await rpc('list_supper_monitorings',{p_token:afssToken});
  const afssRecord=await rpc('get_supper_monitoring',{p_token:afssToken,p_id:afssList.find(r=>r.monitor_role==='supervisor').id});
- const afssPayload={...afssRecord.payload,...makeFixture(),monitoringSlot:'supervisor',monitorName:'',coordinatorName:'',signatures:{monitor:null,coordinator:null}};
+ const afssPayload={...afssRecord.payload,...makeFixture(),monitoringDate:'2026-10-01',serviceTimes:[{program:'Test Program',day:'Thursday',start:'14:30',end:'15:00',observed:true}],monitoringSlot:'supervisor',monitorName:'',coordinatorName:'',signatures:{monitor:null,coordinator:null}};
  await rpc('save_supper_monitoring_draft',{p_token:afssToken,p_id:afssRecord.id,p_revision:afssRecord.revision,p_section:7,p_payload:afssPayload});
  await supervisor.getByRole('button',{name:'Refresh',exact:true}).click();
  await supervisor.locator('section.sm-card').filter({has:supervisor.getByRole('heading',{name:'Drafts / In Progress',exact:true})}).getByRole('button',{name:'View',exact:true}).click();
@@ -290,11 +305,19 @@ try{
  await supervisor.getByRole('button',{name:'Save Site / Program',exact:true}).click();
  await expect(supervisor.getByLabel('Monitored site / program',{exact:true})).toContainText('North Offsite');
  await supervisor.screenshot({path:'test-results/supper-review/monitoring-sites.png',fullPage:true});
+ // Start the independent site scheduling case with a fresh isolated login-attempt window.
+ await queue;await db.exec('reset role;delete from supper_monitoring_attempts;');
+ const siteToken=await rpc('open_supper_supervisor_session',{p_location_id:1,p_pin:'9999'});
+ const siteContext=await rpc('supper_context',{p_token:siteToken});
+ const north=siteContext.monitoring_sites.find(s=>s.name==='North Offsite');
+ await rpc('save_supper_schedule',{p_token:siteToken,p_site_id:north.id,p_year:'2026-27',p_slot:'manager_1',p_start:'2026-09-01',p_end:'2026-10-31',p_due:'2026-10-30',p_revision:null});
+ await rpc('close_supper_monitoring_session',{p_token:siteToken});
+
  await manager.getByRole('button',{name:'Back to History',exact:true}).click();
  await manager.getByRole('button',{name:'Refresh',exact:true}).click();
  await manager.getByLabel('Monitored site / program',{exact:true}).selectOption({label:'North Offsite (offsite)'});
  await manager.getByRole('button',{name:/Supper 1 - North Offsite.*Not Started/}).click();
- await manager.getByLabel('Monitoring date',{exact:true}).fill('2026-09-24');
+ await manager.getByLabel('Monitoring date',{exact:true}).selectOption('2026-09-24');
  await manager.getByRole('button',{name:'Save Draft',exact:true}).click();
  await expect(manager.getByText('Draft saved. You can return from any device.',{exact:true})).toBeVisible();
  const restartToken=await rpc('open_supper_monitoring_session',{p_location_id:1,p_employee_id:11,p_pin:'1234'});
@@ -336,6 +359,33 @@ try{
  await expect(supervisor.getByText('Accepted / Locked',{exact:true})).toBeVisible();
  await supervisor.screenshot({path:'test-results/supper-review/snack-current-record.png',fullPage:true});
  await deleteFromReview('accepted');
+
+ await scheduling.getByLabel('Scheduling school / site').selectOption({label:'Test School · Main Site'});
+ await scheduling.getByLabel('Supper monitoring number').selectOption('manager_2');
+ await expect(scheduling.locator('.sm-matrix thead th').nth(3)).toHaveClass(/sm-matrix-used/);
+ await expect(scheduling.locator('.sm-matrix thead th').nth(4)).toHaveClass(/sm-matrix-used/);
+ await expect(scheduling.locator('.sm-matrix tbody tr').nth(0).locator('th')).toHaveClass(/sm-matrix-used/);
+ await expect(scheduling.locator('.sm-matrix tbody tr').nth(3).locator('th')).toHaveClass(/sm-matrix-used/);
+ const published=await scheduling.getByRole('list',{name:'Available monitoring dates'}).locator('li').allTextContents();
+ assert.ok(published.length>3);assert.ok(published.includes('Oct 13, 2026'));assert.ok(!published.includes('Oct 1, 2026'));
+ await supervisor.getByLabel('School year',{exact:true}).fill('2025-26');
+ await expect(scheduling.getByLabel('Due Date',{exact:true})).toHaveValue('');
+ await expect(scheduling.locator('.sm-matrix-used')).toHaveCount(0);
+ await supervisor.getByLabel('School year',{exact:true}).fill('2026-27');
+ await expect(scheduling.getByLabel('Due Date',{exact:true})).toHaveValue('2026-10-30');
+ await scheduling.getByLabel('Scheduling school / site').selectOption({label:'Test School · North Offsite'});
+ await expect(scheduling.locator('.sm-matrix-used')).toHaveCount(0);await expect(scheduling.getByLabel('Due Date',{exact:true})).toHaveValue('');
+ await scheduling.getByLabel('Scheduling school / site').selectOption({label:'Test School · Main Site'});
+ // Matrix overview at operational scale, using isolated schools only.
+ await queue;await db.exec("reset role;insert into locations select n,true,'Test School '||n,(1000+n)::text from generate_series(2,30) n;insert into monitoring_sites(location_id,name,kind) select n,'Main Site','main' from generate_series(2,30) n;");
+ await supervisor.getByRole('button',{name:'Refresh Overview',exact:true}).click();
+ await expect(scheduling.locator('.sm-schedule-overview tbody tr')).toHaveCount(31);
+ for(const width of [1440,1024]) {
+  await supervisor.setViewportSize({width,height:1000});await scheduling.scrollIntoViewIfNeeded();
+  assert.ok(await supervisor.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  await supervisor.screenshot({path:`test-results/supper-review/scheduling-${width}.png`});
+ }
+ console.log('PASS: Supervisor publishes all three schedules; Manager due/eligible dates; completed uploaded + guided matrix rows/columns; year/site separation; 31-site desktop/tablet overview.');
  assert.ok(!supervisorCalls.some(n=>['verify_manager_pin','open_supper_monitoring_session','has_manager_pin'].includes(n)),'Supervisor never asks for or uses Manager authentication');
  assert.deepEqual(errors,[]);
  console.log('PASS: Monitoring navigation, scoped site creation/selection, restart confirmation/cancel/same-record reset, Supervisor queue, rendered multi-page PDF, zoom, comment markers/freehand drawing, atomic return, manager read-only markup, current-only replacement, Accept & Lock, upload on behalf while OFF, AFSS separation, and zero Manager auth calls by Supervisor.');

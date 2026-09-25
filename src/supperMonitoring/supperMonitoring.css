@@ -140,3 +140,20 @@
   .sm-compact-records strong, .sm-compact-comment { grid-column: 1; }
   .sm-compact-records button { grid-column: 2; grid-row: 1 / 4; }
 }
+.sm-slot-with-dates { min-width:0; }
+.sm-slot-with-dates .sm-status-card { width:100%; }
+.sm-slot-with-dates details { padding:10px 4px; }
+.sm-slot-with-dates summary, .sm-supervisor-schedule summary { cursor:pointer; font-weight:700; }
+.sm-available-dates ul { display:flex; flex-wrap:wrap; gap:6px 16px; list-style:none; margin:10px 0; padding:0; }
+.sm-available-dates { overflow-wrap:anywhere; }
+.sm-available-dates li { padding:4px 8px; border:1px solid #d9e2ed; border-radius:6px; background:#f8fafc; }
+.sm-matrix { border-collapse:collapse; width:100%; min-width:540px; margin:16px 0; }
+.sm-matrix caption { text-align:left; font-weight:700; margin-bottom:8px; }
+.sm-matrix th,.sm-matrix td { border:1px solid #ccd6e2; padding:10px; text-align:center; background:#f8fafc; }
+.sm-matrix .sm-matrix-used { background:#fff1f2; color:#8b2635; }
+.sm-schedule-key { font-size:0.9rem; }
+.sm-scheduling form { scroll-margin-top:76px; }
+.sm-schedule-details { margin:16px 0 24px; }
+.sm-schedule-overview { min-width:800px; }
+.sm-supervisor-schedule { margin:20px 0; }
+.sm-sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }

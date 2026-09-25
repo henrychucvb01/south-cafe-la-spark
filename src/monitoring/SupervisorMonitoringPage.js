@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import SupperScheduling from './SupperScheduling';
 import MonitoringPage from './MonitoringPage';
 import { MONITORING_TYPES, recordLabel, typeLabel, siteLabel } from './types';
 import PdfReviewWorkspace from '../supperMonitoring/PdfReviewWorkspace';
@@ -42,7 +43,7 @@ export default function SupervisorMonitoringPage({ supervisorPin, onBack }) {
   }).filter(s=>s.progress.some(p=>(!role||(p.record?.monitor_role || (p.slot==='supervisor'?'supervisor':'manager'))===role)&&(!status||(p.record?.status||'not_started')===status)));
   const queue=overview.records.filter(r=>r.status==='submitted'&&(!monitoringType||r.monitoring_type===monitoringType)&&r.school_year===year&&(!schoolFilter||String(r.location_id)===schoolFilter)).sort((a,b)=>String(a.submitted_at).localeCompare(String(b.submitted_at)));
   return <div className="login-app sm-app"><main className="sm-main">
-    <button type="button" onClick={onBack}>← Command Center</button><h1>Monitoring</h1>
+    <button type="button" onClick={onBack}>← Command Center</button><h1>Monitorings</h1>
     {error&&<p role="alert" className="sm-error">{error}</p>}
     <section className="sm-card">
       <div className="sm-actions"><button type="button" className="sm-primary" disabled={busy||!overview.schools.length} onClick={()=>setUpload(true)}>Upload Existing Monitoring</button></div>
@@ -55,6 +56,7 @@ export default function SupervisorMonitoringPage({ supervisorPin, onBack }) {
       <label>Performed by<select value={role} onChange={e=>setRole(e.target.value)}><option value="">Manager and Supervisor</option><option value="manager">Manager</option><option value="supervisor">Supervisor / AFSS</option></select></label></div>
       <button type="button" disabled={busy} onClick={load}>Refresh Overview</button>
     </section>
+    {(!monitoringType || monitoringType==='supper') && <SupperScheduling overview={overview} year={year} schoolFilter={schoolFilter} supervisorPin={supervisorPin} onRefresh={load}/>}
     <section className="sm-card"><h2>Submitted for Review</h2><p>Manager monitorings awaiting your review for the selected school and school year.</p>
       {!queue.length?<p>No submitted monitorings awaiting review.</p>:<div className="sm-queue-scroll"><table className="sm-review-queue"><thead><tr>{['School','Type / Site','Monitoring slot','Monitoring date','Submitted by','Submitted date','Status','Review'].map(label=><th scope="col" key={label}>{label}</th>)}</tr></thead><tbody>{queue.map(r=><tr key={r.id}>
         <td>{overview.schools.find(s=>s.id===r.location_id)?.school_name}</td><td>{typeLabel(r.monitoring_type)} · {siteLabel(r)}</td><td>{recordLabel(r)}</td><td>{r.monitoring_date}</td>
