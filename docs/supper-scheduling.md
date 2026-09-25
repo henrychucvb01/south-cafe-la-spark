@@ -1,5 +1,7 @@
 # Supper scheduling, progression and recognition
 
+Current due-only configuration and calculated ranges: see `supper-due-dates.md` (migration 006). The original window-based configuration described below has been superseded.
+
 Supervisor Command Center → Monitorings → Supper Scheduling / Matrix now publishes one schedule per school year and Supper number across all schools/sites. The site selector is only for the matrix. New sites inherit schedules automatically.
 
 ## Migration

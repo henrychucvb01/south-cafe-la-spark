@@ -74,7 +74,7 @@ export const monitoringSites = token => rpc("monitoring_sites_for_school", {p_to
 export const createMonitoringSite = (token,name,kind) => rpc("create_monitoring_site", {p_token:token,p_name:name,p_kind:kind});
 export const restartMonitoring = (token,record) => rpc("restart_monitoring", {p_token:token,p_id:record.id,p_revision:record.revision});
 export const deleteDraft = (token,record) => rpc("delete_monitoring_draft", {p_token:token,p_id:record.id,p_revision:record.revision});
-export const saveSupperSchedule = (pin,setting) => rpc('save_global_supper_schedule', {p_pin:pin,p_year:setting.year,p_slot:setting.slot,p_start:setting.start,p_end:setting.end,p_due:setting.due,p_revision:setting.revision ?? null});
+export const saveSupperSchedule = (pin,setting) => rpc('save_supper_due_date', {p_pin:pin,p_year:setting.year,p_slot:setting.slot,p_due:setting.due,p_revision:setting.revision ?? null});
 export const setMonitoringStar = (token,record,awarded) => rpc('set_monitoring_star', {p_token:token,p_id:record.id,p_revision:record.revision,p_awarded:awarded});
 
 export async function previewReport(token, record) {

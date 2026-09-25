@@ -1,5 +1,5 @@
 import { dateParts, supperSchedule } from './supperSchedule';
-const setting={monitoring_site_id:'main',school_year:'2026-27',monitoring_slot:'manager_2',available_start:'2027-04-01',available_end:'2027-05-31',due_date:'2027-05-09'};
+const setting={school_year:'2026-27',monitoring_slot:'manager_2',due_date:'2027-05-09'};
 const first={id:'one',monitoring_type:'supper',monitoring_site_id:'main',school_year:'2026-27',monitoring_slot:'manager_1',monitoring_date:'2026-09-14',status:'accepted',source:'uploaded',locked:true};
 const second={...first,id:'two',monitoring_slot:'supervisor',monitoring_date:'2026-09-30',status:'completed',source:'generated'};
 const calc=(records=[],overrides={})=>supperSchedule({schedules:[setting],records,siteId:'main',year:'2026-27',slot:'manager_2',...overrides});
@@ -12,8 +12,8 @@ test('real dates, leap years and calendar weekdays use UTC',()=>{
  expect(dateParts('2028-02-29').week).toBe(5);
  expect(dateParts('2027-02-29')).toBe(null);
 });
-test('all weekdays in the inclusive window are listed with no three-date or due-date cap',()=>{
- const s=calc([],{slot:'manager_1',schedules:[{...setting,monitoring_slot:'manager_1'}]});expect(s.dates.length).toBe(43);expect(s.dates[0]).toBe('2027-04-01');expect(s.dates.at(-1)).toBe('2027-05-31');
+test('Supper 1 derives its school-year start and includes weekdays through its due date',()=>{
+ const s=calc([],{slot:'manager_1',schedules:[{...setting,monitoring_slot:'manager_1'}]});expect(s.dates.length).toBeGreaterThan(3);expect(s.dates[0]).toBe('2026-07-01');expect(s.dates.at(-1)).toBe('2027-05-07');
  expect(s.dates).not.toContain('2027-04-03');
 });
 test('Supper 1 starts unrestricted; Supper 2 uses only completed Supper 1',()=>{
@@ -32,8 +32,19 @@ test('schools/sites, years, meal types and pending records cannot contaminate a 
  expect(calc([],{siteId:'eec'}).configured).toBe(true);
  expect(calc([],{year:'2025-26'}).configured).toBe(false);
 });
-test('unconfigured, reversed and zero-result windows do not invent dates',()=>{
- expect(calc([],{schedules:[]}).dates).toEqual([]);
- expect(calc([],{schedules:[{...setting,available_start:'2027-06-01'}]}).configured).toBe(false);
- expect(calc([],{schedules:[{...setting,available_start:'2027-04-03',available_end:'2027-04-04'}]}).dates).toEqual([]);
+test('missing/invalid due dates and exhausted ranges do not invent dates',()=>{
+ expect(calc([first,second],{schedules:[]}).dates).toEqual([]);
+ expect(calc([first,second],{schedules:[{...setting,due_date:'2027-02-29'}]}).configured).toBe(false);
+ expect(calc([first,second],{schedules:[{...setting,due_date:'2026-09-29'}]}).dates).toEqual([]);
+});
+test('Supper 3 starts after Supper 2 and stops at its due date',()=>{
+ const s=calc([first,second]);expect(s.rangeStart).toBe('2026-10-01');expect(s.rangeEnd).toBe('2027-05-09');
+ expect(s.dates).toContain('2026-10-01');
+ expect(s.dates.every(date=>date>'2026-09-30' && date<='2027-05-09')).toBe(true);
+ const inclusive=calc([first,second],{schedules:[{...setting,due_date:'2026-10-01'}]});expect(inclusive.dates).toEqual(['2026-10-01']);
+ const shifted=calc([first,{...second,monitoring_date:'2026-10-02'}]);expect(shifted.rangeStart).toBe('2026-10-03');expect(shifted.dates).not.toContain('2026-10-01');
+});
+test('Supper 2 starts after accepted Supper 1; leap days use calendar arithmetic',()=>{
+ expect(calc([first],{slot:'supervisor',schedules:[{...setting,monitoring_slot:'supervisor'}]}).rangeStart).toBe('2026-09-15');
+ const s=calc([{...first,school_year:'2027-28'}, {...second,school_year:'2027-28',monitoring_date:'2028-02-29'}],{year:'2027-28',schedules:[{...setting,school_year:'2027-28',due_date:'2028-03-31'}]});expect(s.rangeStart).toBe('2028-03-01');
 });

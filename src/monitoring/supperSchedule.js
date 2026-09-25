@@ -1,7 +1,7 @@
 // Calendar-only UTC arithmetic avoids local timezone and daylight-saving shifts.
 export const SUPPER_NUMBERS = { manager_1: 1, supervisor: 2, manager_2: 3 };
 export const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-export const UNSCHEDULED = 'Monitoring dates have not been scheduled yet. Contact your Supervisor.';
+export const UNSCHEDULED = 'A due date has not been set yet. Contact your Supervisor.';
 export function dateParts(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return null;
   const date = new Date(`${value}T00:00:00Z`);
@@ -20,15 +20,20 @@ export function supperSchedule({ schedules = [], records = [], siteId, year, slo
     ['accepted', 'completed'].includes(r.status) && SUPPER_NUMBERS[r.monitoring_slot] < number && dateParts(r.monitoring_date));
   const weekdays = new Set(prior.map(r => dateParts(r.monitoring_date).weekday));
   const weeks = new Set(prior.map(r => dateParts(r.monitoring_date).week));
-  const start = dateParts(setting?.available_start), end = dateParts(setting?.available_end);
-  const configured = !!(start && end && start.date <= end.date);
+  const previous = prior.find(r => r.monitoring_slot === (slot === 'supervisor' ? 'manager_1' : 'supervisor') && r.locked === true);
+  const nextDay = dateParts(previous?.monitoring_date)?.date;
+  if (nextDay) nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+  const rangeStart = slot === 'manager_1' && /^\d{4}-\d{2}$/.test(year || '') ? `${year.slice(0,4)}-07-01` : nextDay?.toISOString().slice(0,10);
+  const rangeEnd = setting?.due_date;
+  const start = dateParts(rangeStart), end = dateParts(rangeEnd);
+  const configured = !!end;
   const dates = [];
-  if (configured && !blockedReason) {
+  if (configured && start && !blockedReason) {
     for (const day = new Date(start.date); day <= end.date; day.setUTCDate(day.getUTCDate() + 1)) {
       if (day.getUTCDay() >= 1 && day.getUTCDay() <= 5 && !weekdays.has(day.getUTCDay()) && !weeks.has(Math.ceil(day.getUTCDate() / 7))) dates.push(day.toISOString().slice(0, 10));
     }
   }
-  return { setting, prior, weekdays, weeks, dates, configured, blockedReason };
+  return { setting, prior, weekdays, weeks, dates, configured, blockedReason, rangeStart, rangeEnd };
 }
 
 export function supperSequence(records = [], siteId, year, slot) {

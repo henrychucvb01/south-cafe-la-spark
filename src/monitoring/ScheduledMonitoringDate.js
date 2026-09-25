@@ -10,7 +10,7 @@ export default function ScheduledMonitoringDate({ schedule, value, onChange, rea
       {invalid && <option value={value} disabled>{displayDate(value)} — unavailable</option>}
       {schedule.dates.map(date => <option value={date} key={date}>{displayDate(date)}</option>)}
     </select>
-    <p id="monitoring-schedule-help">{schedule.blockedReason || (!schedule.configured ? UNSCHEDULED : !schedule.dates.length ? 'No eligible dates in this window. Contact your Supervisor.' : `Due: ${displayDate(schedule.setting?.due_date)}. Select from the published eligible dates.`)}</p>
+    <p id="monitoring-schedule-help">{schedule.blockedReason || (!schedule.configured ? UNSCHEDULED : !schedule.dates.length ? 'No eligible dates remain on or before the due date. Contact your Supervisor.' : `Due: ${displayDate(schedule.setting?.due_date)}. Select from the published eligible dates.`)}</p>
     {invalid && <p role="alert" className="sm-error">This date is no longer eligible. Select a published date before submitting.</p>}
   </div>;
 }

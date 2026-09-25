@@ -10,30 +10,28 @@ export default function SupperScheduling({ overview, year, schoolFilter, supervi
   const [selected,setSelected] = useState('');
   const siteId = sites.some(s => s.id === selected) ? selected : sites[0]?.id;
   const [slot,setSlot] = useState('manager_1');
-  const [start,setStart] = useState(''), [end,setEnd] = useState(''), [due,setDue] = useState('');
+  const [due,setDue] = useState('');
   const [busy,setBusy] = useState(false), [message,setMessage] = useState(''), [error,setError] = useState('');
   const detail = useRef(null);
   const schedule = supperSchedule({ schedules:overview.supper_schedules, records:overview.records, siteId, year, slot });
   const setting = schedule.setting;
-  useEffect(() => { setStart(setting?.available_start || '');setEnd(setting?.available_end || '');setDue(setting?.due_date || ''); }, [year,slot,setting]);
+  useEffect(() => { setDue(setting?.due_date || ''); }, [year,slot,setting]);
   useEffect(()=>{setMessage('');setError('');},[siteId,year,slot]);
   const schoolFor = site => overview.schools.find(s => s.id === site.location_id);
   const name = site => `${schoolFor(site)?.school_name || 'School'} · ${site.name}${site.kind === 'eec' ? ' (EEC)' : ''}`;
   async function publish(event) {
     event.preventDefault();setBusy(true);setError('');setMessage('');
     try {
-      await saveSupperSchedule(supervisorPin,{year,slot,start,end,due,revision:setting?.revision});
+      await saveSupperSchedule(supervisorPin,{year,slot,due,revision:setting?.revision});
       await onRefresh();setMessage('Schedule published. Managers will see these dates when they open or refresh Monitorings.');
     } catch(e) { setError(e.message); }
     finally { setBusy(false); }
   }
-  return <section className="sm-card sm-scheduling"><h2>Supper Scheduling / Matrix</h2><p>Publish each Supper window and due date once for all schools/sites in {year}. The matrix updates from accepted/completed monitoring dates. Due dates are displayed separately from the available window.</p>
+  return <section className="sm-card sm-scheduling"><h2>Supper Scheduling / Matrix</h2><p>Set the Supper 1, 2 and 3 due dates once for all schools/sites in {year}. SPARK calculates eligible dates automatically from each site’s completed monitorings.</p>
     <>
       <h3>{year} Supper Schedule — All Schools / Sites</h3><form onSubmit={publish}>
         <fieldset disabled={busy} className="sm-editor"><div className="sm-grid">
           <label>Supper monitoring number<select aria-label="Supper monitoring number" value={slot} onChange={e=>setSlot(e.target.value)}>{Object.entries(SLOTS).map(([value,label])=><option value={value} key={value}>{label}</option>)}</select></label>
-          <label>Available Start Date<input type="date" required value={start} onChange={e=>setStart(e.target.value)}/></label>
-          <label>Available End Date<input type="date" required min={start || undefined} value={end} onChange={e=>setEnd(e.target.value)}/></label>
           <label>Due Date<input type="date" required value={due} onChange={e=>setDue(e.target.value)}/></label>
         </div><button type="submit" className="sm-primary">{busy ? 'Publishing…' : 'Publish Schedule'}</button></fieldset>
       </form>

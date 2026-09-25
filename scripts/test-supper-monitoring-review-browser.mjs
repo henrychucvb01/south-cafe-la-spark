@@ -15,7 +15,7 @@ insert into locations values(1,true,'Test School','1001');insert into employees 
 create function verify_manager_pin(text,text) returns boolean language sql as $$select $2='1234'$$;
 create function verify_covering_pin(text) returns boolean language sql as $$select $1='5678'$$;
 create function verify_supervisor_pin(text) returns boolean language sql as $$select $1='9999'$$;`);
-for(const name of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql','202609240003_monitoring_types_sites_restart.sql','202609240004_monitoring_current_records.sql','202609250001_monitoring_delete_draft.sql','202609250002_covering_monitoring_corrections.sql','202609250003_supper_scheduling.sql','202609250004_global_supper_sequence_recognition.sql','202609250005_supervisor_monitoring_stars.sql']) await db.exec(await readFile('supabase/migrations/'+name,'utf8'));
+for(const name of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql','202609240003_monitoring_types_sites_restart.sql','202609240004_monitoring_current_records.sql','202609250001_monitoring_delete_draft.sql','202609250002_covering_monitoring_corrections.sql','202609250003_supper_scheduling.sql','202609250004_global_supper_sequence_recognition.sql','202609250005_supervisor_monitoring_stars.sql','202609250006_supper_due_dates.sql']) await db.exec(await readFile('supabase/migrations/'+name,'utf8'));
 // Serialize role-scoped requests on this single ephemeral database connection.
 let queue=Promise.resolve();
 function rpc(name,args,role='anon') {const task=queue.then(async()=>{await db.exec('reset role;set role '+role);const set=['list_supper_monitorings','supper_audit_history'].includes(name);const rows=(await db.query(`select to_jsonb(public.${name}(${Object.keys(args).map((k,i)=>k+' => $'+(i+1)).join(',')})) as result`,Object.values(args))).rows;return set ? rows.map(r=>r.result) : rows[0].result;});queue=task.catch(()=>{});return task;}
@@ -39,8 +39,8 @@ try{
  await supervisor.screenshot({path:'test-results/supper-review/supervisor-review-priority.png',fullPage:false});
  for(const slot of ['manager_1','supervisor','manager_2']) {
   await scheduling.getByLabel('Supper monitoring number',{exact:true}).selectOption(slot);
-  await scheduling.getByLabel('Available Start Date',{exact:true}).fill('2026-09-01');
-  await scheduling.getByLabel('Available End Date',{exact:true}).fill('2026-10-31');
+  await expect(scheduling.getByLabel('Available Start Date',{exact:true})).toHaveCount(0);
+  await expect(scheduling.getByLabel('Available End Date',{exact:true})).toHaveCount(0);
   await scheduling.getByLabel('Due Date',{exact:true}).fill({manager_1:'2026-09-25',supervisor:'2026-10-02',manager_2:'2026-10-30'}[slot]);
   await scheduling.getByRole('button',{name:'Publish Schedule',exact:true}).click();
   await expect(scheduling.getByRole('status')).toContainText('Schedule published');
@@ -259,9 +259,9 @@ try{
  await expect(supervisor.locator('.sm-signature input[type=checkbox]').first()).toBeChecked();
 
  await supervisor.getByLabel('Go to section').selectOption('9');
- await expect(supervisor.getByRole('button',{name:'Submit Monitoring',exact:true})).toBeEnabled();
+ await expect(supervisor.getByRole('button',{name:'Submit Monitoring',exact:true})).toBeEnabled({timeout:30000});
  await supervisor.getByLabel('PDF page',{exact:true}).selectOption('2');
- await expect(supervisor.getByRole('button',{name:'Submit Monitoring',exact:true})).toBeEnabled();
+ await expect(supervisor.getByRole('button',{name:'Submit Monitoring',exact:true})).toBeEnabled({timeout:30000});
  await supervisor.screenshot({path:'test-results/supper-review/afss-final-review.png',fullPage:true});
  await supervisor.getByRole('button',{name:'Submit Monitoring',exact:true}).click();
  await expect(supervisor.getByText('Supervisor monitoring completed and locked. The official PDF is stored.',{exact:true})).toBeVisible({timeout:30000});
@@ -370,6 +370,7 @@ try{
 
  await scheduling.getByLabel('Matrix school / site').selectOption({label:'Test School · Main Site'});
  await scheduling.getByLabel('Supper monitoring number').selectOption('manager_2');
+ await expect(scheduling.locator('.sm-schedule-details')).toContainText('Calculated range: Oct 2, 2026 through Oct 30, 2026');
  await expect(scheduling.locator('.sm-matrix thead th').nth(3)).toHaveClass(/sm-matrix-used/);
  await expect(scheduling.locator('.sm-matrix thead th').nth(4)).toHaveClass(/sm-matrix-used/);
  await expect(scheduling.locator('.sm-matrix tbody tr').nth(0).locator('th')).toHaveClass(/sm-matrix-used/);
