@@ -6,6 +6,18 @@ import * as service from "./service";
 jest.mock("./service", () => ({ openSession: jest.fn(), getContext: jest.fn(), closeSession: jest.fn(), listMonitorings: jest.fn(), getMonitoring: jest.fn(), saveDraft: jest.fn(), restartMonitoring: jest.fn() }));
 jest.mock("./SignaturePad", () => function Pad() { return <div>Signature pad</div>; });
 let container, root;
+// jsdom does not implement the native dialog methods; browser tests exercise
+// actual modal focus, confirmation, cancel, and deletion.
+const originalShowModal = HTMLDialogElement.prototype.showModal;
+const originalClose = HTMLDialogElement.prototype.close;
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+  HTMLDialogElement.prototype.close = function () { this.open = false; };
+});
+afterAll(() => {
+  HTMLDialogElement.prototype.showModal = originalShowModal;
+  HTMLDialogElement.prototype.close = originalClose;
+});
 beforeEach(async () => {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   jest.clearAllMocks();

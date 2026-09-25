@@ -73,6 +73,7 @@ export async function savePdfReview(token,record,annotations,comment,reviewActio
 export const monitoringSites = token => rpc("monitoring_sites_for_school", {p_token:token});
 export const createMonitoringSite = (token,name,kind) => rpc("create_monitoring_site", {p_token:token,p_name:name,p_kind:kind});
 export const restartMonitoring = (token,record) => rpc("restart_monitoring", {p_token:token,p_id:record.id,p_revision:record.revision});
+export const deleteDraft = (token,record) => rpc("delete_monitoring_draft", {p_token:token,p_id:record.id,p_revision:record.revision});
 
 export async function previewReport(token, record) {
   const response = await reportRequest(token, record, "preview");

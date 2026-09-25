@@ -88,7 +88,7 @@ try {
     await page.getByLabel("4-Digit PIN").fill("1234");
     await page.getByRole("button", { name: /Monitoring/ }).waitFor();
     assert.equal(await page.getByRole("button", { name: /Manager Resources/ }).count(), 1);
-    assert.deepEqual(await page.locator(".homebase-grid strong").allTextContents(), ["School Dashboard", "Daily Bites", "Monitoring", "Incident Record Helper", "Manager Resources", "Monthly Scorecard"]);
+    assert.deepEqual(await page.locator(".homebase-grid strong").allTextContents(), ["School Dashboard", "Daily Bites", "Monitorings", "Incident Record Helper", "Manager Resources", "Monthly Scorecard"]);
     // Current-main routes must survive the Supper Monitoring integration.
     await page.getByRole('button',{name:/Monthly Scorecard/}).click();
     await expect(page.getByRole('heading',{name:'Monthly Scorecard',exact:true})).toBeVisible();
@@ -159,7 +159,7 @@ try {
     await page.evaluate(()=>window.scrollTo(0,document.documentElement.scrollHeight));
     const pageNav=page.getByRole('navigation',{name:'SPARK page navigation'});
     await expect(pageNav).toBeInViewport();
-    await pageNav.getByRole('button',{name:'← Monitoring',exact:true}).click();
+    await pageNav.getByRole('button',{name:'← Monitorings',exact:true}).click();
     await page.getByRole("button", { name: "Resume", exact: true }).last().click();
     assert.equal(await page.getByLabel("Tuesday attendance", { exact: true }).inputValue(), "101");
     await page.getByLabel('Go to section').selectOption('2');
@@ -292,7 +292,7 @@ try {
     await expect(page.getByRole('button',{name:'Download Official PDF',exact:true})).toBeVisible();
     await page.getByLabel('Go to section').selectOption('0');
     await expect(page.getByLabel('Monitoring date',{exact:true})).toBeDisabled();
-    await pageNav.getByRole('button',{name:'← Monitoring',exact:true}).click();
+    await pageNav.getByRole('button',{name:'← Monitorings',exact:true}).click();
     await pageNav.getByRole('button',{name:'← Manager Hub',exact:true}).click();
     await expect(page.getByRole('heading',{name:'Manager Tools',exact:true})).toBeVisible();
     await page.getByRole('button',{name:/Manager Resources/}).click();

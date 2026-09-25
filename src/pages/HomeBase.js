@@ -93,7 +93,7 @@ function HomeBase({
             <button type="button" className="homebase-card" onClick={onMonitoring}>
               <div className="homebase-card-icon">📋</div>
               <div className="homebase-card-body">
-                <strong>Monitoring</strong>
+                <strong>Monitorings</strong>
                 <span>Prepare a monitoring, save a draft, and review your school's monitoring history.</span>
               </div>
               <div className="homebase-card-arrow">›</div>

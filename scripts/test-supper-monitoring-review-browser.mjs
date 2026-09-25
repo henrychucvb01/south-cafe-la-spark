@@ -15,7 +15,7 @@ insert into locations values(1,true,'Test School','1001');insert into employees 
 create function verify_manager_pin(text,text) returns boolean language sql as $$select $2='1234'$$;
 create function verify_covering_pin(text) returns boolean language sql as $$select false$$;
 create function verify_supervisor_pin(text) returns boolean language sql as $$select $1='9999'$$;`);
-for(const name of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql','202609240003_monitoring_types_sites_restart.sql','202609240004_monitoring_current_records.sql']) await db.exec(await readFile('supabase/migrations/'+name,'utf8'));
+for(const name of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql','202609240003_monitoring_types_sites_restart.sql','202609240004_monitoring_current_records.sql','202609250001_monitoring_delete_draft.sql']) await db.exec(await readFile('supabase/migrations/'+name,'utf8'));
 // Serialize role-scoped requests on this single ephemeral database connection.
 let queue=Promise.resolve();
 function rpc(name,args,role='anon') {const task=queue.then(async()=>{await db.exec('reset role;set role '+role);const set=['list_supper_monitorings','supper_audit_history'].includes(name);const rows=(await db.query(`select to_jsonb(public.${name}(${Object.keys(args).map((k,i)=>k+' => $'+(i+1)).join(',')})) as result`,Object.values(args))).rows;return set ? rows.map(r=>r.result) : rows[0].result;});queue=task.catch(()=>{});return task;}
@@ -33,6 +33,32 @@ await page.goto(origin);if(role==='manager'){await page.getByLabel('Location Cod
 await page.getByRole('button',{name:role==='manager'?/Monitoring/:'Monitoring',exact:role==='supervisor'}).click();return page;}
 try{
  const manager=await pageFor('manager'),supervisor=await pageFor('supervisor');
+ await mkdir('test-results/supper-review',{recursive:true});
+ for(const [width,slot] of [[390,0],[1440,2]]) {
+  await manager.setViewportSize({width,height:900});
+  await expect(manager.getByRole('heading',{name:'Monitorings',exact:true})).toBeVisible();
+  await expect(manager.locator('.location-info-hero')).toContainText('Test School');
+  await expect(manager.getByText('Select a monitoring below to get started.',{exact:true})).toBeVisible();
+  await expect(manager.getByText(/If you already completed your monitoring outside of SPARK/)).toBeVisible();
+  const trialCards=manager.locator('.sm-status-card');await expect(trialCards.nth(1)).toBeDisabled();
+  for(let attempt=0;attempt<2;attempt++) {
+   await trialCards.nth(slot).click();
+   await manager.getByRole('button',{name:'Save & Return to Monitorings',exact:true}).click();
+   const draftRows=manager.locator('section.sm-card').filter({has:manager.getByRole('heading',{name:'Drafts / In Progress',exact:true})});
+   await expect(draftRows.getByRole('button',{name:'Resume',exact:true})).toBeVisible();
+   await draftRows.getByRole('button',{name:'Delete',exact:true}).click();
+   const dialog=manager.getByRole('dialog',{name:'Delete this draft?',exact:true});await expect(dialog).toBeVisible();
+   await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
+   await expect(draftRows.getByRole('button',{name:'Resume',exact:true})).toBeVisible();
+   await draftRows.getByRole('button',{name:'Delete',exact:true}).click();
+   await dialog.getByRole('button',{name:'Delete Draft',exact:true}).click();
+   await expect(draftRows.getByRole('button',{name:'Resume',exact:true})).toHaveCount(0);
+   await expect(trialCards.nth(slot)).toContainText('Not Started');
+  }
+  await manager.screenshot({path:`test-results/supper-review/monitorings-${width}.png`,fullPage:true});
+  assert.ok(await manager.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ }
+ await manager.setViewportSize({width:390,height:950});
  const original=await PDFDocument.load(await readFile('public/supper-monitoring-2022-09-08.pdf'));
  const split=[];
  for(let i=0;i<2;i++){const doc=await PDFDocument.create();const [p]=await doc.copyPages(original,[i]);doc.addPage(p);split.push({name:`Monitoring Page ${i+1}.pdf`,mimeType:'application/pdf',buffer:Buffer.from(await doc.save())});}
@@ -168,7 +194,7 @@ try{
  assert.ok((await completedRow.boundingBox()).height<100,'Completed row remains compact on desktop');
  await manager.screenshot({path:'test-results/supper-review/manager-yearly-cards.png',fullPage:true});
  await cards.nth(0).click();
- await expect(manager.getByText('Accepted / Locked',{exact:true})).toBeVisible();await expect(manager.getByRole('button',{name:'Replace PDF',exact:true})).toHaveCount(0);
+ await expect(manager.getByText('Accepted / Locked',{exact:true}).first()).toBeVisible();await expect(manager.getByRole('button',{name:'Replace PDF',exact:true})).toHaveCount(0);
  // Supervisor upload on behalf uses only the Supervisor session and remains a Manager slot.
  await supervisor.getByRole('button',{name:'Back to Monitorings',exact:true}).click();await supervisor.getByRole('button',{name:'Upload Existing Monitoring',exact:true}).click();
  await supervisor.getByLabel('Upload school',{exact:true}).selectOption('1');
@@ -243,7 +269,7 @@ try{
  await expect(supervisor.getByRole('button',{name:'Submit Monitoring',exact:true})).toBeEnabled();
  await supervisor.screenshot({path:'test-results/supper-review/afss-final-review.png',fullPage:true});
  await supervisor.getByRole('button',{name:'Submit Monitoring',exact:true}).click();
- await expect(supervisor.getByText('Supervisor monitoring completed and locked. The official PDF is stored.',{exact:true})).toBeVisible();
+ await expect(supervisor.getByText('Supervisor monitoring completed and locked. The official PDF is stored.',{exact:true})).toBeVisible({timeout:30000});
  const afssComplete=await rpc('get_supper_monitoring',{p_token:afssToken,p_id:afssRecord.id});
  assert.equal(afssComplete.status,'completed');assert.equal(afssComplete.payload.signatures.monitor.printedName,'Test AFSS');
  await rpc('close_supper_monitoring_session',{p_token:afssToken});

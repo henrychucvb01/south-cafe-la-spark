@@ -39,7 +39,7 @@ export default function PdfReviewWorkspace({ token, initialRecord, school, super
   },[token,record.id,record.document_version]);
   useEffect(()=>{const warn=e=>{if(dirty){e.preventDefault();e.returnValue='';}};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[dirty]);
   function mayLeave(){return !dirty || window.confirm('Discard unsaved PDF comments and markup?');}
-  usePageNavigation({ level: 4, title: supervisor ? 'Supervisor PDF Review' : 'PDF & Supervisor Markup', destination: backLabel || (supervisor ? 'Supervisor Monitoring' : 'Monitoring'), disabled: busy, onNavigate: () => { if(mayLeave()) return onBack(); } });
+  usePageNavigation({ level: 4, title: supervisor ? 'Supervisor PDF Review' : 'PDF & Supervisor Markup', destination: backLabel || (supervisor ? 'Supervisor Monitoring' : 'Monitorings'), disabled: busy, onNavigate: () => { if(mayLeave()) return onBack(); } });
   async function save(action){
     setBusy(true);setError('');setNotice('');
     try {

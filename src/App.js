@@ -35,7 +35,7 @@ function App() {
   const supervisorContext = !!supervisorSessionPin;
   const destinations = {
     homeBase: ["Manager Hub"], commandCenter: ["Command Center"],
-    monitoring: ["Monitoring", "Manager Hub", "homeBase"],
+    monitoring: ["Monitorings", "Manager Hub", "homeBase"],
     supervisorMonitoring: ["Monitoring", "Command Center", "commandCenter"],
     managerMonthlyScorecard: ["Monthly Scorecard", "Manager Hub", "homeBase"],
     managerResources: ["Manager Resources", "Manager Hub", "homeBase"],

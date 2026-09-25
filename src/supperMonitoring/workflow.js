@@ -17,3 +17,4 @@ export function slotProgress(records, year, siteId, type = "supper") {
 }
 
 export function canRestart(record, context) { return context?.actor_role === "manager" && record?.source === "generated" && record.monitor_role === "manager" && editableGuided(record, context); }
+export function canDeleteDraft(record, context) { return context?.actor_role === 'manager' && record?.monitor_role === 'manager' && record.status === 'draft' && canEdit(record,context); }

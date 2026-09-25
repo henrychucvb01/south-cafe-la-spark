@@ -15,7 +15,7 @@ try {
  create function verify_manager_pin(text,text) returns boolean language sql as $$select $2='1234'$$;
  create function verify_covering_pin(text) returns boolean language sql as $$select $1='5678'$$;
  create function verify_supervisor_pin(text) returns boolean language sql as $$select $1='9999'$$;`);
- for(const file of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql','202609240003_monitoring_types_sites_restart.sql','202609240004_monitoring_current_records.sql']) {
+ for(const file of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql','202609240003_monitoring_types_sites_restart.sql','202609240004_monitoring_current_records.sql','202609250001_monitoring_delete_draft.sql']) {
   if(file.startsWith('202609240001')) await db.exec(`
    insert into supper_monitorings(location_id,created_by_employee_id,created_by_name,school_year,monitoring_date,status,submitted_at,template_version,pdf_storage_path,pdf_sha256)
    select 2,22,'Legacy Manager','2025-26','2026-06-01','completed',now(),'lausd-supper-2022-09-08','legacy','test' from generate_series(1,3);
@@ -49,6 +49,7 @@ try {
  const review=(token,r,action,comment='')=>rpc('supper_review_action',{p_token:token,p_id:r.id,p_revision:r.revision,p_action:action,p_comment:comment});
  const get=(token,id)=>rpc('get_supper_monitoring',{p_token:token,p_id:id});
  const list=async(token)=>{await db.exec('reset role;set role anon');return (await db.query('select * from list_supper_monitorings($1)',[token])).rows;};
+ const removeDraft=(token,r)=>rpc('delete_monitoring_draft',{p_token:token,p_id:r.id,p_revision:r.revision});
  const save=(token,r,payload)=>rpc('save_supper_monitoring_draft',{p_token:token,p_id:r?.id || null,p_revision:r?.revision || null,p_section:6,p_payload:payload});
  assert.equal((await upload(manager,null,metadata,Buffer.from('bad PDF'))).code,422);
  const beforePreview=await list(manager);
@@ -61,6 +62,7 @@ try {
  assert.deepEqual((await request(supervisor,{action:'download',id:r.id})).body,template,'Original uploaded bytes preserved');
  assert.equal((await request(other,{action:'download',id:r.id})).code,403);
  assert.equal((await upload(colleague,r)).code,403);
+ await assert.rejects(()=>removeDraft(manager,r),/Only your unlocked/);
  for(const action of ['accept','unlock','delete','return','comment']) await assert.rejects(()=>review(manager,r,action,'Attempt'),/Supervisor authorization/);
  await assert.rejects(()=>review(supervisor,r,'return'),/comment/);
  r=await review(supervisor,r,'return','Add coordinator signature on page 2.');assert.equal(r.status,'corrections_requested');
@@ -94,6 +96,7 @@ try {
  r=await review(supervisor,r,'accept');assert.equal(r.status,'accepted');assert.equal(r.locked,true);assert.ok(r.accepted_at);
  assert.notEqual((await upload(manager,r,metadata,pair)).code,200);
  await assert.rejects(()=>save(manager,r,makeFixture()),/read-only/);
+ await assert.rejects(()=>removeDraft(manager,r),/Only your unlocked/);
  for(const action of ['unlock','delete','accept']) await assert.rejects(()=>review(manager,r,action,'Attempt'),/Supervisor authorization/);
  assert.notEqual((await upload(supervisor,r)).code,200,'Supervisor must intentionally unlock before replacement');
  assert.equal((await request(supervisor,{action:'version',id:r.id,version:1})).code,400,'Historical PDF route removed');
@@ -189,6 +192,16 @@ try {
  const offsiteSupervisor=await save(supervisor,null,sitePayload(offsite,'supervisor'));
  const eecFirst=await save(manager,null,sitePayload(eec));
  assert.equal(new Set([restartable,offsiteSecond,offsiteSupervisor,eecFirst].map(r=>r.id)).size,4,'No three-record maximum per school');
+ await assert.rejects(()=>removeDraft(other,eecFirst),/not found/);
+ await assert.rejects(()=>removeDraft(colleague,eecFirst),/creator/);
+ await assert.rejects(()=>removeDraft(supervisor,eecFirst),/Only your unlocked/);
+ await assert.rejects(()=>removeDraft(manager,offsiteSupervisor),/Only your unlocked/);
+ await assert.rejects(()=>removeDraft(manager,{...eecFirst,revision:eecFirst.revision+1}),/revision changed/);
+ await removeDraft(manager,eecFirst);
+ await assert.rejects(()=>get(manager,eecFirst.id),/not found/);
+ const recreated=await save(manager,null,sitePayload(eec));assert.notEqual(recreated.id,eecFirst.id);
+ console.log('PASS: draft deletion, slot reuse, ownership/school/role/revision guards and submitted/locked protection.');
+
  assert.equal(restartable.monitoring_type,'supper');assert.equal(restartable.monitoring_site_id,offsite.id);
  await assert.rejects(()=>save(manager,null,sitePayload(offsite)),/slot already exists/);
  await assert.rejects(()=>save(manager,restartable,sitePayload(eec)),/cannot be changed/);
