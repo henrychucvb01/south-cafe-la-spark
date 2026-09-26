@@ -13,6 +13,8 @@ export default function CafeteriaConnectionsGame({ puzzle, progress, streak, dis
   const [selected, setSelected] = useState([]);
   const [solvedGroupIds, setSolvedGroupIds] = useState([]);
   const [mistakes, setMistakes] = useState(0);
+  const [hintsUsed, setHintsUsed] = useState(0);
+  const hintSavingRef = useRef(false);
   const [status, setStatus] = useState("in_progress");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
@@ -35,11 +37,13 @@ export default function CafeteriaConnectionsGame({ puzzle, progress, streak, dis
   useEffect(() => {
     const savedSolved = Array.isArray(progress?.state?.solvedGroupIds) ? progress.state.solvedGroupIds : [];
     const savedMistakes = Number(progress?.state?.mistakes) || 0;
+    const savedHints = Math.min(4, Math.max(0, Number(progress?.state?.hintsUsed) || 0));
     const savedStatus = progress?.status || "in_progress";
     const samePuzzle = activePuzzleRef.current === puzzle?.puzzleId;
     const sameProgress =
       savedStatus === status &&
       savedMistakes === mistakes &&
+      savedHints === hintsUsed &&
       savedSolved.length === solvedGroupIds.length &&
       savedSolved.every((groupId) => solvedGroupIds.includes(groupId));
     if (samePuzzle && sameProgress) return;
@@ -47,13 +51,14 @@ export default function CafeteriaConnectionsGame({ puzzle, progress, streak, dis
     activePuzzleRef.current = puzzle?.puzzleId || "";
     setSolvedGroupIds(savedSolved);
     setMistakes(savedMistakes);
+    setHintsUsed(savedHints);
     setStatus(savedStatus);
     setSelected([]);
     setMessage("");
     setNewlySolvedGroupId("");
     setResult(
       savedStatus === "won"
-        ? { points: scoreSparkSort(Math.max(0, 5 - savedMistakes)) }
+        ? { points: scoreSparkSort(Math.max(0, 5 - savedMistakes), savedHints) }
         : null
     );
   }, [puzzle?.puzzleId, progress]);
@@ -65,6 +70,26 @@ export default function CafeteriaConnectionsGame({ puzzle, progress, streak, dis
   );
   const remainingItems = shuffledItems.filter((item) => !solvedItemSet.has(item));
   const chancesRemaining = Math.max(0, 5 - mistakes);
+  const potentialPoints = scoreSparkSort(chancesRemaining, hintsUsed);
+
+  async function revealHint() {
+    if (disabled || saving || hintSavingRef.current || status !== "in_progress" || hintsUsed >= 4 || potentialPoints <= 0) return;
+    hintSavingRef.current = true;
+    setSaving(true);
+    try {
+      const nextHints = hintsUsed + 1;
+      const success = await onSave({status: "in_progress", state: {solvedGroupIds, mistakes, hintsUsed: nextHints}, attemptCount: mistakes});
+      if (success) {
+        setHintsUsed(nextHints);
+        setMessage("Hint revealed. One point deducted from this puzzle's possible reward.");
+      } else setMessage("Could not save the hint. No point deducted. Please try again.");
+    } catch {
+      setMessage("Could not save the hint. No point deducted. Please try again.");
+    } finally {
+      hintSavingRef.current = false;
+      setSaving(false);
+    }
+  }
 
   function toggleItem(item) {
     if (disabled || saving || status !== "in_progress") return;
@@ -93,8 +118,8 @@ export default function CafeteriaConnectionsGame({ puzzle, progress, streak, dis
     if (match) {
       const nextSolved = [...solvedGroupIds, match.id];
       const won = nextSolved.length === 4;
-      const nextState = { solvedGroupIds: nextSolved, mistakes };
-      const points = scoreSparkSort(chancesRemaining);
+      const nextState = { solvedGroupIds: nextSolved, mistakes, hintsUsed };
+      const points = scoreSparkSort(chancesRemaining, hintsUsed);
       const success = won
         ? await onComplete({ status: "won", state: nextState, attemptCount: mistakes, points })
         : await onSave({ status: "in_progress", state: nextState, attemptCount: mistakes });
@@ -118,7 +143,7 @@ export default function CafeteriaConnectionsGame({ puzzle, progress, streak, dis
         if (solvedGroupIds.includes(group.id)) return false;
         return group.items.filter((item) => selectedSet.has(item)).length === 3;
       });
-      const nextState = { solvedGroupIds, mistakes: nextMistakes };
+      const nextState = { solvedGroupIds, mistakes: nextMistakes, hintsUsed };
       const success = await onSave({ status: lost ? "lost" : "in_progress", state: nextState, attemptCount: nextMistakes });
       if (success) {
         setMistakes(nextMistakes);
@@ -148,6 +173,20 @@ export default function CafeteriaConnectionsGame({ puzzle, progress, streak, dis
         <span>{rating.description} Puzzles range from easy to hard throughout the rotation.</span>
       </div>
 
+      <div className="daily-game-hint">
+        <strong>How points are earned</strong>
+        <p>Find all four groups to earn up to 5 SPARK points for your school. Each wrong guess costs 1 point and one chance. Each hint costs 1 point from this puzzle’s reward, but keeps your chances. Points never fall below 0. An unfinished or lost puzzle earns 0 points.</p>
+        <span>{potentialPoints} points possible · {hintsUsed} {hintsUsed === 1 ? "hint" : "hints"} used</span>
+      </div>
+      {hintsUsed > 0 && status === "in_progress" && (
+        <div className="daily-game-hint" aria-label="Connections hints" aria-live="polite">
+          <strong>Words to get you started</strong>
+          {groups.filter(group => !solvedGroupIds.includes(group.id)).map(group => (
+            <p key={group.id}><strong>{group.category}:</strong> {group.items.slice(0, hintsUsed).join(" · ")}</p>
+          ))}
+        </div>
+      )}
+
       <div className="spark-sort-chances" aria-label={`${chancesRemaining} chances remaining`}>Chances remaining: {Array.from({ length: 5 }, (_, index) => <span key={index} className={index < chancesRemaining ? "active" : ""} aria-hidden="true">●</span>)}</div>
 
       <div className="spark-sort-solved-list" aria-live="polite">
@@ -167,13 +206,13 @@ export default function CafeteriaConnectionsGame({ puzzle, progress, streak, dis
       )}
 
       {status === "in_progress" && (
-        <div className="spark-sort-actions"><button type="button" onClick={() => setSelected([])} disabled={!selected.length || saving}>Clear</button><button type="button" className="finish-line-submit finish-line-ready" onClick={submitGroup} disabled={selected.length !== 4 || saving || disabled}>{saving ? "Checking..." : "Submit Group"}</button></div>
+        <div className="spark-sort-actions"><button type="button" onClick={revealHint} disabled={disabled || saving || hintsUsed >= 4 || potentialPoints <= 0}>Hint (−1 point)</button><button type="button" onClick={() => setSelected([])} disabled={!selected.length || saving}>Clear</button><button type="button" className="finish-line-submit finish-line-ready" onClick={submitGroup} disabled={selected.length !== 4 || saving || disabled}>{saving ? "Checking..." : "Submit Group"}</button></div>
       )}
 
       <div className="daily-game-message" role="status" aria-live="polite">{disabled ? "Game progress needs the Supabase setup before play can begin." : message || (status === "won" ? "Completed for this school today." : status === "lost" ? "Today's puzzle is complete. Try again next weekday!" : "Select four items that share a connection.")}</div>
       {result && !resultOpen && status === "won" && <button type="button" className="game-result-reopen" onClick={() => setResultOpen(true)}>View today's result</button>}
 
-      <GameResultDialog open={resultOpen} eyebrow="SPARK SORT COMPLETE" title="Four groups. One bright finish!" message={`Puzzle completed with ${chancesRemaining} ${chancesRemaining === 1 ? "chance" : "chances"} remaining.`} points={result?.points || 0} streakMessage={`${shownStreak}-day SPARK Sort streak`} onClose={() => setResultOpen(false)} />
+      <GameResultDialog open={resultOpen} eyebrow="SPARK SORT COMPLETE" title="Four groups. One bright finish!" message={`Puzzle completed with ${chancesRemaining} ${chancesRemaining === 1 ? "chance" : "chances"} remaining. ${hintsUsed} ${hintsUsed === 1 ? "hint" : "hints"} used (−${hintsUsed} ${hintsUsed === 1 ? "point" : "points"}).`} points={result?.points || 0} streakMessage={`${shownStreak}-day SPARK Sort streak`} onClose={() => setResultOpen(false)} />
     </section>
   );
 }

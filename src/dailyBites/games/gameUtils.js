@@ -90,8 +90,8 @@ export function scoreWordGame(guessCount) {
   return Math.max(0, 6 - guessCount);
 }
 
-export function scoreSparkSort(chancesRemaining) {
-  return Math.max(0, Math.min(5, chancesRemaining));
+export function scoreSparkSort(chancesRemaining, hintsUsed = 0) {
+  return Math.max(0, Math.min(5, chancesRemaining) - Math.max(0, hintsUsed));
 }
 
 export function evaluateWordGuess(guess, answer) {

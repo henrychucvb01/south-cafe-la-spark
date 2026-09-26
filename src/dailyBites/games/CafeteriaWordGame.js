@@ -151,6 +151,7 @@ export default function CafeteriaWordGame({ puzzle, progress, streak, disabled, 
         <div><div className="dashboard-small-label">TODAY'S WORD</div><h2 id="word-game-title">🥕 Cafeteria Word</h2><p>Find the five-letter cafeteria word in six guesses.</p></div>
         <div className="daily-game-streak" aria-label={`${streak} day word streak`}><strong>{streak}</strong><span>day streak</span></div>
       </div>
+      <div className="daily-game-hint"><strong>How points are earned</strong><p>Solve the word to earn SPARK points for your school: guess 1 = 5 points, guess 2 = 4, guess 3 = 3, guess 4 = 2, guess 5 = 1, guess 6 = 0. Solving on guess 6 still keeps your word streak. An unsolved puzzle earns 0 points. The clue below is free.</p></div>
       <div className="daily-game-hint"><strong>{puzzle.category}:</strong> {puzzle.hint}</div>
 
       <div className="word-board" aria-label="Word guesses">

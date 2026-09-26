@@ -15,7 +15,7 @@ describe("Daily Bites game utilities", () => {
   });
 
   test("SPARK Sort scoring matches chances remaining", () => {
-    expect([5, 4, 3, 2, 1, 0].map(scoreSparkSort)).toEqual([5, 4, 3, 2, 1, 0]);
+    expect([5, 4, 3, 2, 1, 0].map(value => scoreSparkSort(value))).toEqual([5, 4, 3, 2, 1, 0]);
   });
 
   test("Saturday and Sunday retain Friday's puzzle", () => {
@@ -91,3 +91,5 @@ test('daily SPARK Sort rotation includes clearly rated easy, medium and hard puz
  expect(new Set(rotation.map(p=>p.id)).size).toBe(10);
  expect(new Set(rotation.map(p=>p.difficulty))).toEqual(levels);
 });
+
+test("Connections hints reduce only the puzzle reward with a zero floor",()=>{expect(scoreSparkSort(5,1)).toBe(4);expect(scoreSparkSort(3,2)).toBe(1);expect(scoreSparkSort(1,4)).toBe(0);});

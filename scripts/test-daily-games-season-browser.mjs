@@ -27,6 +27,10 @@ try{
   const sort=page.locator('.spark-sort-card');await expect(sort.locator('.spark-sort-grid button')).toHaveCount(16);await expect(sort.locator('.spark-sort-rating')).toBeVisible();if(rating)await expect(sort.locator('.spark-sort-rating')).toContainText("Today's difficulty: "+rating);
   await expect(page.locator('.word-board .word-row')).toHaveCount(6);
   if(date==='2026-09-28'){
+   await expect(page.locator('.word-game-card')).toContainText('guess 1 = 5 points');
+   await sort.getByRole('button',{name:'Hint (−1 point)',exact:true}).click();
+   await expect(sort).toContainText('4 points possible');
+   await expect(sort.getByLabel('Connections hints')).toContainText('Orchard fruit: Apple');
    for(const word of ['Apple','Pear','Peach','Plum'])await sort.getByRole('button',{name:word,exact:true}).click();
    await sort.getByRole('button',{name:'Submit Group',exact:true}).click();await expect(sort.locator('.spark-sort-solved-list')).toContainText('Orchard fruit');await expect(sort.locator('.spark-sort-grid button')).toHaveCount(12);
   }
