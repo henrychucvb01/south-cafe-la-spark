@@ -160,3 +160,13 @@
 @keyframes mystery-burst-ring { 0% { opacity:0; transform:scale(.08); } 25% { opacity:.8; } 100% { opacity:0; transform:scale(2.5); } }
 @media(max-width:650px) { .mystery-spinner-scene { width:240px; } .mystery-fruit-position span { font-size:21px; } }
 @media(prefers-reduced-motion:reduce) { .mystery-burst { display:none; } }
+
+/* Keep the manager's growing prize collection in one compact scrolling row. */
+.mystery-inventory .mystery-prize-grid { display:flex; gap:12px; overflow-x:auto; padding:4px 2px 16px; scroll-snap-type:x proximity; }
+.mystery-inventory .mystery-prize-card { flex:0 0 280px; padding:14px; gap:10px; scroll-snap-align:start; }
+.mystery-inventory .mystery-prize-card>span { font-size:28px; }
+.mystery-inventory .mystery-prize-card h3 { font-size:16px; }
+.mystery-inventory .mystery-prize-card p { font-size:12px; margin:5px 0; }
+.mystery-inventory .mystery-prize-card time,.mystery-inventory .mystery-prize-card small { font-size:11px; }
+.mystery-inventory .mystery-status { margin-top:8px; font-size:12px; }
+@media(max-width:650px) { .mystery-inventory .mystery-prize-card { flex-basis:260px; } }
