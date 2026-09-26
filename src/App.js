@@ -24,6 +24,7 @@ import MonitoringPage from "./monitoring/MonitoringPage";
 import PageNavigationProvider, { usePageNavigation } from "./navigation/PageNavigation";
 
 import MysteryPullPage from "./mysteryPull/MysteryPullPage";
+import { mysteryRpc, saveSession } from "./mysteryPull/service";
 
 function App() {
   const [screen, setScreen] = useState(()=>window.location.hash === "#mystery-pull" ? "mysteryPull" : "login");
@@ -82,7 +83,7 @@ function App() {
   function managerPage(content) { return <>{content}<ManagerFeedback location={selectedLocation} employee={selectedEmployee} pageRoute={screen} /></>; }
 
   if (screen === "mysteryPull") return <MysteryPullPage onBack={() => { window.history.replaceState(null, "", window.location.pathname + window.location.search); resetToLogin(); }} />;
-  if (screen === "login") return <LoginPage onMysteryPull={() => { window.location.hash = "mystery-pull"; setScreen("mysteryPull"); }} canInstall={canInstall} onInstall={handleInstallApp} onLocationSelected={(location) => { setSelectedLocation(location); setSelectedEmployee(null); setEditingCheck(null); setScreen("employeeSelect"); }} onSupervisor={() => { setEditingCheck(null); setScreen("supervisorPin"); }} />;
+  if (screen === "login") return <LoginPage onMysteryPull={async (code) => { const session = await mysteryRpc("open", { p_code: code }); saveSession(session); window.location.hash = "mystery-pull"; setScreen("mysteryPull"); }} canInstall={canInstall} onInstall={handleInstallApp} onLocationSelected={(location) => { setSelectedLocation(location); setSelectedEmployee(null); setEditingCheck(null); setScreen("employeeSelect"); }} onSupervisor={() => { setEditingCheck(null); setScreen("supervisorPin"); }} />;
   if (screen === "supervisorPin") return <SupervisorPinPage onSuccess={(verifiedPin) => { setSupervisorSessionPin(verifiedPin); setScreen("commandCenter"); }} onBack={() => { setSupervisorSessionPin(""); setScreen("login"); }} />;
   if (screen === "employeeSelect") return <EmployeeSelectPage location={selectedLocation} onEmployeeSelected={(employee) => { setSelectedEmployee(employee); setEditingCheck(null); setScreen("managerPin"); }} onBack={resetToLogin} />;
   if (screen === "managerPin") return <ManagerPinPage location={selectedLocation} employee={selectedEmployee} onSuccess={(verifiedPin) => { setManagerSessionPin(verifiedPin); setScreen("homeBase"); }} onBack={() => { setSelectedEmployee(null); setManagerSessionPin(""); setScreen("employeeSelect"); }} />;

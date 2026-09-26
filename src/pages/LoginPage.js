@@ -19,6 +19,10 @@ function LoginPage({
     setLoading(true);
 
     try {
+      if (locationCode === '1234' && onMysteryPull) {
+        await onMysteryPull(locationCode);
+        return;
+      }
       const { data: location, error: locationError } = await supabase
         .from("locations")
         .select("*")
@@ -132,8 +136,6 @@ function LoginPage({
               {loading ? "Loading..." : "Continue"}
             </button>
           </form>
-
-          {onMysteryPull && <div className="spark-mystery-entry-link"><span>A SPARK side quest</span><button type="button" onClick={onMysteryPull}>✦ Mystery Pull</button></div>}
 
           {/* INSTALL SPARK */}
           <div className="install-section">
