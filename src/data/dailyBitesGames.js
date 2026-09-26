@@ -34,6 +34,7 @@ export const WORD_GAME_PUZZLES = [
 export const SPARK_SORT_PUZZLES = [
   {
     id: "produce-colors",
+    difficulty: "medium",
     groups: [
       { category: "Red produce", items: ["Apple", "Tomato", "Strawberry", "Radish"] },
       { category: "Leafy greens", items: ["Spinach", "Kale", "Lettuce", "Chard"] },
@@ -43,6 +44,7 @@ export const SPARK_SORT_PUZZLES = [
   },
   {
     id: "kitchen-tools",
+    difficulty: "easy",
     groups: [
       { category: "Measuring tools", items: ["Scale", "Cup", "Spoon", "Thermometer"] },
       { category: "Serving tools", items: ["Ladle", "Tongs", "Scoop", "Spatula"] },
@@ -52,6 +54,7 @@ export const SPARK_SORT_PUZZLES = [
   },
   {
     id: "farm-to-tray",
+    difficulty: "easy",
     groups: [
       { category: "Tree fruits", items: ["Peach", "Pear", "Plum", "Apple"] },
       { category: "Grown underground", items: ["Potato", "Carrot", "Onion", "Radish"] },
@@ -61,6 +64,7 @@ export const SPARK_SORT_PUZZLES = [
   },
   {
     id: "meal-programs",
+    difficulty: "medium",
     groups: [
       { category: "Breakfast favorites", items: ["Oatmeal", "Yogurt", "Toast", "Cereal"] },
       { category: "Lunch line items", items: ["Entrée", "Fruit", "Vegetable", "Milk"] },
@@ -70,6 +74,7 @@ export const SPARK_SORT_PUZZLES = [
   },
   {
     id: "food-safety-fun",
+    difficulty: "medium",
     groups: [
       { category: "Wash hands", items: ["Wet", "Soap", "Scrub", "Rinse"] },
       { category: "Temperature words", items: ["Hot", "Cold", "Chill", "Heat"] },
@@ -79,6 +84,7 @@ export const SPARK_SORT_PUZZLES = [
   },
   {
     id: "inventory-day",
+    difficulty: "easy",
     groups: [
       { category: "Counting words", items: ["Each", "Case", "Dozen", "Pound"] },
       { category: "Storage areas", items: ["Pantry", "Cooler", "Freezer", "Shelf"] },
@@ -88,6 +94,7 @@ export const SPARK_SORT_PUZZLES = [
   },
   {
     id: "production-flow",
+    difficulty: "hard",
     groups: [
       { category: "Before cooking", items: ["Read", "Gather", "Measure", "Prep"] },
       { category: "Cooking methods", items: ["Bake", "Steam", "Roast", "Simmer"] },
@@ -97,6 +104,7 @@ export const SPARK_SORT_PUZZLES = [
   },
   {
     id: "nutrition-mix",
+    difficulty: "medium",
     groups: [
       { category: "Protein foods", items: ["Beans", "Eggs", "Chicken", "Tofu"] },
       { category: "Whole grains", items: ["Oats", "Quinoa", "Brown Rice", "Whole Wheat"] },
@@ -106,6 +114,7 @@ export const SPARK_SORT_PUZZLES = [
   },
   {
     id: "cafeteria-sounds",
+    difficulty: "hard",
     groups: [
       { category: "Things that beep", items: ["Timer", "Oven", "Scanner", "Thermometer"] },
       { category: "Things that roll", items: ["Cart", "Rack", "Dolly", "Tray Line"] },
@@ -115,6 +124,7 @@ export const SPARK_SORT_PUZZLES = [
   },
   {
     id: "clean-team",
+    difficulty: "hard",
     groups: [
       { category: "Dish area", items: ["Scrape", "Rack", "Wash", "Air Dry"] },
       { category: "Floor care", items: ["Sweep", "Mop", "Sign", "Squeegee"] },

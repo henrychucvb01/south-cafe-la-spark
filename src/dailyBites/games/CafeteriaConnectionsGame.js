@@ -2,9 +2,14 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import GameResultDialog from "./GameResultDialog";
 import { scoreSparkSort, seededShuffle } from "./gameUtils";
 
-const DIFFICULTY_LABELS = ["Warm-up", "Tasty", "Tricky", "Chef's challenge"];
+const PUZZLE_RATINGS = {
+  easy: { label: 'Easy', stars: '★☆☆', description: 'Familiar items and straightforward groups.' },
+  medium: { label: 'Medium', stars: '★★☆', description: 'Look closely for the connection between items.' },
+  hard: { label: 'Hard', stars: '★★★', description: 'A challenge with less obvious connections.' },
+};
 
 export default function CafeteriaConnectionsGame({ puzzle, progress, streak, disabled, onSave, onComplete }) {
+  const rating = PUZZLE_RATINGS[puzzle.difficulty] || PUZZLE_RATINGS.medium;
   const [selected, setSelected] = useState([]);
   const [solvedGroupIds, setSolvedGroupIds] = useState([]);
   const [mistakes, setMistakes] = useState(0);
@@ -119,7 +124,7 @@ export default function CafeteriaConnectionsGame({ puzzle, progress, streak, dis
         setMistakes(nextMistakes);
         setSelected([]);
         setStatus(lost ? "lost" : "in_progress");
-        setMessage(lost ? "No chances remain. The groups are revealed from easiest to hardest." : oneAway ? "One away! Three selections belong together." : "Not a group. Try another combination.");
+        setMessage(lost ? "No chances remain. The groups are revealed below." : oneAway ? "One away! Three selections belong together." : "Not a group. Try another combination.");
         animateFeedback(oneAway ? "spark-sort-one-away" : "spark-sort-incorrect");
       }
     }
@@ -138,12 +143,17 @@ export default function CafeteriaConnectionsGame({ puzzle, progress, streak, dis
         <div className="daily-game-streak" aria-label={`${streak} day SPARK Sort streak`}><strong>{streak}</strong><span>day streak</span></div>
       </div>
 
+      <div className={`spark-sort-rating spark-sort-rating-${puzzle.difficulty || 'medium'}`}>
+        <strong><span aria-hidden="true">{rating.stars}</span> Today's difficulty: {rating.label}</strong>
+        <span>{rating.description} Puzzles range from easy to hard throughout the rotation.</span>
+      </div>
+
       <div className="spark-sort-chances" aria-label={`${chancesRemaining} chances remaining`}>Chances remaining: {Array.from({ length: 5 }, (_, index) => <span key={index} className={index < chancesRemaining ? "active" : ""} aria-hidden="true">●</span>)}</div>
 
       <div className="spark-sort-solved-list" aria-live="polite">
         {displayedSolvedGroups.map((group) => (
           <div className={`spark-sort-solved spark-sort-group-${group.difficultyIndex} ${newlySolvedGroupId === group.id ? "spark-sort-group-reveal" : ""}`} key={group.id}>
-            <small>Group {group.difficultyIndex + 1} · {DIFFICULTY_LABELS[group.difficultyIndex]}</small>
+            <small>Group {group.difficultyIndex + 1}</small>
             <strong>{group.category}</strong>
             <span>{group.items.join(" · ")}</span>
           </div>

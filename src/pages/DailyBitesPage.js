@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { awardSparkPoints } from "../sparkPoints";
 import DAILY_BITES from "../data/dailyBitesContent";
-import { SPARK_SORT_PUZZLES, WORD_GAME_PUZZLES } from "../data/dailyBitesGames";
+import { selectSeasonPuzzle } from "../dailyBites/games/seasonPuzzles";
 import CafeteriaWordGame from "../dailyBites/games/CafeteriaWordGame";
 import CafeteriaConnectionsGame from "../dailyBites/games/CafeteriaConnectionsGame";
 import ArTrainingQuiz from "../dailyBites/training/ArTrainingQuiz";
@@ -11,7 +11,6 @@ import SupervisorLeaderboard from "../leaderboard/SupervisorLeaderboard";
 import {
   calculateGameStreak,
   getDailyGameDate,
-  selectDailyPuzzle,
 } from "../dailyBites/games/gameUtils";
 
 const CARD_ONE_START = "2026-08-01";
@@ -331,11 +330,11 @@ function DailyBitesPage({ location, employee, onBack }) {
   const todaysBite = useMemo(() => getTodaysDailyBite(), []);
   const gameDate = useMemo(() => getDailyGameDate(new Date()), []);
   const wordPuzzle = useMemo(
-    () => selectDailyPuzzle(WORD_GAME_PUZZLES, "word", gameDate),
+    () => selectSeasonPuzzle("word", gameDate),
     [gameDate]
   );
   const sparkSortPuzzle = useMemo(
-    () => selectDailyPuzzle(SPARK_SORT_PUZZLES, "spark-sort", gameDate),
+    () => selectSeasonPuzzle("spark-sort", gameDate),
     [gameDate]
   );
 

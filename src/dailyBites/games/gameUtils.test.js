@@ -83,3 +83,11 @@ describe("Daily Bites game utilities", () => {
     });
   });
 });
+
+test('daily SPARK Sort rotation includes clearly rated easy, medium and hard puzzles',()=>{
+ const levels=new Set(SPARK_SORT_PUZZLES.map(p=>p.difficulty));
+ expect(levels).toEqual(new Set(['easy','medium','hard']));
+ const rotation=['2026-09-28','2026-09-29','2026-09-30','2026-10-01','2026-10-02','2026-10-05','2026-10-06','2026-10-07','2026-10-08','2026-10-09'].map(date=>selectDailyPuzzle(SPARK_SORT_PUZZLES,'spark-sort',date));
+ expect(new Set(rotation.map(p=>p.id)).size).toBe(10);
+ expect(new Set(rotation.map(p=>p.difficulty))).toEqual(levels);
+});

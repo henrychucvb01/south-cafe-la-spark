@@ -1,3 +1,4 @@
+import { WORD_SEASON_PUZZLES } from "./dailyBitesSeason2026";
 // Curated common five-letter English words accepted by Cafeteria Word.
 // Keep this separate from the themed answer bank so the accepted-guess list
 // can grow without changing puzzle rotation.
@@ -29,7 +30,7 @@ yeast yield young youth
 zesty
 `.trim().split(/\s+/);
 
-export const VALID_WORD_GUESSES = new Set(VALID_FIVE_LETTER_WORDS.map((word) => word.toUpperCase()));
+export const VALID_WORD_GUESSES = new Set([...VALID_FIVE_LETTER_WORDS.map((word) => word.toUpperCase()), ...WORD_SEASON_PUZZLES.map(puzzle => puzzle.answer)]);
 
 export function isValidWordGuess(word) {
   return VALID_WORD_GUESSES.has(String(word || "").toUpperCase());

@@ -8915,3 +8915,8 @@ a.manager-resource-card:hover { transform: translateY(-2px); box-shadow: 0 9px 2
 button.homebase-card.homebase-card-corrections { background: #fde8e8; border: 2px solid #c85353; }
 .homebase-card-corrections .homebase-card-body span { color: #8b2020; font-weight: 700; }
 button.homebase-card.homebase-card-corrections:hover { background: #fbdada; border-color: #9e3030; }
+
+.spark-sort-rating { display: grid; gap: 5px; padding: 12px 14px; margin: 12px 0; border: 1px solid #bed2e5; border-radius: 10px; background: #edf5fc; color: #173e64; }
+.spark-sort-rating > span { font-size: 14px; line-height: 1.5; }
+.spark-sort-rating-easy { background: #edf8f0; border-color: #b5d7bf; color: #225335; }
+.spark-sort-rating-hard { background: #fff4e5; border-color: #e7cc99; color: #714413; }
