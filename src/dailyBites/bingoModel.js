@@ -1,3 +1,5 @@
+// Historical fall-card audit model only. Live Bingo uses BingoPanel and the
+// spark_bingo_* database functions. Keep this snapshot to reproduce the prior audit.
 import { getMplhTarget } from '../mplhTargets.js';
 import { isPerfectMonitoring } from '../monitoring/supperSchedule.js';
 import { getLocalDateString } from '../sparkPolicy.js';

@@ -1,0 +1,620 @@
+[
+  {
+    "id": "finish-line-3",
+    "label": "Finish Line",
+    "detail": "Complete 3 days",
+    "icon": "✅",
+    "draw_enabled": true,
+    "threshold": 3,
+    "evidence": "finish"
+  },
+  {
+    "id": "finish-line-5",
+    "label": "Finish Line",
+    "detail": "Complete 5 days",
+    "icon": "✅",
+    "draw_enabled": true,
+    "threshold": 5,
+    "evidence": "finish"
+  },
+  {
+    "id": "finish-line-7",
+    "label": "Finish Line",
+    "detail": "Complete 7 days",
+    "icon": "🏁",
+    "draw_enabled": true,
+    "threshold": 7,
+    "evidence": "finish"
+  },
+  {
+    "id": "finish-line-10",
+    "label": "Finish Line",
+    "detail": "Complete 10 days",
+    "icon": "🏁",
+    "draw_enabled": true,
+    "threshold": 10,
+    "evidence": "finish"
+  },
+  {
+    "id": "finish-line-15",
+    "label": "Finish Line",
+    "detail": "Complete 15 days",
+    "icon": "🏆",
+    "draw_enabled": true,
+    "threshold": 15,
+    "evidence": "finish"
+  },
+  {
+    "id": "finish-line-20",
+    "label": "Finish Line",
+    "detail": "Complete 20 days",
+    "icon": "🏆",
+    "draw_enabled": true,
+    "threshold": 20,
+    "evidence": "finish"
+  },
+  {
+    "id": "finish-streak-3",
+    "label": "Finish Line",
+    "detail": "3-day streak",
+    "icon": "🔥",
+    "draw_enabled": true,
+    "threshold": 3,
+    "evidence": "streak"
+  },
+  {
+    "id": "finish-streak-5",
+    "label": "Finish Line",
+    "detail": "5-day streak",
+    "icon": "🔥",
+    "draw_enabled": true,
+    "threshold": 5,
+    "evidence": "streak"
+  },
+  {
+    "id": "perfect-week",
+    "label": "Perfect Week",
+    "detail": "Finish Line",
+    "icon": "⭐",
+    "draw_enabled": true,
+    "threshold": 1,
+    "evidence": "perfect_week"
+  },
+  {
+    "id": "daily-bites-3",
+    "label": "Daily Bites",
+    "detail": "Visit 3 days",
+    "icon": "🍎",
+    "draw_enabled": true,
+    "threshold": 3,
+    "evidence": "visits"
+  },
+  {
+    "id": "daily-bites-5",
+    "label": "Daily Bites",
+    "detail": "Visit 5 days",
+    "icon": "🍎",
+    "draw_enabled": true,
+    "threshold": 5,
+    "evidence": "visits"
+  },
+  {
+    "id": "daily-bites-7",
+    "label": "Daily Bites",
+    "detail": "Visit 7 days",
+    "icon": "🥕",
+    "draw_enabled": true,
+    "threshold": 7,
+    "evidence": "visits"
+  },
+  {
+    "id": "daily-bites-10",
+    "label": "Daily Bites",
+    "detail": "Visit 10 days",
+    "icon": "🥕",
+    "draw_enabled": true,
+    "threshold": 10,
+    "evidence": "visits"
+  },
+  {
+    "id": "meal-counts-3",
+    "label": "Meal Counts",
+    "detail": "Enter 3 days",
+    "icon": "🍽️",
+    "draw_enabled": true,
+    "threshold": 3,
+    "evidence": "meals"
+  },
+  {
+    "id": "meal-counts-5",
+    "label": "Meal Counts",
+    "detail": "Enter 5 days",
+    "icon": "🍽️",
+    "draw_enabled": true,
+    "threshold": 5,
+    "evidence": "meals"
+  },
+  {
+    "id": "meal-counts-7",
+    "label": "Meal Counts",
+    "detail": "Enter 7 days",
+    "icon": "🔢",
+    "draw_enabled": true,
+    "threshold": 7,
+    "evidence": "meals"
+  },
+  {
+    "id": "meal-counts-10",
+    "label": "Meal Counts",
+    "detail": "Enter 10 days",
+    "icon": "🔢",
+    "draw_enabled": true,
+    "threshold": 10,
+    "evidence": "meals"
+  },
+  {
+    "id": "meal-counts-15",
+    "label": "Meal Counts",
+    "detail": "Enter 15 days",
+    "icon": "🔢",
+    "draw_enabled": true,
+    "threshold": 15,
+    "evidence": "meals"
+  },
+  {
+    "id": "production-record-3",
+    "label": "Production Record",
+    "detail": "Complete 3 days",
+    "icon": "📋",
+    "draw_enabled": true,
+    "threshold": 3,
+    "evidence": "item",
+    "item_key": "production_record"
+  },
+  {
+    "id": "production-record-5",
+    "label": "Production Record",
+    "detail": "Complete 5 days",
+    "icon": "📋",
+    "draw_enabled": true,
+    "threshold": 5,
+    "evidence": "item",
+    "item_key": "production_record"
+  },
+  {
+    "id": "production-record-10",
+    "label": "Production Record",
+    "detail": "Complete 10 days",
+    "icon": "📋",
+    "draw_enabled": true,
+    "threshold": 10,
+    "evidence": "item",
+    "item_key": "production_record"
+  },
+  {
+    "id": "production-worksheet-5",
+    "label": "Production Worksheet",
+    "detail": "Complete 5 days",
+    "icon": "📝",
+    "draw_enabled": true,
+    "threshold": 5,
+    "evidence": "item",
+    "item_key": "production_worksheet"
+  },
+  {
+    "id": "reports-reviewed-5",
+    "label": "Reports Reviewed",
+    "detail": "Complete 5 days",
+    "icon": "🔍",
+    "draw_enabled": true,
+    "threshold": 5,
+    "evidence": "item",
+    "item_key": "reports_reviewed"
+  },
+  {
+    "id": "finish-meal-count-5",
+    "label": "Meal Count Check",
+    "detail": "Confirm 5 days",
+    "icon": "✔️",
+    "draw_enabled": true,
+    "threshold": 5,
+    "evidence": "item",
+    "item_key": "meal_count_entered"
+  },
+  {
+    "id": "perfect-bic",
+    "label": "Perfect BIC Run",
+    "detail": "Supervisor verified",
+    "icon": "🌟",
+    "draw_enabled": false,
+    "threshold": 1,
+    "evidence": "perfect_monitoring",
+    "item_key": "breakfast"
+  },
+  {
+    "id": "monitoring-1",
+    "label": "Supper Monitoring",
+    "detail": "Manager monitoring accepted",
+    "icon": "🔎",
+    "requiresSupper": true,
+    "draw_enabled": true,
+    "threshold": 1,
+    "evidence": "monitoring"
+  },
+  {
+    "id": "perfect-lunch",
+    "label": "Perfect Lunch",
+    "detail": "Monitoring",
+    "icon": "🥗",
+    "draw_enabled": false,
+    "threshold": 1,
+    "evidence": "perfect_monitoring",
+    "item_key": "lunch"
+  },
+  {
+    "id": "all-monitorings",
+    "label": "Supper Monitoring",
+    "detail": "Manager monitoring accepted",
+    "icon": "✔️",
+    "requiresSupper": true,
+    "draw_enabled": false,
+    "threshold": 1,
+    "evidence": "monitoring"
+  },
+  {
+    "id": "inventory",
+    "label": "Inventory",
+    "detail": "Month-end complete",
+    "icon": "📦",
+    "draw_enabled": true,
+    "threshold": 1,
+    "evidence": "item",
+    "item_key": "month_end_inventory"
+  },
+  {
+    "id": "monday",
+    "label": "Monday Tasks",
+    "detail": "Complete all",
+    "icon": "M",
+    "draw_enabled": true,
+    "threshold": 1,
+    "evidence": "monday"
+  },
+  {
+    "id": "tuesday",
+    "label": "Tuesday Plan",
+    "detail": "Meal plan complete",
+    "icon": "T",
+    "draw_enabled": true,
+    "threshold": 1,
+    "evidence": "item",
+    "item_key": "tuesday_meal_plan"
+  },
+  {
+    "id": "wednesday",
+    "label": "Wednesday",
+    "detail": "Ordering complete",
+    "icon": "W",
+    "draw_enabled": true,
+    "threshold": 1,
+    "evidence": "item",
+    "item_key": "wednesday_order_status"
+  },
+  {
+    "id": "thursday",
+    "label": "Thursday",
+    "detail": "Orders complete",
+    "icon": "T",
+    "draw_enabled": true,
+    "threshold": 1,
+    "evidence": "item",
+    "item_key": "thursday_orders_complete"
+  },
+  {
+    "id": "perfect-supper",
+    "label": "Perfect Supper",
+    "detail": "Monitoring",
+    "icon": "🌙",
+    "requiresSupper": true,
+    "draw_enabled": false,
+    "threshold": 1,
+    "evidence": "perfect_monitoring",
+    "item_key": "supper"
+  },
+  {
+    "id": "supper-monitoring-1",
+    "label": "Supper Monitoring",
+    "detail": "Manager monitoring accepted",
+    "icon": "🌙",
+    "requiresSupper": true,
+    "draw_enabled": false,
+    "threshold": 1,
+    "evidence": "monitoring"
+  },
+  {
+    "id": "supper-monitorings-3",
+    "label": "Supper Monitoring",
+    "detail": "Manager monitoring accepted",
+    "icon": "3️⃣",
+    "requiresSupper": true,
+    "draw_enabled": false,
+    "threshold": 1,
+    "evidence": "monitoring"
+  },
+  {
+    "id": "mplh-2",
+    "label": "MPLH Target",
+    "detail": "Hit target 2 days",
+    "icon": "📈",
+    "requiresMplh": true,
+    "draw_enabled": true,
+    "threshold": 2,
+    "evidence": "mplh"
+  },
+  {
+    "id": "mplh-3",
+    "label": "MPLH Target",
+    "detail": "Hit target 3 days",
+    "icon": "📈",
+    "requiresMplh": true,
+    "draw_enabled": true,
+    "threshold": 3,
+    "evidence": "mplh"
+  },
+  {
+    "id": "mplh-5",
+    "label": "MPLH Target",
+    "detail": "Hit target 5 days",
+    "icon": "📊",
+    "requiresMplh": true,
+    "draw_enabled": true,
+    "threshold": 5,
+    "evidence": "mplh"
+  },
+  {
+    "id": "previous-meal-counts-3",
+    "label": "Previous Meal Counts",
+    "detail": "Confirm 3 days",
+    "icon": "✅",
+    "evidence": "item",
+    "item_key": "previous_meal_counts",
+    "threshold": 3,
+    "draw_enabled": true
+  },
+  {
+    "id": "previous-meal-counts-5",
+    "label": "Previous Meal Counts",
+    "detail": "Confirm 5 days",
+    "icon": "✅",
+    "evidence": "item",
+    "item_key": "previous_meal_counts",
+    "threshold": 5,
+    "draw_enabled": true
+  },
+  {
+    "id": "previous-meal-counts-10",
+    "label": "Previous Meal Counts",
+    "detail": "Confirm 10 days",
+    "icon": "✅",
+    "evidence": "item",
+    "item_key": "previous_meal_counts",
+    "threshold": 10,
+    "draw_enabled": true
+  },
+  {
+    "id": "dairy-order-3",
+    "label": "Dairy Order",
+    "detail": "Confirm 3 days",
+    "icon": "✅",
+    "evidence": "item",
+    "item_key": "dairy_order_created",
+    "threshold": 3,
+    "draw_enabled": true
+  },
+  {
+    "id": "dairy-order-5",
+    "label": "Dairy Order",
+    "detail": "Confirm 5 days",
+    "icon": "✅",
+    "evidence": "item",
+    "item_key": "dairy_order_created",
+    "threshold": 5,
+    "draw_enabled": true
+  },
+  {
+    "id": "dairy-order-10",
+    "label": "Dairy Order",
+    "detail": "Confirm 10 days",
+    "icon": "✅",
+    "evidence": "item",
+    "item_key": "dairy_order_created",
+    "threshold": 10,
+    "draw_enabled": true
+  },
+  {
+    "id": "receivers-3",
+    "label": "Receivers",
+    "detail": "Confirm 3 days",
+    "icon": "✅",
+    "evidence": "item",
+    "item_key": "receivers_completed",
+    "threshold": 3,
+    "draw_enabled": true
+  },
+  {
+    "id": "receivers-5",
+    "label": "Receivers",
+    "detail": "Confirm 5 days",
+    "icon": "✅",
+    "evidence": "item",
+    "item_key": "receivers_completed",
+    "threshold": 5,
+    "draw_enabled": true
+  },
+  {
+    "id": "receivers-10",
+    "label": "Receivers",
+    "detail": "Confirm 10 days",
+    "icon": "✅",
+    "evidence": "item",
+    "item_key": "receivers_completed",
+    "threshold": 10,
+    "draw_enabled": true
+  },
+  {
+    "id": "production-worksheet-3",
+    "label": "Production Worksheet",
+    "detail": "Confirm 3 days",
+    "icon": "📋",
+    "evidence": "item",
+    "item_key": "production_worksheet",
+    "threshold": 3,
+    "draw_enabled": true
+  },
+  {
+    "id": "production-worksheet-10",
+    "label": "Production Worksheet",
+    "detail": "Confirm 10 days",
+    "icon": "📋",
+    "evidence": "item",
+    "item_key": "production_worksheet",
+    "threshold": 10,
+    "draw_enabled": true
+  },
+  {
+    "id": "reports-reviewed-3",
+    "label": "Reports Reviewed",
+    "detail": "Confirm 3 days",
+    "icon": "📋",
+    "evidence": "item",
+    "item_key": "reports_reviewed",
+    "threshold": 3,
+    "draw_enabled": true
+  },
+  {
+    "id": "reports-reviewed-10",
+    "label": "Reports Reviewed",
+    "detail": "Confirm 10 days",
+    "icon": "📋",
+    "evidence": "item",
+    "item_key": "reports_reviewed",
+    "threshold": 10,
+    "draw_enabled": true
+  },
+  {
+    "id": "finish-meal-count-3",
+    "label": "Meal Count Check",
+    "detail": "Confirm 3 days",
+    "icon": "📋",
+    "evidence": "item",
+    "item_key": "meal_count_entered",
+    "threshold": 3,
+    "draw_enabled": true
+  },
+  {
+    "id": "finish-meal-count-10",
+    "label": "Meal Count Check",
+    "detail": "Confirm 10 days",
+    "icon": "📋",
+    "evidence": "item",
+    "item_key": "meal_count_entered",
+    "threshold": 10,
+    "draw_enabled": true
+  },
+  {
+    "id": "game-word-1",
+    "label": "Cafeteria Word",
+    "detail": "Solve on 1 day",
+    "icon": "🥕",
+    "evidence": "game",
+    "item_key": "word",
+    "threshold": 1,
+    "draw_enabled": true
+  },
+  {
+    "id": "game-word-3",
+    "label": "Cafeteria Word",
+    "detail": "Solve on 3 days",
+    "icon": "🥕",
+    "evidence": "game",
+    "item_key": "word",
+    "threshold": 3,
+    "draw_enabled": true
+  },
+  {
+    "id": "game-word-5",
+    "label": "Cafeteria Word",
+    "detail": "Solve on 5 days",
+    "icon": "🥕",
+    "evidence": "game",
+    "item_key": "word",
+    "threshold": 5,
+    "draw_enabled": true
+  },
+  {
+    "id": "game-spark_sort-1",
+    "label": "Connections",
+    "detail": "Solve on 1 day",
+    "icon": "✨",
+    "evidence": "game",
+    "item_key": "spark_sort",
+    "threshold": 1,
+    "draw_enabled": true
+  },
+  {
+    "id": "game-spark_sort-3",
+    "label": "Connections",
+    "detail": "Solve on 3 days",
+    "icon": "✨",
+    "evidence": "game",
+    "item_key": "spark_sort",
+    "threshold": 3,
+    "draw_enabled": true
+  },
+  {
+    "id": "game-spark_sort-5",
+    "label": "Connections",
+    "detail": "Solve on 5 days",
+    "icon": "✨",
+    "evidence": "game",
+    "item_key": "spark_sort",
+    "threshold": 5,
+    "draw_enabled": true
+  },
+  {
+    "id": "training-1",
+    "label": "AR Training",
+    "detail": "Answer correctly on 1 day",
+    "icon": "📚",
+    "evidence": "training",
+    "threshold": 1,
+    "draw_enabled": true
+  },
+  {
+    "id": "training-3",
+    "label": "AR Training",
+    "detail": "Answer correctly on 3 days",
+    "icon": "📚",
+    "evidence": "training",
+    "threshold": 3,
+    "draw_enabled": true
+  },
+  {
+    "id": "training-5",
+    "label": "AR Training",
+    "detail": "Answer correctly on 5 days",
+    "icon": "📚",
+    "evidence": "training",
+    "threshold": 5,
+    "draw_enabled": true
+  },
+  {
+    "id": "free",
+    "label": "FREE SPACE",
+    "detail": "Already yours",
+    "icon": "✨",
+    "evidence": "free",
+    "threshold": 1,
+    "draw_enabled": false
+  }
+]

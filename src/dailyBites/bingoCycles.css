@@ -1,0 +1,10 @@
+.bingo-cycle-actions { display:flex; flex-wrap:wrap; gap:10px; margin:16px 0; }
+.bingo-cycle-actions button:disabled,.bingo-repick-form button:disabled { opacity:.55; cursor:not-allowed; }
+.bingo-cycle-message,.bingo-repick-form { padding:16px; margin:16px 0; border:1px solid #b3cfda; border-radius:12px; background:#f1f8fa; }
+.bingo-repick-form label { display:block; font-weight:700; margin-bottom:8px; }
+.bingo-repick-form select { display:block; width:100%; max-width:100%; padding:12px; font:inherit; border:1px solid #95afc0; border-radius:8px; }
+.bingo-repick-form button { margin:8px 8px 0 0; }
+button.bingo-repick-square { font:inherit; color:inherit; cursor:pointer; }
+button.bingo-repick-square:hover,button.bingo-repick-square[aria-pressed=true] { outline:3px solid #197ba6; outline-offset:-3px; }
+button.bingo-repick-square:focus-visible { outline:3px solid #d17c00; outline-offset:-3px; }
+@media(max-width:600px) { .bingo-cycle-actions button,.bingo-repick-form button { width:100%; margin-right:0; } }

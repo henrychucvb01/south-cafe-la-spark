@@ -80,7 +80,8 @@
 
 /* Keep Feedback clear of page-level header buttons on every manager screen. */
 .spark-feedback-trigger {
-  top: 88px !important;
+  top: auto !important;
+  bottom: max(16px, env(safe-area-inset-bottom)) !important;
   right: 18px !important;
 }
 
@@ -112,7 +113,7 @@
   .spark-feedback-trigger {
     top: auto !important;
     right: 14px !important;
-    bottom: 14px !important;
+    bottom: max(14px, env(safe-area-inset-bottom)) !important;
   }
 }
 

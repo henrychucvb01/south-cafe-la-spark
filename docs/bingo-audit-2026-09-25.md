@@ -1,5 +1,7 @@
 # Bingo audit — September 25, 2026
 
+**Historical snapshot, superseded by the Bingo card-cycle update.** The amounts and rollout instructions below describe the earlier fixed card. Do not apply its old 650-point backfill. The new migration removes labor squares and calculates any unpaid rewards from current evidence while preserving paid keys. See `bingo-card-cycles.md` for current rollout instructions.
+
 All 29 schools checked, including Test High School. Live data was read only. The after column uses the corrected rules; no new rewards have been inserted by this audit.
 
 Fall monitoring completion means accepted, locked Manager Supper 1. Supper 3 is the later-year requirement. School card positions are unchanged except Willenberg, whose Supper goals were removed at the Supervisor’s request. Its existing rewards are preserved. Stars follow the current Supervisor recognition decision. Previously earned points are preserved.

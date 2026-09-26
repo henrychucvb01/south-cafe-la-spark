@@ -1,6 +1,9 @@
 -- Prepared from read-only September 25 audit; not applied.
 -- Re-run the audit before executing if underlying records have changed.
 begin;
+-- Superseded: current cards no longer contain labor-adjustment squares.
+-- Use migration 202609250009_bingo_card_cycles.sql and its reconciliation instead.
+do $$ begin raise exception 'STOP: this historical Bingo backfill is superseded. Do not execute it.'; end $$;
 insert into public.spark_points(location_id,points,point_type,description,service_date,source,unique_key) values
 (4,40,'bingo_line_reward','SPARK Bingo Card 1 — 4 lines','2026-09-25','automatic','card1-fall-2026-line-4-4'),
 (4,50,'bingo_line_reward','SPARK Bingo Card 1 — 5 lines','2026-09-25','automatic','card1-fall-2026-line-4-5'),

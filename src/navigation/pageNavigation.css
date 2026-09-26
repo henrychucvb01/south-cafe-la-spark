@@ -5,7 +5,7 @@
 .spark-page-navigation button:focus-visible { outline: 3px solid #d99511; outline-offset: 1px; }
 .spark-page-navigation-title { min-width: 0; flex: 1; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; font-weight: 700; font-size: 14px; }
 .spark-navigation-layout .command-sidebar { top: var(--spark-nav-height); height: calc(100dvh - var(--spark-nav-height)); }
-.spark-navigation-layout .spark-feedback-trigger { top: calc(var(--spark-nav-height) + 17px); }
+.spark-navigation-layout .spark-feedback-trigger { top: auto; bottom: max(16px, env(safe-area-inset-bottom)); }
 .spark-navigation-layout .login-header { top: var(--spark-nav-height); }
 .spark-navigation-layout .detail-panel { top: calc(var(--spark-nav-height) + 14px); }
 .spark-navigation-layout [tabindex], .spark-navigation-layout input, .spark-navigation-layout select { scroll-margin-top: 70px; }

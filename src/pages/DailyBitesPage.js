@@ -1,6 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
-import { awardSparkPoints } from "../sparkPoints";
 import DAILY_BITES from "../data/dailyBitesContent";
 import { selectSeasonPuzzle } from "../dailyBites/games/seasonPuzzles";
 import CafeteriaWordGame from "../dailyBites/games/CafeteriaWordGame";
@@ -13,8 +12,7 @@ import {
   getDailyGameDate,
 } from "../dailyBites/games/gameUtils";
 
-import { CARD_ONE_START, CARD_ONE_END, CARD_ONE_KEY, BINGO_LINES, BINGO_LINE_REWARDS, BLACKOUT_BONUS, buildSchoolBingoCard, getCompletedBingoLines, evaluateBingoGoals, dateString } from '../dailyBites/bingoModel';
-import { fetchAllBingoRows, loadBingoMonitorings } from '../dailyBites/bingoService';
+import BingoPanel from '../dailyBites/BingoPanel';
 
 const DAILY_BITES_ROTATION_START = new Date("2026-08-03T12:00:00");
 
@@ -84,20 +82,7 @@ function DailyBitesPage({ location, employee, managerPin, onBack }) {
     [gameDate]
   );
 
-  const schoolBingoCard = useMemo(
-    () => buildSchoolBingoCard(location),
-    [location?.id, location?.location_code, location?.labor_type]
-  );
-
-  const [completedGoalIds, setCompletedGoalIds] = useState(new Set(["free"]));
-  const [bingoLoading, setBingoLoading] = useState(true);
-  const bingoLoadingRef = useRef(false);
-  const [bingoError, setBingoError] = useState("");
-  const [completedLineIndexes, setCompletedLineIndexes] = useState([]);
-  const [earnedMilestones, setEarnedMilestones] = useState(new Set());
-  const [blackoutEarned, setBlackoutEarned] = useState(false);
-  const [celebratingSquareIndexes, setCelebratingSquareIndexes] = useState(new Set());
-  const [celebrationMessage, setCelebrationMessage] = useState("");
+  const [bingoActivityVersion,setBingoActivityVersion]=useState(0);
   const [gameProgress, setGameProgress] = useState([]);
   const [gamesLoading, setGamesLoading] = useState(true);
   const [gamesError, setGamesError] = useState("");
@@ -182,6 +167,7 @@ function DailyBitesPage({ location, employee, managerPin, onBack }) {
       batchAdvanced: data?.batch_advanced === true,
     };
     setArDailyPoints(result.dailyPoints);
+    setBingoActivityVersion(v=>v+1);
     if (result.batchAdvanced) await loadArQuestions();
     return result;
   }
@@ -286,6 +272,7 @@ function DailyBitesPage({ location, employee, managerPin, onBack }) {
       return false;
     }
 
+    setBingoActivityVersion(v=>v+1);
     mergeGameProgress({
       game_type: gameType,
       puzzle_id: puzzle.puzzleId,
@@ -297,189 +284,6 @@ function DailyBitesPage({ location, employee, managerPin, onBack }) {
     return true;
   }
 
-  useEffect(() => {
-    let cancelled = false;
-    async function refresh() {
-      if (!cancelled && location?.id && document.visibilityState !== 'hidden') await loadBingoProgress();
-    }
-    async function initialize() {
-      if (!location?.id) return;
-      const today = dateString(new Date());
-      await awardSparkPoints({locationId:location.id,points:1,pointType:'daily_bites_visit',description:'Visited Daily Bites',serviceDate:today,employeeId:employee?.id||null,employeeName:employee?.employee_name||'Covering Employee',uniqueKey:`daily-bites-${location.id}-${today}`});
-      // Read after today's visit is saved, so threshold visits mark their square immediately.
-      await refresh();
-    }
-    initialize();
-    const timer = setInterval(refresh,60000);
-    window.addEventListener('focus',refresh);
-    document.addEventListener('visibilitychange',refresh);
-    return ()=>{cancelled=true;clearInterval(timer);window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh);};
-  }, [location?.id, location?.labor_type, employee?.id, employee?.employee_name, managerPin]);
-
-  useEffect(() => {
-    if (!celebrationMessage) {
-      return undefined;
-    }
-
-    const timer = window.setTimeout(() => {
-      setCelebrationMessage("");
-      setCelebratingSquareIndexes(new Set());
-    }, 4500);
-
-    return () => window.clearTimeout(timer);
-  }, [celebrationMessage]);
-
-  async function awardBingoRewards(completed, existingPointRows, bingoCard) {
-    const completedLines = getCompletedBingoLines(completed, bingoCard);
-    const milestoneCount = Math.min(completedLines.length, 5);
-    const earned = new Set();
-    const newlyAwarded = [];
-
-    for (let milestone = 1; milestone <= 5; milestone += 1) {
-      const uniqueKey = `${CARD_ONE_KEY}-line-${location.id}-${milestone}`;
-
-      const alreadyExists = existingPointRows.some(
-        (row) =>
-          row.point_type === "bingo_line_reward" &&
-          row.unique_key === uniqueKey
-      );
-
-      if (alreadyExists) {
-        earned.add(milestone);
-      }
-    }
-
-    for (let milestone = 1; milestone <= milestoneCount; milestone += 1) {
-      if (earned.has(milestone)) {
-        continue;
-      }
-
-      const points = BINGO_LINE_REWARDS[milestone - 1];
-      const uniqueKey = `${CARD_ONE_KEY}-line-${location.id}-${milestone}`;
-
-      const awarded = await awardSparkPoints({
-        locationId: location.id,
-        points,
-        pointType: "bingo_line_reward",
-        description: `SPARK Bingo Card 1 — ${milestone} line${milestone === 1 ? "" : "s"}`,
-        serviceDate: dateString(new Date()),
-        employeeId: employee?.id || null,
-        employeeName: employee?.employee_name || "Covering Employee",
-        uniqueKey,
-      });
-
-      if (!awarded) { setBingoError("A Bingo reward could not be saved. SPARK will retry automatically."); continue; }
-      earned.add(milestone);
-      newlyAwarded.push(points);
-    }
-
-    const blackoutComplete = bingoCard.every((square) => completed.has(square.id));
-    const blackoutKey = `${CARD_ONE_KEY}-blackout-${location.id}`;
-
-    const blackoutAlreadyExists = existingPointRows.some(
-      (row) =>
-        row.point_type === "bingo_blackout_reward" &&
-        row.unique_key === blackoutKey
-    );
-
-    let newBlackoutAward = false;
-
-    if (blackoutComplete && !blackoutAlreadyExists) {
-      const awarded = await awardSparkPoints({
-        locationId: location.id,
-        points: BLACKOUT_BONUS,
-        pointType: "bingo_blackout_reward",
-        description: "SPARK Bingo Card 1 — BLACKOUT",
-        serviceDate: dateString(new Date()),
-        employeeId: employee?.id || null,
-        employeeName: employee?.employee_name || "Covering Employee",
-        uniqueKey: blackoutKey,
-      });
-
-      newBlackoutAward = awarded;
-      if (!awarded) setBingoError("The blackout reward could not be saved. SPARK will retry automatically.");
-    }
-
-    setCompletedLineIndexes(completedLines);
-    setEarnedMilestones(earned);
-    setBlackoutEarned(newBlackoutAward || blackoutAlreadyExists);
-
-    if (newBlackoutAward) {
-      setCelebratingSquareIndexes(
-        new Set(bingoCard.map((_, index) => index))
-      );
-      setCelebrationMessage(
-        `🏆 BLACKOUT! All 25 squares complete — +${BLACKOUT_BONUS} SPARK Points`
-      );
-    } else if (newlyAwarded.length > 0) {
-      const newestMilestone = milestoneCount;
-      const totalNewPoints = newlyAwarded.reduce(
-        (total, points) => total + points,
-        0
-      );
-
-      const squareIndexes = new Set();
-
-      completedLines.slice(0, newestMilestone).forEach((lineIndex) => {
-        BINGO_LINES[lineIndex].forEach((squareIndex) => {
-          squareIndexes.add(squareIndex);
-        });
-      });
-
-      setCelebratingSquareIndexes(squareIndexes);
-      setCelebrationMessage(
-        `🎉 BINGO! ${newestMilestone} line${newestMilestone === 1 ? "" : "s"} complete — +${totalNewPoints} SPARK Points`
-      );
-    }
-  }
-
-  async function loadBingoProgress() {
-    if (bingoLoadingRef.current) return;
-    bingoLoadingRef.current = true;
-    setBingoLoading(true);
-    setBingoError("");
-    try {
-      const query = (table, fields) => () => supabase.from(table).select(fields).eq('location_id',location.id)
-        .gte('service_date',CARD_ONE_START).lte('service_date',CARD_ONE_END).order('id',{ascending:true});
-      const [finishRows,mealRows,pointRows,laborRows,excludedRows,monitoringRows] = await Promise.all([
-        fetchAllBingoRows(query('finish_line_checks','id,service_date,status,finish_line_items(item_key,answer)')),
-        fetchAllBingoRows(query('meal_counts','id,service_date,breakfast_count,lunch_count,supper_count,supper_status')),
-        fetchAllBingoRows(query('spark_points','id,point_type,description,service_date,source,unique_key')),
-        fetchAllBingoRows(query('labor_hours','id,service_date,additional_worker_hours,manager_overtime_hours')),
-        fetchAllBingoRows(query('spark_excluded_days','id,service_date')),
-        loadBingoMonitorings(location,employee,managerPin),
-      ]);
-      const completed = evaluateBingoGoals({location,finishRows,mealRows,pointRows,laborRows,excludedRows,monitoringRows});
-      setCompletedGoalIds(completed);
-      await awardBingoRewards(completed,pointRows,schoolBingoCard);
-    } catch(error) {
-      console.error('SPARK Bingo progress error:',error);
-      setBingoError(error.message || 'Could not load Bingo progress.');
-      // Keep the last verified card visible; never turn earned squares off on a network failure.
-    } finally {
-      setBingoLoading(false);
-      bingoLoadingRef.current = false;
-    }
-  }
-
-  const bingoSquares = useMemo(
-    () =>
-      schoolBingoCard.map((square) => ({
-        ...square,
-        completed: completedGoalIds.has(square.id),
-      })),
-    [schoolBingoCard, completedGoalIds]
-  );
-
-  const completedSquares = bingoSquares.filter(
-    (square) => square.completed
-  ).length;
-
-  const progressPercent = Math.round(
-    (completedSquares / bingoSquares.length) * 100
-  );
-
-  const visibleLineCount = Math.min(completedLineIndexes.length, 5);
   const wordProgress = getCurrentGameProgress("word", wordPuzzle.puzzleId);
   const sparkSortProgress = getCurrentGameProgress(
     "spark_sort",
@@ -673,160 +477,7 @@ function DailyBitesPage({ location, employee, managerPin, onBack }) {
             onAnswer={submitArAnswer}
           />
 
-          <section className="dashboard-card spark-bingo-section">
-            <div className="spark-bingo-heading">
-              <div>
-                <div className="dashboard-small-label">CARD 1</div>
-
-                <h2>🎯 SPARK Bingo</h2>
-
-                <p>
-                  SPARK automatically completes squares whenever your verified
-                  work meets a Bingo goal. Completed lines and rewards are
-                  recognized automatically. Fall monitoring squares use accepted Manager Supper 1; Manager Supper 3 applies later in the year.
-                </p>
-              </div>
-
-              <div className="spark-bingo-progress-summary">
-                <strong>
-                  {bingoLoading ? "..." : `${completedSquares} / 25`}
-                </strong>
-                <span>
-                  {blackoutEarned
-                    ? "BLACKOUT!"
-                    : visibleLineCount > 0
-                    ? `${visibleLineCount} Bingo Line${visibleLineCount === 1 ? "" : "s"}`
-                    : "Squares Complete"}
-                </span>
-              </div>
-            </div>
-
-            <div className="spark-bingo-progress-track" aria-hidden="true">
-              <div
-                className="spark-bingo-progress-fill"
-                style={{ width: `${bingoLoading ? 0 : progressPercent}%` }}
-              />
-            </div>
-
-            {celebrationMessage && (
-              <div
-                className="school-empty-history spark-bingo-line-celebration"
-                style={{
-                  marginBottom: "16px",
-                  fontWeight: "800",
-                  color: "#1f6a35",
-                  background: "#f0faf2",
-                  border: "1px solid #78be7a",
-                }}
-              >
-                {celebrationMessage}
-              </div>
-            )}
-
-            {bingoError && (
-              <div className="login-error" style={{ marginBottom: "14px" }}>
-                Bingo progress could not fully load: {bingoError}
-              </div>
-            )}
-
-            <div className="spark-bingo-board-wrap">
-              <div className="spark-bingo-board">
-                {bingoSquares.map((square, squareIndex) => {
-                  const isComplete = Boolean(square.completed);
-
-                  const className = [
-                    "spark-bingo-square",
-                    isComplete ? "spark-bingo-square-complete" : "",
-                    celebratingSquareIndexes.has(squareIndex)
-                      ? "spark-bingo-pop"
-                      : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ");
-
-                  const squareContent = (
-                    <>
-                      <div className="spark-bingo-square-icon">
-                        {square.icon}
-                      </div>
-
-                      <strong>{square.label}</strong>
-
-                      <span>
-                        {square.detail}
-                      </span>
-
-                      {isComplete && (
-                        <div
-                          className="spark-bingo-check"
-                          aria-label="Complete"
-                        >
-                          ✓
-                        </div>
-                      )}
-
-                    </>
-                  );
-
-                  return (
-                    <div key={square.id} className={className}>
-                      {squareContent}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="spark-bingo-rewards">
-              {[1, 2, 3, 4, 5].map((milestone) => {
-                const earned =
-                  earnedMilestones.has(milestone);
-
-                return (
-                  <div
-                    key={milestone}
-                    style={earned ? { background: "#eef8ea" } : undefined}
-                  >
-                    <strong>
-                      {milestone} Line{milestone === 1 ? "" : "s"}
-                    </strong>
-                    <span>
-                      {earned
-                        ? "✓ Earned"
-                        : `+${BINGO_LINE_REWARDS[milestone - 1]} points`}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div
-              className="spark-bingo-blackout"
-              style={{
-                marginTop: "12px",
-                padding: "14px",
-                borderRadius: "14px",
-                textAlign: "center",
-                fontWeight: "800",
-                border: blackoutEarned
-                  ? "1px solid #72b56f"
-                  : "1px solid #e2c994",
-                background: blackoutEarned ? "#eef8ea" : "#fff8e8",
-                color: blackoutEarned ? "#1f6a35" : "#4c3a1e",
-              }}
-            >
-              {blackoutEarned
-                ? "🏆 BLACKOUT COMPLETE • +100 points earned"
-                : "🏆 BLACKOUT • Complete all 25 squares • +100 points"}
-            </div>
-
-            <p className="spark-bingo-note">
-              This Card 1 is unique to your school and stays the same through
-              December 31. SPARK completes squares automatically when the
-              underlying work is verified. Line rewards and blackout are still
-              awarded only once.
-            </p>
-          </section>
+          <BingoPanel location={location} employee={employee} managerPin={managerPin} activityVersion={bingoActivityVersion} />
 
           <SupervisorLeaderboard
             embedded
