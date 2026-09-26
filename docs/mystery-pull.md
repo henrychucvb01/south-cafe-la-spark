@@ -22,13 +22,13 @@ Request UUIDs prevent duplicate draws and points credits. Retrying a successful 
 
 ## Experience
 
-The physical slider supports touch, pointer and keyboard controls. Partial or cancelled slides do not spend a token. The lighter main card reveals the server-selected reward after 1.8 seconds (0.3 with reduced motion). Only the center icon spins around its Z axis with a fixed perspective tilt. The prize editor uses two columns on desktop and one on phones; school-token and history layouts are unchanged.
+The physical slider supports touch, pointer and keyboard controls. Partial or cancelled slides do not spend a token. The lighter main card reveals the server-selected reward after 1.8 seconds (0.3 with reduced motion). The center star and its frame spin around their Z axes with a fixed perspective tilt. Dark orbit lines and one of five fruit choices move around the star; each new visit avoids the previous fruit when browser storage is available. The prize grows from the center through a single radial burst and settles into the card. Reduced-motion settings disable these effects. The prize editor uses two columns on desktop and one on phones; school-token and history layouts are unchanged.
 
 The monthly leaderboard highlights the latest completed month and provides View results. Current-month standings remain In progress. No leaderboard rankings or scoring rules are changed by this UI.
 
 ## Database and validation
 
-Apply `202609250010_mystery_pull.sql` before `202609260001_mystery_pull_prize_bundles.sql`. Both are already applied to SPARK's Supabase database; the second was applied and its reward columns verified on September 26, 2026. It adds no retroactive token or points awards. These latest frontend changes have not yet been deployed.
+Apply `202609250010_mystery_pull.sql` before `202609260001_mystery_pull_prize_bundles.sql`. Both are already applied to SPARK's Supabase database; the second was applied and its reward columns verified on September 26, 2026. It adds no retroactive token or points awards. Frontend releases are deployed separately through the spark-development preview.
 
 Validation commands:
 
@@ -39,3 +39,5 @@ Validation commands:
 - `node scripts/test-mystery-pull-browser.mjs`
 
 Database and browser tests use an isolated database and fictional schools, never live reward balances. Tests cover school isolation, random selection, stock contention, atomic rollback, duplicate-request recovery, bundled tokens, school points, fulfillment, mobile entry and the desktop prize editor.
+
+Contention regression: 40 queued school requests compete for 10 points prizes, verifying 10 wins, 30 unspent tokens, zero stock and exactly 70 awarded points. PGlite serializes these transactions; this is a consistency test, not a live Supabase throughput benchmark.

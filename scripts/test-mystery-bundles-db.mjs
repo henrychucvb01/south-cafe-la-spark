@@ -58,5 +58,25 @@ try{
  const bundle=await rpc('pull',[manager,randomUUID(),(await context()).revision]);
  assert.equal(bundle.win.prize_name,'Candy and pull');assert.equal(bundle.win.status,'waiting');assert.equal(bundle.win.bonus_tokens,1);assert.equal(bundle.tokens,3);assert.equal(bundle.win.points_awarded,0);
  await db.exec('reset role');assert.equal((await db.query('select sum(points) total from spark_points')).rows[0].total,50);
- console.log('PASS: migration preserves existing wins/tokens; bundled rewards; school points credited exactly once; school isolation; ledger-failure atomic rollback; legacy editor compatibility. No live writes.');
+ // Submit a burst from 40 schools against ten prizes. PGlite queues these
+ // transactions; this checks contention outcomes, not hosted-server throughput.
+ await db.exec(`update mystery_prizes set active=false;
+ insert into locations select n,'Burst School '||n,n::text,true from generate_series(1001,1040) n;`);
+ const burstPrize=await change({action:'prize',name:'Burst test points',description:'Test only',icon:'⭐',kind:'spark_points',points_amount:7});
+ await change({action:'stock',id:burstPrize.id,revision:burstPrize.revision,delta:10});
+ const sessions=[];
+ for(let id=1001;id<=1040;id++){
+  const session=(await rpc('choose_school',[(await rpc('open',['1234'])).token,String(id)])).token;
+  await change({action:'tokens',location_id:id,delta:1,revision:1});sessions.push(session);
+ }
+ await db.exec('set role anon');
+ const results=await Promise.allSettled(sessions.map(session=>rpc('pull',[session,randomUUID(),2])));
+ assert.equal(results.filter(r=>r.status==='fulfilled').length,10);
+ assert.equal(results.filter(r=>r.status==='rejected'&&/restocked/.test(r.reason.message)).length,30);
+ await db.exec('reset role');
+ assert.equal((await db.query('select sum(tokens) n from mystery_balances where location_id>=1001')).rows[0].n,30);
+ assert.equal((await db.query('select count(*) n from mystery_wins where location_id>=1001')).rows[0].n,10);
+ assert.equal((await db.query('select sum(points) n from spark_points where location_id>=1001')).rows[0].n,70);
+ assert.equal((await db.query('select inventory from mystery_prizes where id=$1',[burstPrize.id])).rows[0].inventory,0);
+ console.log('PASS: reward integrity, duplicate prevention, atomic rollback, school isolation and 40 queued requests competing for 10 prizes. No live writes.');
 }finally{await db.close();}
