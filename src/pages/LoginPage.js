@@ -4,6 +4,7 @@ import { supabase } from "../supabaseClient";
 function LoginPage({
   onLocationSelected,
   onSupervisor,
+  onMysteryPull,
   canInstall,
   onInstall,
 }) {
@@ -131,6 +132,8 @@ function LoginPage({
               {loading ? "Loading..." : "Continue"}
             </button>
           </form>
+
+          {onMysteryPull && <div className="spark-mystery-entry-link"><span>A SPARK side quest</span><button type="button" onClick={onMysteryPull}>✦ Mystery Pull</button></div>}
 
           {/* INSTALL SPARK */}
           <div className="install-section">

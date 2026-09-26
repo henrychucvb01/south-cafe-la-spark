@@ -271,6 +271,20 @@ export default function SupervisorLeaderboard({ onClose, embedded = false, compa
   const seasonComplete = today > season.end;
   const selectedMonthLabel = `${MONTH_NAMES[selectedMonth.month]} ${selectedMonth.year}`;
 
+  const latestFinishedMonth = [...seasonMonths].reverse().find(item => monthBounds(item.year,item.month,season).end < today);
+  const latestResultsKey = latestFinishedMonth ? monthKey(latestFinishedMonth.year,latestFinishedMonth.month) : null;
+  const seenKey = `spark-monthly-results-seen-${currentLocationId || 'supervisor'}`;
+  const [seenResults,setSeenResults] = useState(() => { try { return localStorage.getItem(seenKey); } catch { return null; } });
+  const showMonthlyResults = () => {
+    setSelectedMonthKey(latestResultsKey); setView('month'); setSeenResults(latestResultsKey);
+    try { localStorage.setItem(seenKey,latestResultsKey); } catch { /* Highlight still works when storage is unavailable. */ }
+  };
+  const monthlyHighlight = latestFinishedMonth && !loading && !error && <div className={`spark-monthly-highlight ${seenResults !== latestResultsKey ? 'is-new' : ''}`}>
+    <span className="spark-monthly-highlight-icon" aria-hidden="true">✦</span>
+    <div><span className="spark-monthly-highlight-kicker">{seenResults !== latestResultsKey ? 'NEW MONTHLY RESULTS' : 'MONTHLY RESULTS'}</span><strong>{MONTH_NAMES[latestFinishedMonth.month]} {latestFinishedMonth.year} standings are ready</strong><p>See where your school finished this month.</p></div>
+    <button type="button" onClick={showMonthlyResults}>View results →</button>
+  </div>;
+
   const rows = view === "season" ? calculations.seasonRows : calculations.monthRows;
 
   if (compact) {
@@ -293,12 +307,15 @@ export default function SupervisorLeaderboard({ onClose, embedded = false, compa
       <section className="dashboard-card spark-daily-leaderboard" aria-label={`SPARK Leaderboard - ${selectedMonthLabel}`} aria-busy={loading}>
         <div className="spark-daily-leaderboard-heading">
           <div>
-            <div className="dashboard-small-label">CURRENT MONTH</div>
+            <div className="dashboard-small-label">{monthComplete ? "MONTHLY RESULTS" : "CURRENT MONTH · IN PROGRESS"}</div>
             <h2>🏆 SPARK Leaderboard — {selectedMonthLabel}</h2>
             <p>Monthly SPARK points across all area schools.</p>
           </div>
           <button type="button" className="spark-leaderboard-refresh" onClick={loadLeaderboard} disabled={loading}>↻ Refresh</button>
         </div>
+
+        {monthlyHighlight}
+        <label className="spark-leaderboard-month-picker"><span>Standings month</span><select value={selectedMonthKey} onChange={event => setSelectedMonthKey(event.target.value)}>{seasonMonths.filter(item => monthBounds(item.year,item.month,season).start <= today).map(item => <option key={monthKey(item.year,item.month)} value={monthKey(item.year,item.month)}>{MONTH_NAMES[item.month]} {item.year}{monthBounds(item.year,item.month,season).end >= today ? " · In progress" : ""}</option>)}</select></label>
 
         {error ? (
           <div className="spark-leaderboard-error" role="alert">
@@ -360,6 +377,7 @@ export default function SupervisorLeaderboard({ onClose, embedded = false, compa
       </header>
 
       <main className="spark-leaderboard-main">
+        {monthlyHighlight}
         <section className="spark-leaderboard-trophies">
           <div className="spark-leaderboard-trophy-card monthly">
             <div className="spark-leaderboard-trophy-icon">🏆</div>
