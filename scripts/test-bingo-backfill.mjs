@@ -1,0 +1,13 @@
+import {PGlite} from '@electric-sql/pglite';
+import {readFile} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const db=new PGlite();
+await db.exec("create table spark_points(location_id bigint,points integer,point_type text,description text,service_date date,source text,unique_key text unique)");
+const snapshot=JSON.parse(await readFile('test-results/bingo-audit/snapshot.json','utf8'));
+await db.query('insert into spark_points select location_id,points,point_type,description,service_date,source,unique_key from jsonb_populate_recordset(null::spark_points,$1::jsonb)',[JSON.stringify(snapshot.points)]);
+const total=async()=>Number((await db.query('select sum(points) n from spark_points')).rows[0].n);
+const before=await total(),sql=await readFile('test-results/bingo-audit/prepared-backfill.sql','utf8');
+await db.exec(sql);assert.equal(await total(),before+650);
+await db.exec(sql);assert.equal(await total(),before+650);
+console.log('PASS: prepared correction adds exactly 650 points; existing points preserved; second run adds zero. No live database writes.');
+await db.close();

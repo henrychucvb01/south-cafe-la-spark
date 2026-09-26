@@ -85,7 +85,7 @@ function App() {
   if (screen === "operationsHelp") return managerPage(<OperationsHelpPage location={selectedLocation} onBack={() => setScreen("managerResources")} />);
   if (screen === "askSpark") return managerPage(<AskSparkPage location={selectedLocation} onBack={() => setScreen("managerResources")} />);
   if (screen === "locationInformation") return managerPage(<LocationInformationPage location={selectedLocation} onBack={() => setScreen("managerResources")} />);
-  if (screen === "dailyBites") return managerPage(<DailyBitesPage location={selectedLocation} employee={selectedEmployee} onBack={() => setScreen("homeBase")} />);
+  if (screen === "dailyBites") return managerPage(<DailyBitesPage managerPin={managerSessionPin} location={selectedLocation} employee={selectedEmployee} onBack={() => setScreen("homeBase")} />);
   if (screen === "incidentHelper") return managerPage(<IncidentRecordHelper location={selectedLocation} employee={selectedEmployee} onBack={() => setScreen("homeBase")} />);
   if (screen === "schoolHub") return managerPage(<SchoolHub location={selectedLocation} employee={selectedEmployee} onFinishLine={() => { setEditingCheck(null); setScreen("finishLine"); }} onDashboard={() => setScreen("schoolDashboard")} onMealAnalytics={() => setScreen("mealAnalytics")} onExit={() => setScreen("homeBase")} />);
   if (screen === "mealAnalytics") {
