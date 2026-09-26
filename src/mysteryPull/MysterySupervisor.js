@@ -1,5 +1,6 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
-import {mysteryRpc,newRequest,readSaved,dateLabel} from './service';
+import {mysteryRpc,newRequest,readSaved} from './service';
+import MysteryHistory from './MysteryHistory';
 const emptyPrize=()=>({name:'',description:'',icon:'🎁',kind:'manual',active:true,bonus_tokens:0,points_amount:0});
 const pendingKey='spark-mystery-admin-pending';
 export default function MysterySupervisor({token,onExpired}) {
@@ -43,7 +44,8 @@ export default function MysterySupervisor({token,onExpired}) {
   </section>}
   {data&&tab==='history'&&<section><h2>Prizes & permanent history</h2><label className="mystery-history-filter">Show<select value={waiting?'waiting':'all'} onChange={e=>setWaiting(e.target.value==='waiting')}><option value="waiting">Outstanding prizes</option><option value="all">All pull history</option></select></label>
    {!rows.length&&<p className="mystery-empty">{waiting?'No prizes waiting for fulfillment.':'No pulls yet.'}</p>}
-   <div className="mystery-prize-grid">{rows.map(w=><article className="mystery-prize-card" key={w.id}><span aria-hidden="true">{w.prize_icon}</span><div><h3>{w.prize_name}</h3><strong>{w.school_name} · {w.location_code}</strong><p>{w.prize_description}</p><p>Won {dateLabel(w.won_at)} · {w.token_used} token used</p><strong className="mystery-status">{w.status==='received'?'Received / Fulfilled ✓':'Waiting'}</strong>{w.fulfilled_at&&<small>Fulfilled {dateLabel(w.fulfilled_at)}</small>}{w.status==='waiting'&&w.prize_kind==='manual'&&<button className="mystery-primary" disabled={disabled} onClick={()=>save({action:'fulfill',id:w.id})}>Mark received / fulfilled</button>}</div></article>)}</div>
+   <p className="mystery-history-help">Select a row for full details or to mark a prize received. All records are kept.</p>
+   <MysteryHistory rows={rows} disabled={disabled} onFulfill={id=>save({action:'fulfill',id})}/>
    {more&&<button className="mystery-secondary" disabled={busy} onClick={older}>Load older history</button>}
   </section>}
  </div>;

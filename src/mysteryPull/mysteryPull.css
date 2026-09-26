@@ -170,3 +170,22 @@
 .mystery-inventory .mystery-prize-card time,.mystery-inventory .mystery-prize-card small { font-size:11px; }
 .mystery-inventory .mystery-status { margin-top:8px; font-size:12px; }
 @media(max-width:650px) { .mystery-inventory .mystery-prize-card { flex-basis:260px; } }
+
+/* Compact supervisor records expand on demand; history remains paginated. */
+.mystery-history-help { font-size:13px; }
+.mystery-history-list { max-height:480px; max-height:min(60vh,480px); overflow:auto; border:1px solid #ffffff26; border-radius:12px; margin:16px 0; }
+.mystery-history-list:empty { display:none; }
+.mystery-history-record { border-bottom:1px solid #ffffff1c; }
+.mystery-history-record:last-child { border-bottom:0; }
+.mystery-history-record summary { display:grid; grid-template-columns:16px minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr) minmax(0,.8fr); align-items:center; gap:12px; padding:12px 14px; cursor:pointer; font-size:12px; list-style:none; overflow-wrap:anywhere; }
+.mystery-history-record summary::-webkit-details-marker { display:none; }
+.mystery-history-record summary::before { content:'+'; color:#ffdc9b; font-size:18px; }
+.mystery-history-record[open] summary::before { content:'−'; }
+.mystery-history-record[open] { background:#ffffff08; }
+.mystery-history-prize { font-size:13px; }
+.mystery-history-prize span { font-size:20px; }
+.mystery-history-record time { color:#bac5d6; }
+.mystery-history-status { color:#a8e1c8; font-size:12px; }
+.mystery-history-detail { padding:0 18px 16px 42px; border-top:1px solid #ffffff12; }
+.mystery-history-detail p { font-size:12px; margin:8px 0; }
+@media(max-width:650px) { .mystery-history-record summary { grid-template-columns:14px minmax(0,1fr) minmax(0,1fr); gap:8px; padding:12px 10px; } .mystery-history-record time { grid-column:2; } .mystery-history-detail { padding-left:32px; } }
