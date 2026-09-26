@@ -140,12 +140,14 @@
 .mystery-spin-icon { position:relative; }
 .mystery-machine.drawing .mystery-spin-border { animation:mystery-z-spin .6s linear infinite; }
 .mystery-swirl { position:absolute; width:92%; height:65%; border:1.5px solid #294b5690; border-radius:50%; pointer-events:none; transform:rotate(var(--orbit-angle,0deg)); animation:mystery-orbit-turn 16s linear infinite; }
-.mystery-swirl-two { --orbit-angle:60deg; }
-.mystery-swirl-three { --orbit-angle:120deg; }
+.mystery-swirl-two { --orbit-angle:60deg; animation-duration:21s; animation-direction:reverse; }
+.mystery-swirl-three { --orbit-angle:120deg; animation-duration:27s; }
 .mystery-fruit-orbit { position:absolute; inset:5%; animation:mystery-swirl-turn 18s linear infinite; pointer-events:none; }
 .mystery-fruit-position { position:absolute; inset:0; transform:rotate(var(--fruit-angle)); }
 .mystery-fruit-position span { display:grid; place-items:center; position:absolute; top:0; left:50%; width:30px; height:30px; margin:-15px; font-size:25px; animation:mystery-fruit-upright 18s linear infinite; transform:rotate(calc(-1 * var(--fruit-angle))); }
 .mystery-machine.drawing .mystery-swirl { animation-duration:4s; }
+.mystery-machine.drawing .mystery-swirl-two { animation-duration:5.5s; }
+.mystery-machine.drawing .mystery-swirl-three { animation-duration:7s; }
 .mystery-machine.drawing .mystery-fruit-orbit,.mystery-machine.drawing .mystery-fruit-position span { animation-duration:4s; }
 @keyframes mystery-orbit-turn { from { transform:rotate(var(--orbit-angle,0deg)); } to { transform:rotate(calc(var(--orbit-angle,0deg) + 360deg)); } }
 .mystery-reveal-art { position:relative; display:grid; place-items:center; width:220px; height:180px; isolation:isolate; }
