@@ -35,12 +35,12 @@ try{
  await page.getByRole('combobox',{name:/^School/}).selectOption('1');await page.getByLabel('Number of tokens').fill('3');await page.getByRole('button',{name:'Save token change'}).click();await expect(page.getByRole('status')).toContainText('Saved');
  await page.getByRole('button',{name:'Prize inventory',exact:true}).click();await page.getByRole('button',{name:'Edit Candy Bag',exact:true}).click();await page.getByLabel('Quantity',{exact:true}).fill('1');await page.getByRole('button',{name:'Save inventory change'}).click();await expect(page.getByRole('status')).toContainText('Saved');
  await page.getByRole('button',{name:'Sign out',exact:true}).click();await school();await expect(page.locator('.mystery-token-count strong')).toHaveText('3');
- const firstFruit=await page.locator('.mystery-fruit-orbit span').textContent();assert(['🍋','🍊','🍎','🍓','🍍'].includes(firstFruit));
+ assert.deepEqual(await page.locator('.mystery-fruit-orbit span').allTextContents(),['🍋','🍊','🍎','🍓','🍍']);
  assert(!await page.getByText('OUT OF STOCK',{exact:true}).count());assert(!await page.getByRole('button',{name:/fulfill|Edit Candy|Add a prize/i}).count());
  await mkdir('test-results/mystery-pull',{recursive:true});await page.screenshot({path:'test-results/mystery-pull/phone-ready.png',fullPage:true});
  await dragTo(.5);assert.equal(requests.filter(r=>r.name==='mystery_pull').length,0);
  await dragTo(1.1);await expect(page.getByRole('heading',{name:'Something good is on its way…'})).toBeVisible();
- await expect(page.locator('.mystery-spin-border')).toHaveCSS('animation-name','mystery-z-spin');await expect(page.locator('.mystery-swirl-one')).toHaveCSS('animation-name','mystery-swirl-turn');
+ await expect(page.locator('.mystery-spin-border')).toHaveCSS('animation-name','mystery-z-spin');await expect(page.locator('.mystery-swirl-one')).toHaveCSS('animation-name','mystery-orbit-turn');
  await page.screenshot({path:'test-results/mystery-pull/phone-drawing.png',fullPage:true});
  await expect(page.locator('.mystery-prize-stage h2')).toHaveText('Candy Bag',{timeout:12000});await expect(page.locator('.mystery-prize-icon')).toHaveCSS('animation-name','mystery-prize-burst');await expect(page.locator('.mystery-token-count strong')).toHaveText('2');
  await expect(page.locator('.mystery-inventory')).toContainText('Waiting');await expect(page.locator('.mystery-prize-stage .mystery-prize-icon')).toHaveCSS('opacity','1');await page.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));await page.screenshot({path:'test-results/mystery-pull/phone-reveal.png',fullPage:true});
@@ -48,7 +48,7 @@ try{
  await page.getByRole('combobox',{name:/^Show/}).selectOption('all');await expect(page.locator('.mystery-prize-grid')).toContainText('Received / Fulfilled ✓');
  await page.getByRole('button',{name:'Prize inventory',exact:true}).click();await page.getByRole('button',{name:'Edit Extra Mystery Pull',exact:true}).click();await page.getByLabel('Quantity',{exact:true}).fill('1');await page.getByRole('button',{name:'Save inventory change'}).click();await expect(page.getByRole('status')).toContainText('Saved');
  await page.getByRole('button',{name:'Sign out',exact:true}).click();await school();await expect(page.locator('.mystery-inventory')).toContainText('Received ✓');
- assert.notEqual(await page.locator('.mystery-fruit-orbit span').textContent(),firstFruit,'A new visit changes the fruit');
+ await expect(page.locator('.mystery-fruit-orbit span')).toHaveCount(5);
  loseNextPull=true;await page.getByRole('slider').press('End');await expect(page.getByRole('button',{name:'Continue saved pull'})).toBeVisible({timeout:10000});
  const lostRequest=requests.filter(r=>r.name==='mystery_pull').at(-1).args[1];await page.reload();await expect(page.locator('.mystery-prize-stage h2')).toHaveText('Extra Mystery Pull');await expect(page.locator('.mystery-token-count strong')).toHaveText('2');
  assert.equal(requests.filter(r=>r.name==='mystery_pull'&&r.args[1]===lostRequest).length,1,'Reload recovers the stored win without another draw');

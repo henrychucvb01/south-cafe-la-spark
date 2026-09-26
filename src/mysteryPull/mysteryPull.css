@@ -133,26 +133,28 @@
 .mystery-award-note { font-weight:800; }
 @media(max-width:650px) { .mystery-prize-fields { grid-template-columns:1fr; } }
 
-/* A moving frame, fruit orbit and dark arcs surround the existing top-like star. */
-.mystery-spinner-scene { position:relative; display:grid; place-items:center; width:240px; height:230px; max-width:100%; flex-shrink:0; }
-.mystery-spinner-scene .mystery-capsule { transform:none; border:0; background:transparent; box-shadow:none; }
-.mystery-spin-border { position:absolute; inset:0; border:2px solid #a07837; border-radius:32% 40% 36% 42%; background:linear-gradient(145deg,#f4d69cbb,#fde9c866); box-shadow:0 0 28px #eab95d35; }
+/* Atom-like orbital paths stay outside the small central star and frame. */
+.mystery-spinner-scene { position:relative; display:grid; place-items:center; width:300px; max-width:100%; aspect-ratio:1; flex-shrink:0; }
+.mystery-machine .mystery-spinner-scene .mystery-capsule { width:32%; height:auto; aspect-ratio:1; font-size:clamp(36px,7vw,62px); transform:none; border:0; background:transparent; box-shadow:none; }
+.mystery-spin-border { position:absolute; inset:0; border:2px solid #a07837; border-radius:32% 40% 36% 42%; background:linear-gradient(145deg,#f4d69cbb,#fde9c866); box-shadow:0 0 20px #eab95d25; }
 .mystery-spin-icon { position:relative; }
 .mystery-machine.drawing .mystery-spin-border { animation:mystery-z-spin .6s linear infinite; }
-.mystery-swirl { position:absolute; width:92%; height:78%; border:2px solid transparent; border-top-color:#294b56; border-bottom-color:#294b5644; border-radius:50%; pointer-events:none; animation:mystery-swirl-turn 8s linear infinite; }
-.mystery-swirl-two { width:78%; height:96%; border-top-color:#456357; border-bottom-color:#45635766; animation-direction:reverse; animation-duration:11s; }
-.mystery-fruit-orbit { position:absolute; inset:6% 2%; animation:mystery-swirl-turn 9s linear infinite; pointer-events:none; }
-.mystery-fruit-orbit span { display:block; position:absolute; top:0; left:48%; font-size:29px; animation:mystery-fruit-upright 9s linear infinite; }
-.mystery-machine.drawing .mystery-swirl { animation-duration:1.2s; }
-.mystery-machine.drawing .mystery-swirl-two { animation-duration:1.7s; }
-.mystery-machine.drawing .mystery-fruit-orbit,.mystery-machine.drawing .mystery-fruit-orbit span { animation-duration:1.4s; }
+.mystery-swirl { position:absolute; width:92%; height:65%; border:1.5px solid #294b5690; border-radius:50%; pointer-events:none; transform:rotate(var(--orbit-angle,0deg)); animation:mystery-orbit-turn 16s linear infinite; }
+.mystery-swirl-two { --orbit-angle:60deg; }
+.mystery-swirl-three { --orbit-angle:120deg; }
+.mystery-fruit-orbit { position:absolute; inset:5%; animation:mystery-swirl-turn 18s linear infinite; pointer-events:none; }
+.mystery-fruit-position { position:absolute; inset:0; transform:rotate(var(--fruit-angle)); }
+.mystery-fruit-position span { display:grid; place-items:center; position:absolute; top:0; left:50%; width:30px; height:30px; margin:-15px; font-size:25px; animation:mystery-fruit-upright 18s linear infinite; transform:rotate(calc(-1 * var(--fruit-angle))); }
+.mystery-machine.drawing .mystery-swirl { animation-duration:4s; }
+.mystery-machine.drawing .mystery-fruit-orbit,.mystery-machine.drawing .mystery-fruit-position span { animation-duration:4s; }
+@keyframes mystery-orbit-turn { from { transform:rotate(var(--orbit-angle,0deg)); } to { transform:rotate(calc(var(--orbit-angle,0deg) + 360deg)); } }
 .mystery-reveal-art { position:relative; display:grid; place-items:center; width:220px; height:180px; isolation:isolate; }
 .mystery-burst { position:absolute; width:200px; height:200px; border-radius:50%; background:repeating-conic-gradient(from 8deg,#e4ae5270 0deg 9deg,transparent 9deg 30deg); animation:mystery-burst-ring .9s ease-out both; z-index:-1; pointer-events:none; }
 .mystery-burst::after { content:''; position:absolute; inset:15%; border:3px solid #b88839; border-radius:50%; }
 .mystery-machine.revealed .mystery-prize-stage h2,.mystery-machine.revealed .mystery-award-note { animation:mystery-reveal .5s .35s ease-out both; }
 @keyframes mystery-swirl-turn { to { transform:rotate(360deg); } }
-@keyframes mystery-fruit-upright { to { transform:rotate(-360deg); } }
+@keyframes mystery-fruit-upright { from { transform:rotate(calc(-1 * var(--fruit-angle))); } to { transform:rotate(calc(-1 * var(--fruit-angle) - 360deg)); } }
 @keyframes mystery-prize-burst { 0% { transform:scale(.04); opacity:0; } 18% { opacity:1; transform:scale(.12); } 64% { transform:scale(1.3); } 82% { transform:scale(.94); } 100% { opacity:1; transform:scale(1); } }
 @keyframes mystery-burst-ring { 0% { opacity:0; transform:scale(.08); } 25% { opacity:.8; } 100% { opacity:0; transform:scale(2.5); } }
-@media(max-width:650px) { .mystery-spinner-scene { width:190px; height:190px; } .mystery-machine.ready .mystery-spinner-scene { height:155px; } .mystery-fruit-orbit span { font-size:23px; } }
+@media(max-width:650px) { .mystery-spinner-scene { width:240px; } .mystery-fruit-position span { font-size:21px; } }
 @media(prefers-reduced-motion:reduce) { .mystery-burst { display:none; } }

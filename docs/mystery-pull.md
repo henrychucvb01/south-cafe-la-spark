@@ -22,7 +22,7 @@ Request UUIDs prevent duplicate draws and points credits. Retrying a successful 
 
 ## Experience
 
-The physical slider supports touch, pointer and keyboard controls. Partial or cancelled slides do not spend a token. The lighter main card reveals the server-selected reward after 1.8 seconds (0.3 with reduced motion). The center star and its frame spin around their Z axes with a fixed perspective tilt. Dark orbit lines and one of five fruit choices move around the star; each new visit avoids the previous fruit when browser storage is available. The prize grows from the center through a single radial burst and settles into the card. Reduced-motion settings disable these effects. The prize editor uses two columns on desktop and one on phones; school-token and history layouts are unchanged.
+The physical slider supports touch, pointer and keyboard controls. Partial or cancelled slides do not spend a token. The lighter main card reveals the server-selected reward after 1.8 seconds (0.3 with reduced motion). The center star and its frame spin around their Z axes with a fixed perspective tilt. Three dark elliptical orbital paths surround a smaller center icon with a clear gap. All five fruits orbit together, spaced evenly around the outside. The prize grows from the center through a single radial burst and settles into the card. Reduced-motion settings disable these effects. The prize editor uses two columns on desktop and one on phones; school-token and history layouts are unchanged.
 
 The monthly leaderboard highlights the latest completed month and provides View results. Current-month standings remain In progress. No leaderboard rankings or scoring rules are changed by this UI.
 
