@@ -1,0 +1,36 @@
+import {createServer} from 'node:http';
+import {readFile,mkdir} from 'node:fs/promises';
+import {resolve,extname,sep} from 'node:path';
+import assert from 'node:assert/strict';
+import {chromium,expect} from '@playwright/test';
+const build=resolve('build');
+const server=createServer(async(req,res)=>{try{let path=resolve(build,'.'+new URL(req.url,'http://localhost').pathname);if(path!==build&&!path.startsWith(build+sep))return res.writeHead(403).end();if(path===build)path=resolve(build,'index.html');res.setHeader('Content-Type',({'.html':'text/html','.js':'application/javascript','.css':'text/css','.png':'image/png'})[extname(path)]||'application/octet-stream');res.end(await readFile(path));}catch{res.writeHead(404).end();}});
+await new Promise(r=>server.listen(0,'127.0.0.1',r));
+const origin='http://127.0.0.1:'+server.address().port,browser=await chromium.launch({channel:'chrome',headless:true}),errors=[];
+try{
+ const context=await browser.newContext({viewport:{width:390,height:950},serviceWorkers:'block'}),page=await context.newPage();
+ page.on('pageerror',e=>errors.push(e.message));
+ await page.addInitScript(()=>sessionStorage.setItem('sparkIntroPlayed','yes'));
+ const writes=[];
+ await page.route('**/*',async route=>{const req=route.request(),url=new URL(req.url());if(url.origin===origin)return route.continue();if(url.hostname!=='kkrcxqhfzepifhkryodd.supabase.co')return route.abort();const name=url.pathname.split('/').at(-1);let data=[];
+ if(req.method()!=='GET'&&name==='spark_points')writes.push(req.method());
+ if(name==='locations')data={id:1,location_code:'1001',school_name:'Bonus Test School',active:true};
+ else if(name==='employees')data=[{id:11,location_id:1,employee_name:'Test Manager',active:true}];
+ else if(['has_manager_pin','verify_manager_pin','close_supper_monitoring_session'].includes(name))data=true;
+ else if(name==='open_supper_monitoring_session')data='a'.repeat(72);
+ else if(name==='spark_school_point_totals')data={total_points:1525};
+ else if(name==='spark_points')data=[{points:25,point_type:'perfect_week',service_date:'2026-09-25'}];
+ else if(name==='finish_line_checks'&&req.headers().accept?.includes('object'))data=null;
+ await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(data)});
+ });
+ await page.goto(origin);await page.getByLabel('Location Code').fill('1001');await page.getByRole('button',{name:'Continue',exact:true}).click();await page.getByRole('button',{name:/Test Manager/}).click();await page.getByLabel('4-Digit PIN').fill('1234');await page.getByRole('button',{name:/School Dashboard/}).click();
+ await expect(page.getByText('1,525',{exact:true})).toBeVisible();
+ await expect(page.getByText('+25 Perfect Week credited',{exact:false})).toBeVisible();
+ await expect(page.getByText('Period ending 2026-09-25',{exact:false})).toBeVisible();
+ assert.deepEqual(writes,[],'Viewing the dashboard must not insert bonus points');
+ assert.deepEqual(errors,[]);
+ await mkdir('test-results/streak-audit',{recursive:true});
+ await page.screenshot({path:'test-results/streak-audit/bonus-receipt-mobile.png'});
+ console.log('PASS: mobile dashboard displays recorded bonus and total; no client bonus writes or runtime errors.');
+ await context.close();
+}finally{await browser.close();await new Promise(r=>server.close(r));}

@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { awardSparkPoints } from "../sparkPoints";
-import { REWARD_LAUNCH_DATE, isStreakEligibleCheck } from "../sparkPolicy";
-import { getPerfectMonthCandidates, getPerfectWeekCandidates } from "../finishLineStreaks";
+import { REWARD_LAUNCH_DATE, isStreakEligibleCheck, getLocalDateString } from "../sparkPolicy";
 import { getMplhTarget } from "../mplhTargets";
 
 import {
@@ -25,6 +24,7 @@ function SchoolHub({
 }) {
   const [mealCounts, setMealCounts] = useState([]);
   const [sparkPoints, setSparkPoints] = useState(0);
+  const [latestBonus, setLatestBonus] = useState(null);
 
   // Finish Line dashboard status / streak
   const [todayFinishLine, setTodayFinishLine] = useState(null);
@@ -86,6 +86,15 @@ function SchoolHub({
     }
 
     setSparkPoints(data?.total_points || 0);
+    const {data: bonuses, error: bonusError} = await supabase
+      .from("spark_points")
+      .select("points,point_type,service_date")
+      .eq("location_id", location.id)
+      .in("point_type", ["perfect_week", "weekly_streak_bonus", "perfect_month", "monthly_streak_bonus"])
+      .order("service_date", {ascending: false})
+      .order("created_at", {ascending: false})
+      .limit(1);
+    setLatestBonus(bonusError ? null : bonuses?.[0] || null);
   }
 
   /* =========================================================
@@ -103,44 +112,13 @@ function SchoolHub({
     return previous;
   }
 
-  async function awardPerfectWeekBonuses({
-    completedDates,
-    excludedDates,
-    todayString,
-  }) {
-    if (!location?.id) {
-      return;
-    }
-
-    for (const award of getPerfectWeekCandidates({completedDates,excludedDates,todayString,rewardLaunchDate:REWARD_LAUNCH_DATE})) {
-      await awardSparkPoints({
-        locationId:location.id,points:award.points,pointType:award.pointType,
-        description:"Perfect Finish Line Week",serviceDate:award.serviceDate,
-        employeeId:employee?.id||null,employeeName:employee?.employee_name||"Covering Employee",
-        uniqueKey:`perfect-week-${location.id}-${award.period}`,
-      });
-    }
-  }
-
-  async function awardPerfectMonthBonuses({completedDates,excludedDates,todayString}) {
-    if(!location?.id)return;
-    for(const award of getPerfectMonthCandidates({completedDates,excludedDates,todayString,rewardLaunchDate:REWARD_LAUNCH_DATE})){
-      await awardSparkPoints({
-        locationId:location.id,points:award.points,pointType:award.pointType,
-        description:"Perfect Finish Line Month",serviceDate:award.serviceDate,
-        employeeId:employee?.id||null,employeeName:employee?.employee_name||"Covering Employee",
-        uniqueKey:`perfect-month-${location.id}-${award.period}`,
-      });
-    }
-  }
-
   async function loadFinishLineDashboardStatus() {
     if (!location?.id) {
       return;
     }
 
     try {
-      const today = getDateString(new Date());
+      const today = getLocalDateString();
 
       const { data: todayData, error: todayError } = await supabase
         .from("finish_line_checks")
@@ -219,16 +197,7 @@ function SchoolHub({
 
       setFinishLineStreak(streak);
 
-      // Award +25 for every eligible perfect Monday-Friday week.
-      // unique_key inside spark_points prevents duplicate weekly bonuses.
-      await awardPerfectWeekBonuses({
-        completedDates,
-        excludedDates,
-        todayString: today,
-      });
-      await awardPerfectMonthBonuses({completedDates,excludedDates,todayString:today});
-
-      // Refresh the visible school total in case a weekly bonus was just earned.
+      // Bonuses are awarded by the database when checklists are saved.
       await loadSparkPoints();
     } catch (error) {
       console.error("Finish Line dashboard status error:", error);
@@ -813,6 +782,12 @@ function SchoolHub({
                 >
                   {sparkPoints.toLocaleString()}
                 </div>
+                {latestBonus && (
+                  <div style={{fontSize: "12px", color: "#166534", marginTop: "6px"}}>
+                    +{latestBonus.points} {latestBonus.point_type.includes("week") ? "Perfect Week" : "Perfect Month"} credited
+                    <br />Period ending {latestBonus.service_date}
+                  </div>
+                )}
               </div>
             </div>
 
