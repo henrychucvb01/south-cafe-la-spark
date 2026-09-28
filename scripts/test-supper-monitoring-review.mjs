@@ -15,7 +15,7 @@ try {
  create function verify_manager_pin(text,text) returns boolean language sql as $$select $2='1234'$$;
  create function verify_covering_pin(text) returns boolean language sql as $$select $1='5678'$$;
  create function verify_supervisor_pin(text) returns boolean language sql as $$select $1='9999'$$;`);
- for(const file of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql','202609240003_monitoring_types_sites_restart.sql','202609240004_monitoring_current_records.sql','202609250001_monitoring_delete_draft.sql','202609250002_covering_monitoring_corrections.sql']) {
+ for(const file of ['202609230001_supper_monitoring.sql','202609230002_supper_monitoring_reports.sql','202609240001_supper_monitoring_review.sql','202609240002_supper_pdf_review_workspace.sql','202609240003_monitoring_types_sites_restart.sql','202609240004_monitoring_current_records.sql','202609250001_monitoring_delete_draft.sql','202609250002_covering_monitoring_corrections.sql','202609280001_monitoring_clear_comments.sql']) {
   if(file.startsWith('202609240001')) await db.exec(`
    insert into supper_monitorings(location_id,created_by_employee_id,created_by_name,school_year,monitoring_date,status,submitted_at,template_version,pdf_storage_path,pdf_sha256)
    select 2,22,'Legacy Manager','2025-26','2026-06-01','completed',now(),'lausd-supper-2022-09-08','legacy','test' from generate_series(1,3);
@@ -276,6 +276,25 @@ try {
  assert.notEqual((await upload(covering,returned,correctionMeta)).code,200,'Covering cannot replace locked PDF');
  await assert.rejects(()=>save(covering,restartable,sitePayload(offsite)),/Only the creator/);
  console.log('PASS: covering Manager same-school returned PDF replacement with one/two files and resubmission; submitted/locked/other-school/guided ownership protected.');
+ // Clearing accepted comments preserves the lock, document and all final metadata.
+ await db.exec('reset role');
+ const clearanceMarks=[{type:'comment',page:1,x:.2,y:.3,text:'Time is incorrect'},{type:'draw',page:1,points:[[.1,.1],[.2,.2]]}];
+ await db.query("update monitoring_records set review_comments='Old correction' where id=$1",[returned.id]);
+ await db.query("insert into monitoring_pdf_review(monitoring_id,document_version,record_revision,page_count,annotations,comments,actor_name) values($1,$2,$3,2,$4::jsonb,'Old correction','Supervisor') on conflict(monitoring_id) do update set annotations=excluded.annotations,comments=excluded.comments",[returned.id,returned.document_version,returned.revision,JSON.stringify(clearanceMarks)]);
+ const beforeClear=await get(supervisor,returned.id);
+ const pdfBeforeClear=(await request(supervisor,{action:'download',id:returned.id})).body;
+ const clear=(t,r)=>rpc('clear_monitoring_review_comments',{p_token:t,p_id:r.id,p_revision:r.revision});
+ await assert.rejects(()=>clear(manager,beforeClear),/Supervisor authorization/);
+ const otherSupervisor=await rpc('open_supper_supervisor_session',{p_location_id:2,p_pin:'9999'});
+ await assert.rejects(()=>clear(otherSupervisor,beforeClear),/not found/);
+ await assert.rejects(()=>clear(supervisor,{...beforeClear,revision:0}),/revision changed/);
+ const cleared=await clear(supervisor,beforeClear);
+ assert.equal(cleared.review_comments,'');assert.equal(cleared.locked,true);assert.equal(cleared.status,'accepted');assert.equal(cleared.revision,beforeClear.revision+1);
+ for(const key of Object.keys(beforeClear).filter(k=>!['review_comments','revision','updated_at'].includes(k)))assert.deepEqual(cleared[key],beforeClear[key],key+' must remain unchanged');
+ assert.deepEqual((await request(supervisor,{action:'download',id:returned.id})).body,pdfBeforeClear);
+ const cleanReview=(await rpc('supper_pdf_reviews_for_record',{p_token:supervisor,p_id:returned.id}))[0];
+ assert.equal(cleanReview.comments,'');assert.deepEqual(cleanReview.annotations,[clearanceMarks[1]],'Freehand drawings are not comments and remain');
+ console.log('PASS: Supervisor-only scoped comment clearing on locked records; stale revisions rejected; final PDF, lock, acceptance and drawings preserved.');
  const snackAfss=okay(await upload(supervisor,null,{...metadata,monitoringType:'snack',monitoringNumber:'9',monitoringSiteId:eec.id,onBehalf:true,performerRole:'supervisor'}));
  assert.equal(snackAfss.monitor_role,'supervisor');assert.equal((await review(supervisor,snackAfss,'accept')).status,'accepted');
  await db.exec('reset role');

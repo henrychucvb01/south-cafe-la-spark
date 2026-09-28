@@ -2,7 +2,8 @@ import { recordLabel } from "../monitoring/types";
 import { usePageNavigation } from "../navigation/PageNavigation";
 import React, { useEffect, useRef, useState } from 'react';
 import PdfMarkupViewer from './PdfMarkupViewer';
-import { pdfReviews, reportBytes, savePdfReview, reviewAction } from './service';
+import { pdfReviews, reportBytes, savePdfReview, reviewAction, clearReviewComments } from './service';
+import { combinedReviewComments, generalReviewComment } from './reviewComments';
 import { STATUSES } from './workflow';
 
 export default function PdfReviewWorkspace({ token, initialRecord, school, supervisor=false, onBack, backLabel }) {
@@ -10,7 +11,7 @@ export default function PdfReviewWorkspace({ token, initialRecord, school, super
   const [bytes,setBytes]=useState(null);
   const [annotations,setAnnotations]=useState([]);
   const [rotations,setRotations]=useState({});
-  const [comment,setComment]=useState(initialRecord.review_comments||'');
+  const [comment,setComment]=useState(generalReviewComment(initialRecord.review_comments||''));
   const [busy,setBusy]=useState(false);
   const [loading,setLoading]=useState(true);
   const [dirty,setDirty]=useState(false);
@@ -32,7 +33,7 @@ export default function PdfReviewWorkspace({ token, initialRecord, school, super
       if(cancelled)return;
       const review=items.find(r=>r.document_version===record.document_version);
       setAnnotations(review?.annotations||[]);setRotations({});
-      setComment(record.review_comments||'');
+      setComment(generalReviewComment(record.review_comments||''));
       setBytes(data);setDirty(false);
     }).catch(e=>{if(!cancelled)setError(e.message);}).finally(()=>{if(!cancelled)setLoading(false);});
     return ()=>{cancelled=true;};
@@ -44,11 +45,20 @@ export default function PdfReviewWorkspace({ token, initialRecord, school, super
   async function save(action){
     setBusy(true);setError('');setNotice('');
     try {
-      const saved=await savePdfReview(token,record,annotations,comment,action,rotations);
+      const combined=combinedReviewComments(comment,annotations);
+      if(combined.length>4000)throw Error('Please shorten the combined Supervisor and location comments to 4,000 characters.');
+      const saved=await savePdfReview(token,record,annotations,combined,action,rotations);
       setRecord(saved);setDirty(false);
       setNotice(action==='accept'?'Monitoring accepted and locked.':action==='return'?'Returned to the Manager for correction.':'PDF comments and markup saved.');
     }catch(e){setError(e.message+' Your unsaved review remains on this screen.');}finally{setBusy(false);}
   }
+  async function clearComments(){
+    if(editable){setComment('');setAnnotations(value=>value.filter(a=>a.type!=='comment'));setDirty(true);setNotice('Comments cleared. Save or Accept & Lock to apply.');return;}
+    setBusy(true);setError('');
+    try{const saved=await clearReviewComments(token,record);setRecord(saved);setComment('');setAnnotations(value=>value.filter(a=>a.type!=='comment'));setDirty(false);setNotice('Supervisor comments cleared. The monitoring remains locked.');}
+    catch(e){setError(e.message);}finally{setBusy(false);}
+  }
+  const hasComments=!!comment.trim()||annotations.some(a=>a.type==='comment');
   return <section className="sm-card sm-review-workspace">
     <div className="sm-actions"><button type="button" disabled={busy} onClick={()=>{if(mayLeave())onBack();}}>Back to Monitorings</button></div>
     <h2>{supervisor?'Supervisor PDF Review':'PDF & Supervisor Markup'}</h2>
@@ -57,9 +67,11 @@ export default function PdfReviewWorkspace({ token, initialRecord, school, super
     {error && <p role="alert" className="sm-error">{error}</p>}
     {notice && <p role="status" className="sm-notice">{notice}</p>}
     <label>Supervisor comments<textarea aria-label="Supervisor comments" rows={4} maxLength={4000} value={comment} disabled={busy||loading} readOnly={!editable} onChange={e=>{setComment(e.target.value);setDirty(true);}}/></label>
+    {annotations.some(a=>a.type==='comment')&&<div className="sm-notice"><strong>PDF location comments</strong><ol aria-label="Supervisor location comments">{annotations.map((a,i)=>a.type==='comment'?<li key={i} value={i+1}>{a.text} <small>(Page {a.page})</small>{editable&&<button type="button" disabled={busy||loading} onClick={()=>{setAnnotations(items=>items.filter((_,j)=>j!==i));setDirty(true);}}>Remove comment {i+1}</button>}</li>:null)}</ol></div>}
+    {supervisor&&(editable||(record.locked&&['accepted','completed'].includes(record.status)))&&<button type="button" disabled={busy||loading||!hasComments} onClick={clearComments}>Clear Supervisor Comments</button>}
     {loading && <p role="status">Opening the stored PDF and review…</p>}
     {bytes && <fieldset className="sm-editor" disabled={busy}><PdfMarkupViewer key={record.document_version} bytes={bytes} annotations={annotations} rotations={rotations} onRotate={editable&&!busy ? (page,angle)=>{setRotations(value=>({...value,[page]:((value[page]||0)+angle)%360}));setDirty(true);setNotice('');} : undefined} editable={editable&&!busy} onChange={value=>{setAnnotations(value);setDirty(true);setNotice('');}}/></fieldset>}
-    {editable && <div className="sm-actions"><button type="button" disabled={busy||loading||!bytes} onClick={()=>save('save')}>Save PDF & Comments</button>{record.status==='submitted' && <><button type="button" disabled={busy||loading||!bytes||!comment.trim()} onClick={()=>save('return')}>Return for Correction</button><button type="button" className="sm-primary" disabled={busy||loading||!bytes} onClick={()=>save('accept')}>Accept & Lock</button></>}</div>}
+    {editable && <div className="sm-actions"><button type="button" disabled={busy||loading||!bytes} onClick={()=>save('save')}>Save PDF & Comments</button>{record.status==='submitted' && <><button type="button" disabled={busy||loading||!bytes||!combinedReviewComments(comment,annotations).trim()} onClick={()=>save('return')}>Return for Correction</button><button type="button" className="sm-primary" disabled={busy||loading||!bytes} onClick={()=>save('accept')}>Accept & Lock</button></>}</div>}
     {editable && <p>{dirty?'Unsaved review changes. Save before leaving.':'Comments, markup and page rotation apply to the current PDF.'} Add a Supervisor comment explaining any return for correction.</p>}
     {supervisor && <div className="sm-actions" style={{marginTop:24}}><button type="button" style={{color:'#9f2020',borderColor:'#9f2020'}} disabled={busy} onClick={()=>setConfirmDelete(true)}>Delete Monitoring</button></div>}
     {supervisor && <dialog ref={deleteDialog} aria-labelledby="delete-monitoring-title" onCancel={e=>{if(busy)e.preventDefault();else setConfirmDelete(false);}} style={{maxWidth:'min(440px, 90vw)',border:'1px solid #aebdcd',borderRadius:12,padding:24}}>
@@ -67,6 +79,6 @@ export default function PdfReviewWorkspace({ token, initialRecord, school, super
       <p>This will permanently delete this monitoring record and its uploaded PDF. This action cannot be undone.</p>
       <div className="sm-actions"><button type="button" autoFocus disabled={busy} onClick={()=>setConfirmDelete(false)}>Cancel</button><button type="button" disabled={busy} style={{background:'#9f2020',color:'white'}} onClick={removeMonitoring}>Delete Monitoring</button></div>
     </dialog>}
-    {!editable && <p>Comments and markup are read-only.{supervisor&&record.locked?' Unlock the monitoring from its record to make corrections.':''}</p>}
+    {!editable && <p>Comments and markup are read-only.{supervisor&&record.locked?' You can clear Supervisor comments while keeping this monitoring locked. Unlock it only to change the monitoring or PDF.':''}</p>}
   </section>;
 }

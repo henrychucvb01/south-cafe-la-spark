@@ -81,3 +81,5 @@ export async function previewReport(token, record) {
   const response = await reportRequest(token, record, "preview");
   return new Uint8Array(await response.arrayBuffer());
 }
+
+export const clearReviewComments = (token,record) => rpc("clear_monitoring_review_comments",{p_token:token,p_id:record.id,p_revision:record.revision});
