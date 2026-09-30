@@ -34,7 +34,7 @@ The monthly leaderboard highlights the latest completed month and provides View 
 
 Apply `202609250010_mystery_pull.sql` before `202609260001_mystery_pull_prize_bundles.sql`. Both are already applied to SPARK's Supabase database; the second was applied and its reward columns verified on September 26, 2026. It adds no retroactive token or points awards. Frontend releases are deployed separately through the spark-development preview.
 
-Apply `202609300001_digital_pull_rewards.sql` before deploying the September 30 UI.
+`202609300001_digital_pull_rewards.sql` was applied to SPARK on September 30, 2026. Verified exactly seven prizes, zero old test wins, and the new redemption functions.
 
 Validation commands:
 
