@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import SupperScheduling from './SupperScheduling';
 import MonitoringPage from './MonitoringPage';
+import MonitoringDownload from './MonitoringDownload';
 import { MONITORING_TYPES, recordLabel, typeLabel, siteLabel } from './types';
 import PdfReviewWorkspace from '../supperMonitoring/PdfReviewWorkspace';
 import SupervisorExistingUpload from '../supperMonitoring/SupervisorExistingUpload';
@@ -63,7 +64,7 @@ export default function SupervisorMonitoringPage({ supervisorPin, onBack }) {
       </tr>)}</tbody></table></div>}
     </section>
     {(!monitoringType || monitoringType==='supper') && <SupperScheduling overview={overview} year={year} schoolFilter={schoolFilter} supervisorPin={supervisorPin} onRefresh={load}/>}
-    {rows.map(s=><section key={s.id} className="sm-card"><h2>{s.school_name}</h2>{s.records.length ? <ul>{s.records.map(r=><li key={r.id}>{typeLabel(r.monitoring_type)} · {siteLabel(r)} · {recordLabel(r)} · {STATUSES[r.status]}</li>)}</ul> : <p>No monitorings started for this school year.</p>}<button type="button" onClick={()=>setSchool(s)}>Open School Monitorings</button></section>)}
+    {rows.map(s=><section key={s.id} className="sm-card"><h2>{s.school_name}</h2>{s.records.length ? <ul>{s.records.map(r=><li key={r.id}>{typeLabel(r.monitoring_type)} · {siteLabel(r)} · {recordLabel(r)} · {STATUSES[r.status]}<MonitoringDownload record={r} school={s} supervisorPin={supervisorPin}/></li>)}</ul> : <><p>No monitorings started for this school year.</p><MonitoringDownload school={s} supervisorPin={supervisorPin}/></>}<button type="button" onClick={()=>setSchool(s)}>Open School Monitorings</button></section>)}
     {!busy&&!rows.length&&<p>No schools match these filters.</p>}
   </main></div>;
 }
