@@ -1,3 +1,4 @@
+import {loadSchoolBenefits} from '../mysteryPull/benefits';
 import React, { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 import {
@@ -97,6 +98,7 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
       if (historyError) throw historyError;
       if (excludedError) throw excludedError;
 
+      const benefits=await loadSchoolBenefits(location.id);
       const checksByDate = new Map(
         (historyData || []).map((check) => [check.service_date, check])
       );
@@ -113,7 +115,8 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
             return {
               ...check,
               missing: false,
-              streakEligible: isStreakEligibleCheck(check),
+              streakEligible: isStreakEligibleCheck(check)||(check.status==="complete"&&benefits.makeup.has(serviceDate)),
+              makeupOnTime: benefits.makeup.has(serviceDate),
             };
           }
 
@@ -121,7 +124,7 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
             id: `missing-${serviceDate}`,
             service_date: serviceDate,
             submitted_at: null,
-            employee_name: "Not submitted",
+            employee_name: benefits.shields.has(serviceDate)?"Streak Shield used — checklist not submitted":"Not submitted",
             status: "missing",
             missing: true,
             isToday: serviceDate === today,
@@ -408,7 +411,7 @@ function SchoolDashboard({ location, employee, onBack, onEditFinishLine }) {
                       </span>
 
                       <div>
-                        <strong>{formatDate(check.service_date)}</strong>
+                        <strong>{formatDate(check.service_date)}{check.makeupOnTime&&<small> · Make-up redeemed: counts as on time</small>}</strong>
                         <small>
                           {check.missing
                             ? check.isToday

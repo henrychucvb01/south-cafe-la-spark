@@ -13,6 +13,7 @@ import {
 } from "../dailyBites/games/gameUtils";
 
 import BingoPanel from '../dailyBites/BingoPanel';
+import {loadSchoolBenefits} from '../mysteryPull/benefits';
 
 const DAILY_BITES_ROTATION_START = new Date("2026-08-03T12:00:00");
 
@@ -71,6 +72,8 @@ function formatBiteCategory(category) {
 }
 
 function DailyBitesPage({ location, employee, managerPin, onBack }) {
+  const [doubleUntil,setDoubleUntil]=useState(null);
+  useEffect(()=>{let alive=true;const refresh=()=>loadSchoolBenefits(location.id).then(b=>{if(alive)setDoubleUntil(b.doubleUntil);}).catch(()=>{});refresh();window.addEventListener('focus',refresh);return()=>{alive=false;window.removeEventListener('focus',refresh);};},[location.id]);
   const todaysBite = useMemo(() => getTodaysDailyBite(), []);
   const gameDate = useMemo(() => getDailyGameDate(new Date()), []);
   const wordPuzzle = useMemo(
@@ -333,6 +336,7 @@ function DailyBitesPage({ location, employee, managerPin, onBack }) {
             </div>
           </div>
 
+          {doubleUntil&&new Date(doubleUntil)>new Date()&&<p role="status" className="dashboard-card">🍎 Double Daily Bites is active until {new Date(doubleUntil).toLocaleString()}. Visit, Word, Connections and AR Training points are doubled automatically.</p>}
           <section className="dashboard-card">
             <div className="school-dashboard-section-title">
               <div>

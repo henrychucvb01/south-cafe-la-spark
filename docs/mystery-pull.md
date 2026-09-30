@@ -8,11 +8,15 @@ Only existing active SPARK locations are used. This side quest uses the existing
 
 ## Rewards
 
-The supervisor controls stock and school token balances. Each active in-stock prize entry has equal chances; stock quantity does not weight the draw. No stock or tokens are granted automatically by operational events. All original stock, tokens, and history are preserved.
+The active pool contains exactly seven fixed prizes: +5 SPARK Points + Extra Pull, Make-Up Late Checklist, Change a Bingo Square, Bingo Free Space, Double Daily Bites for 1 Month, Streak Shield, and Candy Bar. The September 30 replacement removes the old catalog and all test wins at the user's request. Existing school token balances and previously posted points are unchanged.
 
-Regular prizes and automatic SPARK-points prizes can include one extra pull. Legacy standalone Extra Pull prizes remain supported. A manual bundled prize stays Waiting until fulfilled; its extra token is delivered immediately. Automatic points prizes are Received immediately. Prize names, descriptions, icons, points and bonus tokens are stored with each win.
+The six digital prizes remain available while enabled. Candy Bars require supervisor stock (initially zero). Selection is uniform among available prize types; quantities never weight a draw. Supervisors retain token controls, descriptions, icons, availability, Candy Bar inventory and delivery management. Prize names/effects are fixed to this approved pool.
 
-A SPARK-points prize specifies a positive whole-number amount. The server inserts `mystery_pull_prize` into the winning school's `spark_points` ledger in the same transaction as the win, inventory decrement, and token adjustment. Existing leaderboard totals include this credit. No other operational tables or scoring rules are changed.
+Five school points and one token are credited immediately and atomically. Double Daily Bites activates when won, for one calendar month in Los Angeles time. It doubles newly earned same-day visit, Word, Connections and AR Training points; it does not change past awards, operational bonuses, Bingo rewards or Pull points. Overlapping wins never multiply beyond 2×; the latest end date governs.
+
+Other digital rewards remain in My Prizes until used. A manager chooses a submitted late checklist, an incomplete Bingo square (and an eligible replacement for Change a Bingo Square), or one past missed qualifying Finish Line day. Redemptions are school-scoped, durable and applied once. A network retry with the same win and selection returns the saved redemption; a different selection is rejected after use.
+
+Checklist make-up preserves the original submission timestamp, tops that date's credit up to five points, and makes a completed checklist qualify for streak bonuses. A shield preserves continuity without inventing a submitted checklist or adding a completed day. Bingo prizes immediately refresh line/blackout rewards; a prize repick does not spend the ordinary monthly repick. Completed squares cannot be replaced. Candy Bars stay waiting until the supervisor marks them received.
 
 ## Integrity and recovery
 
@@ -30,9 +34,12 @@ The monthly leaderboard highlights the latest completed month and provides View 
 
 Apply `202609250010_mystery_pull.sql` before `202609260001_mystery_pull_prize_bundles.sql`. Both are already applied to SPARK's Supabase database; the second was applied and its reward columns verified on September 26, 2026. It adds no retroactive token or points awards. Frontend releases are deployed separately through the spark-development preview.
 
+Apply `202609300001_digital_pull_rewards.sql` before deploying the September 30 UI.
+
 Validation commands:
 
 - `npm test -- --watchAll=false --runInBand --testMatch '**/*.test.js'`
+- `node scripts/test-digital-pull-rewards.mjs`
 - `node scripts/test-mystery-pull-db.mjs`
 - `node scripts/test-mystery-bundles-db.mjs`
 - `npm run build`

@@ -1,3 +1,4 @@
+import {loadSchoolBenefits} from '../mysteryPull/benefits';
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { awardSparkPoints } from "../sparkPoints";
@@ -159,9 +160,10 @@ function SchoolHub({
         throw excludedError;
       }
 
+      const benefits=await loadSchoolBenefits(location.id);
       const completedDates = new Set(
         (completedRows || [])
-          .filter(isStreakEligibleCheck)
+          .filter(check=>isStreakEligibleCheck(check)||(check.status==="complete"&&benefits.makeup.has(check.service_date)))
           .map((row) => row.service_date)
       );
 
@@ -182,7 +184,7 @@ function SchoolHub({
 
         // Approved unassigned/excluded weekdays do not break the streak
         // and do not add a completed day to the streak count.
-        if (excludedDates.has(expectedString)) {
+        if (excludedDates.has(expectedString)||benefits.shields.has(expectedString)) {
           expectedDate = previousWeekday(expectedDate);
           continue;
         }

@@ -1,3 +1,4 @@
+import {loadSchoolBenefits} from '../mysteryPull/benefits';
 import React, { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { awardSparkPoints } from "../sparkPoints";
@@ -729,8 +730,9 @@ AUDIT HELPERS
       return 1;
     }
 
-    const completedDates=new Set(data.filter(isStreakEligibleCheck).map((row)=>row.service_date));
-    const excludedDates=new Set((excludedRows||[]).map((row)=>row.service_date));
+    const benefits=await loadSchoolBenefits(location.id);
+    const completedDates=new Set(data.filter(check=>isStreakEligibleCheck(check)||(check.status==="complete"&&benefits.makeup.has(check.service_date))).map((row)=>row.service_date));
+    const excludedDates=new Set([...(excludedRows||[]).map((row)=>row.service_date),...benefits.shields]);
     return calculateDisplayedFinishLineStreak(completedDates,excludedDates,serviceDate);
   }
 

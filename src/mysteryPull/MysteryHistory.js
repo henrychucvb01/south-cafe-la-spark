@@ -1,4 +1,5 @@
 import React from 'react';
+import {digitalRewards,prizeStatus} from './rewards';
 import {dateLabel} from './service';
 
 export default function MysteryHistory({rows,disabled,onFulfill}) {
@@ -8,7 +9,7 @@ export default function MysteryHistory({rows,disabled,onFulfill}) {
     <strong className="mystery-history-prize"><span aria-hidden="true">{w.prize_icon}</span> {w.prize_name}</strong>
     <span>{w.school_name} · {w.location_code}</span>
     <time dateTime={w.won_at}>{dateLabel(w.won_at)}</time>
-    <strong className="mystery-history-status">{w.status==='received'?'Received / Fulfilled ✓':'Waiting'}</strong>
+    <strong className="mystery-history-status">{prizeStatus(w)}</strong>
    </summary>
    <div className="mystery-history-detail">
     <p><strong>Pull #{w.id}</strong> · {w.token_used} token used</p>
@@ -17,7 +18,7 @@ export default function MysteryHistory({rows,disabled,onFulfill}) {
     {w.points_awarded>0&&<p>+{w.points_awarded} SPARK points credited to this school</p>}
     {w.bonus_tokens>0&&<p>+{w.bonus_tokens} extra pull added</p>}
     {w.fulfilled_at&&<p>Marked fulfilled {dateLabel(w.fulfilled_at)}</p>}
-    {w.status==='waiting'&&w.prize_kind==='manual'&&<button className="mystery-primary" disabled={disabled} onClick={()=>onFulfill(w.id)}>Mark received / fulfilled</button>}
+    {w.status==='waiting'&&w.prize_kind==='manual'&&!digitalRewards.has(w.reward_type)&&<button className="mystery-primary" disabled={disabled} onClick={()=>onFulfill(w.id)}>Mark received / fulfilled</button>}
    </div>
   </details>)}
  </div>;
