@@ -1,3 +1,4 @@
+import SpotlightManager from "../spotlight/SpotlightManager";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { usePageNavigation } from "../navigation/PageNavigation";
 import {
@@ -66,7 +67,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("all");
   const [view, setView] = useState("dashboard");
-  const viewTitles = { dashboard: 'Command Center', 'finish-line': 'Finish Line', 'recent-changes': 'Recent Changes', 'meal-trends': 'Meal Analytics', 'mplh-report': 'MPLH Report', 'monthly-scorecards': 'Monthly Scorecards', 'meal-audit': 'Meal Audit', 'labor-optimization': 'Labor Optimization', 'staff-management': 'Staffing', 'spark-points': 'SPARK Points', leaderboard: 'Leaderboard', 'location-directory': 'Location Directory', feedback: 'Feedback', 'pin-reset': 'Manager PIN Reset' };
+  const viewTitles = { spotlight: 'SPARK Spotlight', dashboard: 'Command Center', 'finish-line': 'Finish Line', 'recent-changes': 'Recent Changes', 'meal-trends': 'Meal Analytics', 'mplh-report': 'MPLH Report', 'monthly-scorecards': 'Monthly Scorecards', 'meal-audit': 'Meal Audit', 'labor-optimization': 'Labor Optimization', 'staff-management': 'Staffing', 'spark-points': 'SPARK Points', leaderboard: 'Leaderboard', 'location-directory': 'Location Directory', feedback: 'Feedback', 'pin-reset': 'Manager PIN Reset' };
   usePageNavigation({ title: viewTitles[view] || 'Command Center', destination: view === 'dashboard' ? undefined : 'Command Center', onNavigate: () => { openDashboard(); setNavigationOpen(false); }, level: 1 });
   const [mobileNavigation, setMobileNavigation] = useState(() => window.matchMedia('(max-width: 760px)').matches);
   const [navigationOpen, setNavigationOpen] = useState(false);
@@ -1226,6 +1227,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
             Location Directory
           </button>
 
+          <button className={`command-nav-button ${view === "spotlight" ? "active" : ""}`} onClick={() => setView("spotlight")}><span aria-hidden="true">✦</span>SPARK Spotlight</button>
           <button className="command-nav-button" onClick={onMonitoring}><span aria-hidden="true">📋</span>Monitorings</button>
           <button className={`command-nav-button ${view === "feedback" ? "active" : ""}`} onClick={() => setView("feedback")}>
             <span>💬</span>
@@ -1270,7 +1272,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
             onClick={() => setNavigationOpen(true)}><span aria-hidden="true">☰</span> Menu</button>}
           <div>
             <h2>
-              {view === "meal-trends"
+              {view === "spotlight" ? "SPARK Spotlight" : view === "meal-trends"
                 ? "South Café LA Meal Analytics"
                 : view === "mplh-report"
                 ? "South Café LA MPLH Report"
@@ -1450,7 +1452,9 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
         </header>
 
         <div className="command-content">
-          {view === "feedback" ? (
+          {view === "spotlight" ? (
+            <SpotlightManager supervisorPin={supervisorPin} />
+          ) : view === "feedback" ? (
             <SupervisorFeedbackPanel supervisorPin={supervisorPin} />
           ) : view === "leaderboard" ? (
             <SupervisorLeaderboard embedded />

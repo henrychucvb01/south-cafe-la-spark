@@ -11,6 +11,7 @@ import SupervisorPinPage from "./pages/SupervisorPinPage";
 import HomeBase from "./pages/HomeBase";
 import IncidentRecordHelper from "./pages/IncidentRecordHelper";
 import MealAnalyticsPage from "./pages/MealAnalyticsPage";
+import SpotlightArchive from "./spotlight/SpotlightArchive";
 import DailyBitesPage from "./pages/DailyBitesPage";
 import ManagerResourcesPage from "./pages/ManagerResourcesPage";
 import AskSparkPage from "./pages/AskSparkPage";
@@ -46,6 +47,7 @@ function App() {
     operationsHelp: ["Operations Help", "Manager Resources", "managerResources"],
     askSpark: ["Ask SPARK", "Manager Resources", "managerResources"],
     locationInformation: ["Location Information", "Manager Resources", "managerResources"],
+    spotlight: ["SPARK Spotlight", "Daily Bites", "dailyBites"],
     dailyBites: ["Daily Bites", "Manager Hub", "homeBase"],
     incidentHelper: ["Incident Record Helper", "Manager Hub", "homeBase"],
     schoolHub: ["School Dashboard", "Manager Hub", "homeBase"],
@@ -95,7 +97,8 @@ function App() {
   if (screen === "operationsHelp") return managerPage(<OperationsHelpPage location={selectedLocation} onBack={() => setScreen("managerResources")} />);
   if (screen === "askSpark") return managerPage(<AskSparkPage location={selectedLocation} onBack={() => setScreen("managerResources")} />);
   if (screen === "locationInformation") return managerPage(<LocationInformationPage location={selectedLocation} onBack={() => setScreen("managerResources")} />);
-  if (screen === "dailyBites") return managerPage(<DailyBitesPage managerPin={managerSessionPin} location={selectedLocation} employee={selectedEmployee} onBack={() => setScreen("homeBase")} />);
+  if (screen === "spotlight") return managerPage(<SpotlightArchive location={selectedLocation} employee={selectedEmployee} managerPin={managerSessionPin} />);
+  if (screen === "dailyBites") return managerPage(<DailyBitesPage onViewSpotlights={() => setScreen("spotlight")} managerPin={managerSessionPin} location={selectedLocation} employee={selectedEmployee} onBack={() => setScreen("homeBase")} />);
   if (screen === "incidentHelper") return managerPage(<IncidentRecordHelper location={selectedLocation} employee={selectedEmployee} onBack={() => setScreen("homeBase")} />);
   if (screen === "schoolHub") return managerPage(<SchoolHub location={selectedLocation} employee={selectedEmployee} onFinishLine={() => { setEditingCheck(null); setScreen("finishLine"); }} onDashboard={() => setScreen("schoolDashboard")} onMealAnalytics={() => setScreen("mealAnalytics")} onExit={() => setScreen("homeBase")} />);
   if (screen === "mealAnalytics") {

@@ -1,3 +1,4 @@
+import SpotlightFeed from "../spotlight/SpotlightFeed";
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
 import DAILY_BITES from "../data/dailyBitesContent";
@@ -71,7 +72,7 @@ function formatBiteCategory(category) {
     .join(" ");
 }
 
-function DailyBitesPage({ location, employee, managerPin, onBack }) {
+function DailyBitesPage({ location, employee, managerPin, onBack, onViewSpotlights }) {
   const [doubleUntil,setDoubleUntil]=useState(null);
   useEffect(()=>{let alive=true;const refresh=()=>loadSchoolBenefits(location.id).then(b=>{if(alive)setDoubleUntil(b.doubleUntil);}).catch(()=>{});refresh();window.addEventListener('focus',refresh);return()=>{alive=false;window.removeEventListener('focus',refresh);};},[location.id]);
   const todaysBite = useMemo(() => getTodaysDailyBite(), []);
@@ -336,6 +337,7 @@ function DailyBitesPage({ location, employee, managerPin, onBack }) {
             </div>
           </div>
 
+          <SpotlightFeed location={location} employee={employee} managerPin={managerPin} onViewAll={onViewSpotlights} />
           {doubleUntil&&new Date(doubleUntil)>new Date()&&<p role="status" className="dashboard-card">🍎 Double Daily Bites is active until {new Date(doubleUntil).toLocaleString()}. Visit, Word, Connections and AR Training points are doubled automatically.</p>}
           <section className="dashboard-card">
             <div className="school-dashboard-section-title">

@@ -1,0 +1,21 @@
+import {readFile} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+let source=await readFile('api/spotlight.js','utf8');source=source.replace("'@supabase/supabase-js'",JSON.stringify(import.meta.resolve('@supabase/supabase-js')));
+const {createHandler,imageBytes}=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
+const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==','base64');
+assert.equal(imageBytes({base64:png.toString('base64')}).type,'image/png');assert.throws(()=>imageBytes({base64:Buffer.from('<svg>bad</svg>').toString('base64')}));
+const calls=[];let fail=false;
+const db={storage:{from:()=>({upload:async(path,bytes)=>{calls.push(['upload',path,bytes.length]);return{};},remove:async paths=>{calls.push(['remove',paths]);return{};},createSignedUrl:async path=>({data:{signedUrl:'https://signed.test/'+path}})})},rpc:async(name,args)=>{
+ calls.push([name,args]);if(name==='verify_supervisor_pin')return{data:args.p_pin==='admin'};
+ if(name==='spotlight_manage')return fail?{error:{message:'This Spotlight changed'}}:{data:{post:{id:'saved'},old_photo:'old/photo.jpg'}};
+ if(name==='spotlight_list')return{data:[{id:'p',photo_path:'saved/photo.png'}]};
+ if(name==='spotlight_react')return{data:{mine:'love',counts:{love:1}}};return{};
+}};
+const request=async body=>{let status,result;await createHandler(db)({method:'POST',body},{setHeader(){},status(s){status=s;return this;},json(v){result=v;return this;}});return{status,result};};
+assert.equal((await request({action:'save',pin:'wrong',photo:{base64:png.toString('base64')}})).status,403);assert(!calls.some(c=>c[0]==='upload'));
+assert.equal((await request({action:'save',pin:'admin',payload:{headline:'Text'}})).status,200);assert(!calls.some(c=>c[0]==='upload'));
+assert.equal((await request({action:'save',pin:'admin',photo:{base64:png.toString('base64')}})).status,200);assert(calls.some(c=>c[0]==='upload'));assert(calls.some(c=>c[0]==='remove'&&c[1][0]==='old/photo.jpg'));
+fail=true;const count=calls.filter(c=>c[0]==='remove').length;assert.equal((await request({action:'save',pin:'admin',photo:{base64:png.toString('base64')}})).status,400);assert.equal(calls.filter(c=>c[0]==='remove').length,count+1);
+assert((await request({action:'list',token:'manager'})).result[0].photo_url.startsWith('https://signed.test/'));
+assert.deepEqual((await request({action:'react',token:'manager',id:'p',reaction:'love'})).result,{mine:'love',counts:{love:1}});
+console.log('PASS: authenticated photo uploads, raster validation, text-only save, private signed previews, replaced/failed-upload cleanup, reaction response.');
