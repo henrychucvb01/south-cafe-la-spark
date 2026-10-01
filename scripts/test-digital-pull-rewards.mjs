@@ -22,7 +22,9 @@ begin if token not in ('school4','school5') or token is null then raise exceptio
 `);
 
 try {
- for(const file of ['202609250008_finish_line_bonus_reconciliation.sql','202609250009_bingo_card_cycles.sql','202609250010_mystery_pull.sql','202609260001_mystery_pull_prize_bundles.sql','202609300001_digital_pull_rewards.sql']) await db.exec((await readFile('supabase/migrations/'+file,'utf8')).replace(/-- CRON-BEGIN[\s\S]*?-- CRON-END/,''));
+ for(const file of ['202609250008_finish_line_bonus_reconciliation.sql','202609250009_bingo_card_cycles.sql','202609250010_mystery_pull.sql','202609260001_mystery_pull_prize_bundles.sql','202609300001_digital_pull_rewards.sql','202610010002_makeup_school_days.sql']) await db.exec((await readFile('supabase/migrations/'+file,'utf8')).replace(/-- CRON-BEGIN[\s\S]*?-- CRON-END/,''));
+ const calendarMigration=await readFile('supabase/migrations/202610010001_ar_cap_and_carson_calendar.sql','utf8');
+ await db.exec(calendarMigration.slice(calendarMigration.indexOf('create or replace function public.spark_guard_school_day_points()'),calendarMigration.indexOf('-- Correct only the eight')));
  const rpc=async(name,args=[])=>(await db.query(`select mystery_${name}(${args.map((_,i)=>'$'+(i+1)).join(',')}) result`,args)).rows[0].result;
  const admin=(await rpc('open',['0928'])).token;
  const manager=(await rpc('choose_school',[(await rpc('open',['1234'])).token,'1234'])).token;
@@ -43,11 +45,28 @@ try {
  await db.exec("insert into finish_line_checks values(99,4,'2026-09-04','complete','2026-09-05T20:00:00Z');insert into spark_points(location_id,points,point_type,service_date,unique_key) values(4,2,'finish_line_late','2026-09-04','late-test');");
  const makeup=await win('late_checklist');assert((await rpc('redemption_options',[manager,makeup.win.id])).dates.includes('2026-09-04'));await rpc('redeem',[manager,makeup.win.id,{date:'2026-09-04'}]);assert.equal((await db.query("select points from spark_points where point_type='mystery_checklist_makeup'")).rows[0].points,3);
  await db.exec("insert into spark_points(location_id,points,point_type,service_date,unique_key) values(4,2,'finish_line_late','2026-09-04','late-retry');");assert.equal((await db.query("select count(*) n from spark_points where unique_key='late-retry'")).rows[0].n,0);
+ // Holidays/weekends and a calendar change after opening the chooser cannot consume a prize.
+ await db.exec("insert into spark_excluded_days values(4,'2026-09-07');insert into finish_line_checks values(100,4,'2026-09-07','complete','2026-09-08T20:00Z'),(101,4,'2026-09-05','complete','2026-09-08T20:00Z'),(102,4,'2026-09-08','complete','2026-09-09T20:00Z'),(103,4,'2026-09-09','complete','2026-09-10T20:00Z')");
+ const calendarPrize=await win('late_checklist');
+ const options=await rpc('redemption_options',[manager,calendarPrize.win.id]);
+ assert(!options.dates.includes('2026-09-07'));assert(!options.dates.includes('2026-09-05'));assert(options.dates.includes('2026-09-08'));
+ await db.exec("insert into spark_excluded_days values(4,'2026-09-08')");
+ for(const date of ['2026-09-07','2026-09-05','2026-09-08']) {
+  await assert.rejects(rpc('redeem',[manager,calendarPrize.win.id,{date}]),/operating school day/);
+  assert.equal((await rpc('pull_result',[manager,calendarPrize.win.request_id])).status,'waiting');
+  assert.equal((await db.query('select count(*) n from mystery_redemptions where win_id=$1',[calendarPrize.win.id])).rows[0].n,0);
+  assert.equal((await db.query('select count(*) n from spark_points where unique_key=$1',['mystery-makeup-'+calendarPrize.win.id])).rows[0].n,0);
+ }
+ // The same retained prize still works on a valid late school day, exactly once.
+ await rpc('redeem',[manager,calendarPrize.win.id,{date:'2026-09-09'}]);
+ await rpc('redeem',[manager,calendarPrize.win.id,{date:'2026-09-09'}]);
+ assert.equal((await db.query('select points from spark_points where unique_key=$1',['mystery-makeup-'+calendarPrize.win.id])).rows[0].points,5);
+ assert.equal((await rpc('pull_result',[manager,calendarPrize.win.request_id])).status,'received');
  const shield=await win('streak_shield');await assert.rejects(rpc('redeem',[manager,shield.win.id,{date:'2026-09-06'}]),/qualifying/);await rpc('redeem',[manager,shield.win.id,{date:'2026-09-03'}]);assert.equal((await db.query("select spark_bonus_eligible(4,'2026-09-03','2026-09-04') yes")).rows[0].yes,true);
  const free=await win('bingo_free');let b=(await rpc('redemption_options',[manager,free.win.id])).bingo;let square=b.goals.findIndex((g,i)=>!g.completed&&i!==12);await rpc('redeem',[manager,free.win.id,{card:b.card.id,revision:b.card.revision,square}]);assert((await db.query('select completed_ids from spark_bingo_cards where id=$1',[b.card.id])).rows[0].completed_ids.includes(b.goals[square].id));
  const repick=await win('bingo_change');b=(await rpc('redemption_options',[manager,repick.win.id])).bingo;square=b.goals.findIndex((g,i)=>!g.completed&&i!==12);const goal=b.replacement_goals[0].id;await rpc('redeem',[manager,repick.win.id,{card:b.card.id,revision:b.card.revision,square,goal}]);assert.equal((await db.query('select goal_ids from spark_bingo_cards where id=$1',[b.card.id])).rows[0].goal_ids[square],goal);assert.equal((await db.query('select count(*) n from spark_bingo_repicks')).rows[0].n,0);
  await assert.rejects(change({action:'prize',name:'Old gift',kind:'manual'}),/seven current/);
  await db.exec("update mystery_redemptions set ends_at=now()-interval '1 second' where reward_type='double_bites';insert into spark_points(location_id,points,point_type,service_date,unique_key) values(4,3,'daily_bites_word_game',(now() at time zone 'America/Los_Angeles')::date,'expired-test')");assert.equal((await db.query("select points from spark_points where unique_key='expired-test'")).rows[0].points,3);
  await db.exec('set role anon');await assert.rejects(db.exec('select * from mystery_redemptions'),/permission denied/);await assert.rejects(db.query('select mystery_admin_before_rewards($1,$2,$3)',[admin,randomUUID(),{action:'prize',name:'Bypass'}]),/permission denied/);
- console.log('PASS: seven-prize pool, points/token atomic retry, Candy Bar delivery, school isolation, one-time redemption, one-month doubling, late checklist, shield, Bingo rewards and protected admin functions.');
+ console.log('PASS: seven-prize pool, points/token atomic retry, Candy Bar delivery, school isolation, one-time redemption, one-month doubling, late checklist holiday/weekend/stale-calendar rejection without consuming prizes, shield, Bingo rewards and protected admin functions.');
 } finally {await db.close();}
