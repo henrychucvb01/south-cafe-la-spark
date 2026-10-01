@@ -95,6 +95,10 @@ function sumPoints(points, start, end) {
   return totals;
 }
 
+export function monthlyBand(row) {
+  return row.rank <= 5 ? "cup-top-five" : row.rank <= 17 ? "cup-top-seventeen" : "";
+}
+
 function Movement({ value }) {
   if (!value) return <span className="spark-leaderboard-movement same">—</span>;
   if (value > 0) {
@@ -149,6 +153,7 @@ export default function SupervisorLeaderboard({ onClose, embedded = false, compa
   );
   const [schools, setSchools] = useState([]);
   const [points, setPoints] = useState([]);
+  const [finalMonths, setFinalMonths] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const requestRef = useRef({ id: 0, controller: null });
@@ -162,7 +167,7 @@ export default function SupervisorLeaderboard({ onClose, embedded = false, compa
     setLoading(true);
     setError("");
     try {
-      const [{ data: locationRows, error: locationError }, pointRows] = await Promise.all([
+      const [{ data: locationRows, error: locationError }, pointRows, finished] = await Promise.all([
         supabase
           .from("locations")
           .select("id, school_name, location_code")
@@ -170,9 +175,11 @@ export default function SupervisorLeaderboard({ onClose, embedded = false, compa
           .order("school_name")
           .abortSignal(controller.signal),
         fetchAllSeasonPoints(season.start, season.end, controller.signal),
+        supabase.rpc("spark_monthly_cup_standings", { p_start: season.start, p_end: season.end }).abortSignal(controller.signal),
       ]);
 
       if (locationError) throw locationError;
+      if (finished.error) throw finished.error;
       const competitionSchools = (locationRows || []).filter(
         (school) => !isDemoSchool(school)
       );
@@ -181,6 +188,7 @@ export default function SupervisorLeaderboard({ onClose, embedded = false, compa
       );
       if (!mountedRef.current || requestRef.current.id !== requestId) return;
       setSchools(competitionSchools);
+      setFinalMonths(finished.data || []);
       setPoints(
         (pointRows || []).filter((row) =>
           competitionIds.has(String(row.location_id))
@@ -253,7 +261,8 @@ export default function SupervisorLeaderboard({ onClose, embedded = false, compa
       };
     });
 
-    const monthRows = rankScores(schools, monthScores).map((row) => ({
+    const finalRows = finalMonths.filter(row => row.month === `${selectedMonthKey}-01`).map(row => ({ id: String(row.location_id), schoolName: row.school_name, locationCode: row.location_code, points: Number(row.points), rank: Number(row.rank) }));
+    const monthRows = (finalRows.length ? finalRows : rankScores(schools, monthScores)).map((row) => ({
       ...row,
       seasonRank: currentRankMap.get(row.id) || "—",
     }));
@@ -264,7 +273,7 @@ export default function SupervisorLeaderboard({ onClose, embedded = false, compa
     const seasonLeaders = seasonRows.filter((row) => row.points === bestSeason && bestSeason > 0);
 
     return { seasonRows, monthRows, monthlyWinners, seasonLeaders };
-  }, [schools, points, selectedMonth, selectedMonthKey, season, seasonMonths, today]);
+  }, [schools, points, finalMonths, selectedMonth, selectedMonthKey, season, seasonMonths, today]);
 
   const selectedBounds = monthBounds(selectedMonth.year, selectedMonth.month, season);
   const monthComplete = today > selectedBounds.end;
@@ -332,7 +341,7 @@ export default function SupervisorLeaderboard({ onClose, embedded = false, compa
                 {monthlyRows.map((row) => {
                   const isCurrentSchool = String(row.id) === String(currentLocationId);
                   return (
-                    <tr key={row.id} className={`${row.rank <= 3 ? `top-${row.rank}` : ""}${isCurrentSchool ? " current-school" : ""}`}>
+                    <tr key={row.id} className={`${monthlyBand(row)}${isCurrentSchool ? " current-school" : ""}`}>
                       <td className="spark-leaderboard-rank">{row.rank === 1 ? "🥇" : row.rank === 2 ? "🥈" : row.rank === 3 ? "🥉" : row.rank}</td>
                       <td className="spark-daily-leaderboard-school">
                         <strong>{row.schoolName}</strong>
@@ -479,7 +488,7 @@ export default function SupervisorLeaderboard({ onClose, embedded = false, compa
                 </thead>
                 <tbody>
                   {rows.map((row) => (
-                    <tr key={row.id} className={row.rank <= 3 ? `top-${row.rank}` : ""}>
+                    <tr key={row.id} className={view === "month" ? monthlyBand(row) : row.rank <= 3 ? `top-${row.rank}` : ""}>
                       <td className="spark-leaderboard-rank">
                         {row.rank === 1 ? "🥇" : row.rank === 2 ? "🥈" : row.rank === 3 ? "🥉" : row.rank}
                       </td>

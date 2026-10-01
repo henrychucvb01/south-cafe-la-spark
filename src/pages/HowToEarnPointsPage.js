@@ -161,7 +161,7 @@ function HowToEarnPointsPage({ onBack }) {
             <div style={{ padding: "12px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #edf2f7" }}>
               <strong style={{ fontSize: "14px", color: "#1a202c" }}>🔍 Monitoring Points</strong>
               <p style={{ margin: "6px 0 0", fontSize: "13px", color: "#4a5568", lineHeight: "1.5" }}>
-                Schools can earn additional points from monitoring results (Breakfast, Lunch, and Supper). Bonus points may also be earned for perfect or passing monitoring results.
+                Accepted Manager monitorings marked Perfect automatically earn 20 SPARK points for the school. Passing or completing a required monitoring alone does not earn bonus points.
               </p>
             </div>
 
