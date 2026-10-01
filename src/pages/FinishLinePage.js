@@ -6,6 +6,7 @@ import {
   REWARD_LAUNCH_DATE,
   getFinishLinePointAward,
   isStreakEligibleCheck,
+  isWeekday,
 } from "../sparkPolicy";
 import { calculateDisplayedFinishLineStreak } from "../finishLineStreaks";
 /* =========================================================
@@ -895,6 +896,20 @@ audit editing is confirmed working.
 
       const employeeId = employee.id || null;
 
+      if (serviceDate >= REWARD_LAUNCH_DATE) {
+        const { data: excluded, error: calendarError } = await supabase
+          .from("spark_excluded_days").select("service_date")
+          .eq("location_id", location.id).eq("service_date", serviceDate).limit(1);
+        if (calendarError) {
+          setMessage("Checklist saved. Could not verify the school calendar for points; please reopen and save again.");
+          return;
+        }
+        if (!isWeekday(serviceDate) || excluded?.length) {
+          onComplete();
+          return;
+        }
+      }
+
       await awardSparkPoints({
         locationId: location.id,
         points: 5,
@@ -930,7 +945,7 @@ audit editing is confirmed working.
         });
       }
 
-      const finishLineReward = getFinishLinePointAward(serviceDate, new Date());
+      const finishLineReward = getFinishLinePointAward(serviceDate, checkData.submitted_at);
 
       await awardSparkPoints({
         locationId: location.id,

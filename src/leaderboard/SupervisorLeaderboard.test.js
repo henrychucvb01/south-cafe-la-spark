@@ -24,3 +24,20 @@ test('closed-month standings use the frozen results instead of subsequently edit
  expect(host.querySelector('tbody tr').className).toContain('cup-top-five');
  expect(host.textContent).not.toMatch(/pull|token|reward/i);
 });
+
+test('pagination uses a unique tie-breaker when more than 1000 awards share a date',async()=>{
+ const {fetchAllSeasonPoints}=require('./SupervisorLeaderboard');
+ const rows=Array.from({length:1001},(_,i)=>({location_id:1,points:5,service_date:'2026-09-02',id:i+1}));
+ const orders=[];
+ supabase.from.mockImplementation(()=>{
+  let first=0,last=0;const q={};
+  for(const method of ['select','gte','lte'])q[method]=()=>q;
+  q.order=(column)=>{orders.push(column);return q;};
+  q.range=(a,b)=>{first=a;last=b;return q;};
+  q.abortSignal=()=>Promise.resolve({data:rows.slice(first,last+1),error:null});return q;
+ });
+ const result=await fetchAllSeasonPoints('2026-09-01','2026-09-30',new AbortController().signal);
+ expect(orders).toEqual(['service_date','id','service_date','id']);
+ expect(result.reduce((total,r)=>total+r.points,0)).toBe(5005);
+ expect(new Set(result.map(r=>r.id)).size).toBe(1001);
+});

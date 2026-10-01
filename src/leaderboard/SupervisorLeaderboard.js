@@ -107,7 +107,7 @@ function Movement({ value }) {
   return <span className="spark-leaderboard-movement down">▼ {Math.abs(value)}</span>;
 }
 
-async function fetchAllSeasonPoints(start, end, signal) {
+export async function fetchAllSeasonPoints(start, end, signal) {
   const pageSize = 1000;
   const allRows = [];
   let from = 0;
@@ -119,6 +119,7 @@ async function fetchAllSeasonPoints(start, end, signal) {
       .gte("service_date", start)
       .lte("service_date", end)
       .order("service_date", { ascending: true })
+      .order("id", { ascending: true })
       .range(from, from + pageSize - 1)
       .abortSignal(signal);
 

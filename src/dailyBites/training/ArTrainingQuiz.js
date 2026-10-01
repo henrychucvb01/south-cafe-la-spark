@@ -8,7 +8,8 @@ function ArTrainingQuiz({ serviceDate, dailyPoints, weekday, loading, disabled, 
   const [feedback, setFeedback] = useState(null);
   const [saving, setSaving] = useState(false);
   const question = orderedQuestions.length ? orderedQuestions[index % orderedQuestions.length] : null;
-  const capReached = dailyPoints >= 10;
+  const dailyCap = serviceDate >= "2026-10-01" ? 5 : 10;
+  const capReached = dailyPoints >= dailyCap;
 
   useEffect(() => {
     setIndex(0);
@@ -57,16 +58,16 @@ function ArTrainingQuiz({ serviceDate, dailyPoints, weekday, loading, disabled, 
           <p>Quick questions grounded in approved SPARK training materials.</p>
         </div>
         <div className={`ar-points-meter ${capReached ? "complete" : ""}`}>
-          <strong>{loading ? "—" : `${dailyPoints} / 10`}</strong>
+          <strong>{loading ? "—" : `${dailyPoints} / ${dailyCap}`}</strong>
           <span>points today</span>
         </div>
       </div>
 
-      <div className="ar-progress-track" aria-label={`${dailyPoints} of 10 possible points earned today`}>
-        <span style={{ width: `${Math.min(100, dailyPoints * 10)}%` }} />
+      <div className="ar-progress-track" aria-label={`${dailyPoints} of ${dailyCap} possible points earned today`}>
+        <span style={{ width: `${Math.min(100, dailyPoints / dailyCap * 100)}%` }} />
       </div>
       <div className="ar-quiz-status">
-        <span>{!weekday ? "Weekend practice — points resume Monday." : capReached ? "Daily points complete — keep practicing!" : "Earn 2 points for each correct answer."}</span>
+        <span>{serviceDate < "2026-10-01" && !weekday ? "Weekend practice — points resume Monday." : capReached ? "Daily points complete — keep practicing!" : `Earn up to 2 points per correct answer, up to ${dailyCap} per day.`}</span>
         <span>Question {(index % orderedQuestions.length) + 1} of {orderedQuestions.length}</span>
       </div>
 
