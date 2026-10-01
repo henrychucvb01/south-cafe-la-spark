@@ -9,6 +9,8 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { adjustmentMonths, adjustmentServiceDate } from "../supervisorPointMonths";
+import { getLocalDateString as getPointsDate } from "../sparkPolicy";
 import { supabase } from "../supabaseClient";
 import SupervisorLocationDirectory from "../locationInformation/SupervisorLocationDirectory";
 import SupervisorFeedbackPanel from "../feedback/SupervisorFeedbackPanel";
@@ -109,6 +111,8 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
   const [pointsSchoolId, setPointsSchoolId] = useState("");
   const [pointsTotal, setPointsTotal] = useState(0);
   const [pointsHistory, setPointsHistory] = useState([]);
+  const [pointsMonth, setPointsMonth] = useState(() => getPointsDate().slice(0, 7));
+  const pointsMonthOptions = adjustmentMonths();
   const [pointsAmount, setPointsAmount] = useState("");
   const [pointsDirection, setPointsDirection] = useState("add");
   const [pointsReason, setPointsReason] = useState("");
@@ -685,6 +689,8 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
       const signedPoints =
         pointsDirection === "subtract" ? -numericAmount : numericAmount;
 
+      const serviceDate = adjustmentServiceDate(pointsMonth);
+      const monthLabel = pointsMonthOptions.find(option => option.value === pointsMonth)?.label;
       const now = new Date();
       const uniqueKey =
         `supervisor-adjustment-${pointsSchoolId}-${now.getTime()}-` +
@@ -698,7 +704,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
           pointsDirection === "subtract"
             ? "Supervisor point correction"
             : "Supervisor point award",
-        service_date: getLocalDateString(now),
+        service_date: serviceDate,
         source: "supervisor",
         awarded_by: "Supervisor",
         adjustment_reason: pointsReason.trim(),
@@ -709,13 +715,10 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
         throw error;
       }
 
-      setPointsMessage(
-        `${signedPoints > 0 ? "+" : ""}${signedPoints} points saved successfully.`
-      );
-      setPointsAmount("");
-      setPointsReason("");
-
       await loadSparkPointsSupervisor(pointsSchoolId);
+      setPointsMessage(
+        `${signedPoints > 0 ? "+" : ""}${signedPoints} points saved for ${monthLabel}.`
+      );
     } catch (error) {
       console.error("SPARK Points adjustment error:", error);
       setPointsError(error.message || "Could not save the point adjustment.");
@@ -1677,7 +1680,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
                       letterSpacing: "0.5px",
                     }}
                   >
-                    ⚡ CURRENT POINTS
+                    ⚡ OVERALL POINTS
                   </div>
 
                   <strong
@@ -1705,6 +1708,13 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
                     <h4 style={{ margin: "0 0 14px" }}>
                       Add or Subtract Points
                     </h4>
+                    <label htmlFor="supervisor-points-month" style={{ display: "block", fontWeight: "800", marginBottom: "6px" }}>Points month</label>
+                    <select id="supervisor-points-month" value={pointsMonth} disabled={pointsSaving}
+                      onChange={e => { setPointsMonth(e.target.value); setPointsMessage(""); setPointsError(""); }}
+                      style={{ width: "100%", maxWidth: "300px", padding: "10px", border: "1px solid #d6dfe7", borderRadius: "8px", marginBottom: "8px" }}>
+                      {pointsMonthOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                    <p style={{ margin: "0 0 16px", color: "#667482" }}>The adjustment counts toward the selected month and the school's overall points. Closed-month standings update; previously issued Pull tokens stay unchanged.</p>
 
                     <div
                       style={{
