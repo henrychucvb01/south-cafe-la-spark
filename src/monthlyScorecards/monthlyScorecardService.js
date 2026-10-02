@@ -26,27 +26,24 @@ export function dedupeMonthlyRows(reportType,rows) {
   return [...normalizedByKey.values()];
 }
 
-export async function saveMonthlyImport({ supervisorPin, reportType, schoolYear, reportingMonth, filename, parsed, checksum }) {
-  const normalizedRows=dedupeMonthlyRows(reportType,parsed.normalizedRows);
-  const { data, error } = await supabase.rpc("import_monthly_scorecard_report", {
-    p_supervisor_pin: supervisorPin,
-    p_report_type: reportType,
-    p_school_year: schoolYear,
-    p_reporting_month: reportingMonth,
-    p_original_filename: filename,
-    p_uploaded_by: "Supervisor",
-    p_parser_version: "1.0.0",
-    p_source_checksum: checksum,
-    p_source_row_count: parsed.sourceRowCount,
-    p_rejected_row_count: parsed.rejectedRows.length,
-    p_ignored_row_count: parsed.ignoredRows.length,
-    p_out_of_area_row_count: parsed.ignoredOutOfAreaRows.length,
-    p_raw_rows: parsed.rawRows,
-    p_normalized_rows: normalizedRows,
-    p_warnings: parsed.warnings,
-  });
-  if (error) throw error;
-  return data;
+export async function saveMonthlyImport({ supervisorPin, reportType, filename, parsed, checksum, onProgress }) {
+  const rows = dedupeMonthlyRows(reportType, parsed.normalizedRows);
+  let saved = 0;
+  const months = new Set();
+  for (let offset = 0; offset < rows.length; offset += 250) {
+    const chunk = rows.slice(offset, offset + 250);
+    const { error } = await supabase.rpc("merge_monthly_scorecard_rows", {
+      p_supervisor_pin: supervisorPin, p_report_type: reportType,
+      p_filename: filename, p_checksum: checksum,
+      p_source_count: parsed.sourceRowCount, p_rejected_count: parsed.rejectedRows.length,
+      p_rows: chunk,
+    });
+    if (error) throw new Error(`${error.message || "Upload connection failed"}. ${saved} records confirmed saved. Retry the same file safely; existing records will not be duplicated.`);
+    saved += chunk.length;
+    chunk.forEach(row => months.add(row.production_date.slice(0, 7)));
+    onProgress?.(saved, rows.length);
+  }
+  return { saved, months: [...months].sort() };
 }
 
 export async function loadMonthlyScorecardDataset(supervisorPin,schoolYear,reportingMonth) {

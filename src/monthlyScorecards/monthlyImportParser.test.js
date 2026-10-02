@@ -31,3 +31,8 @@ test("excludes Hawthorne Academy as out of area",()=>{
 test("rejects an unexpected format before producing rows", () => {
   expect(() => parseMonthlyReport("a,b\n1,2","cost","2026-09-01")).toThrow(/format|match/i);
 });
+
+test('omitting view month imports every date in a cost file',()=>{
+ const csv='Daily Production Cost\nCost of Goods\nProduced by (1195701) SCHOOL,,,,Lunch,,,Service Date: 8/12/2026\nCost of Food Used,100\nProduced by (1195701) SCHOOL,,,,Lunch,,,Service Date: 9/3/2026\nCost of Food Used,200';
+ expect(parseMonthlyReport(csv,'cost').normalizedRows.map(r=>r.production_date)).toEqual(['2026-08-12','2026-09-03']);
+});

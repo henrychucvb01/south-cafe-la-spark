@@ -21,3 +21,17 @@ test("newest overlapping production record replaces the earlier record without r
     expect.objectContaining({item_code:"B1",served:50}),
   ]);
 });
+
+test('upload chunks all file dates independently of the selected view month',async()=>{
+ const {supabase}=require('../supabaseClient');const {saveMonthlyImport}=require('./monthlyScorecardService');supabase.rpc.mockResolvedValue({data:{saved:250},error:null});
+ const rows=Array.from({length:501},(_,i)=>({source_site_id:String(i),production_date:i%2?'2026-08-12':'2026-10-01',meal_type:'lunch',food_cost:i}));
+ const result=await saveMonthlyImport({supervisorPin:'test',reportType:'cost',reportingMonth:'2026-09-01',filename:'test.csv',checksum:'hash',parsed:{normalizedRows:rows,rawRows:Array(10000).fill('layout'),sourceRowCount:10000,rejectedRows:[]}});
+ expect(result.saved).toBe(501);expect(result.months).toEqual(['2026-08','2026-10']);expect(supabase.rpc).toHaveBeenCalledTimes(3);
+ for(const [name,args] of supabase.rpc.mock.calls){expect(name).toBe('merge_monthly_scorecard_rows');expect(args.p_rows.length).toBeLessThanOrEqual(250);expect(args.p_raw_rows).toBeUndefined();}
+});
+
+test('an interrupted upload reports confirmed saves and safe retry',async()=>{
+ const {supabase}=require('../supabaseClient');const {saveMonthlyImport}=require('./monthlyScorecardService');supabase.rpc.mockResolvedValueOnce({error:null}).mockResolvedValueOnce({error:{message:'Failed to fetch'}});
+ const rows=Array.from({length:251},(_,i)=>({source_site_id:String(i),production_date:'2026-09-01',meal_type:'lunch'}));
+ await expect(saveMonthlyImport({supervisorPin:'test',reportType:'cost',parsed:{normalizedRows:rows,sourceRowCount:300,rejectedRows:[]}})).rejects.toThrow('250 records confirmed saved');
+});

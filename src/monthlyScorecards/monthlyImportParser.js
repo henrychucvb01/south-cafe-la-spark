@@ -66,7 +66,7 @@ function findHeader(rows, requiredAliasGroups) {
   });
 }
 function monthMatches(date, reportingMonth) {
-  return Boolean(date && date.slice(0, 7) === reportingMonth.slice(0, 7));
+  return Boolean(date && (!reportingMonth || date.slice(0, 7) === reportingMonth.slice(0, 7)));
 }
 
 export function detectReportType(rows) {
@@ -150,7 +150,7 @@ export function parseMonthlyReport(csvText, expectedType, reportingMonth) {
   const detectedType = detectReportType(rows);
   if (!detectedType || detectedType !== expectedType) throw new Error("The selected file does not match the expected report type. Import stopped before data was written.");
   const parsed = expectedType === "production" ? parseProduction(rows, reportingMonth) : parseCost(rows, reportingMonth);
-  if (!parsed.normalized.length) throw new Error("No valid Breakfast, Lunch, or Supper rows were found for the selected month. Import stopped before data was written.");
+  if (!parsed.normalized.length) throw new Error("No valid Breakfast, Lunch, or Supper rows were found in the file. Import stopped before data was written.");
   return { reportType:detectedType, sourceRowCount:rows.length, rawRows:rawRows(rows), normalizedRows:parsed.normalized, rejectedRows:parsed.rejected, ignoredRows:parsed.ignored || [], ignoredOutOfAreaRows:parsed.ignoredOutOfArea || [],
     warnings:parsed.rejected.length ? [`${parsed.rejected.length} rows were rejected because required values were missing or outside the selected month.`] : [] };
 }

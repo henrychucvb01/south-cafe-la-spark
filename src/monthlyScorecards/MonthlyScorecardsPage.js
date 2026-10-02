@@ -100,7 +100,6 @@ function MonthlyScorecardsPageContent({ supervisorPin }) {
     setError("");
 
     try {
-      const reportingMonth = `${appliedRange.startDate.slice(0, 7)}-01`;
       const [nextImports, nextDataset] = await Promise.all([
         loadMonthlyImports(supervisorPin, schoolYear, reportingMonth),
         loadMonthlyScorecardDataset(supervisorPin, schoolYear, reportingMonth),
@@ -176,25 +175,24 @@ function MonthlyScorecardsPageContent({ supervisorPin }) {
     setMessage("");
 
     try {
-      const reportingMonth = `${appliedRange.startDate.slice(0, 7)}-01`;
       const text = await file.text();
-      const parsed = parseMonthlyReport(text, reportType, reportingMonth);
+      const parsed = parseMonthlyReport(text, reportType);
       const checksum = await checksumText(text);
-      await saveMonthlyImport({
+      const result = await saveMonthlyImport({
         supervisorPin,
         reportType,
-        schoolYear,
-        reportingMonth,
         filename: file.name,
         parsed,
         checksum,
+        onProgress: (saved, total) => setMessage(`Uploading: ${saved} of ${total} records saved...`),
       });
       setMessage(
-        `${REPORT_TYPES[reportType]} imported: ${parsed.normalizedRows.length} rows updated.`
+        `${REPORT_TYPES[reportType]} imported: ${result.saved} records saved for ${result.months.join(", ")}. View/export dates do not limit uploads.`
       );
       await refresh();
     } catch (err) {
-      setError(err.message || "Import failed before data was written.");
+      setMessage("");
+      setError(err.message || "Upload interrupted. Retry the same file safely.");
     } finally {
       setBusy("");
     }
@@ -446,9 +444,9 @@ function MonthlyScorecardsPageContent({ supervisorPin }) {
 
       {/* File Upload Dropzones */}
       <div className="monthly-upload-guidance">
-        <strong>Report Imports ({appliedRange.startDate.slice(0, 7)})</strong>
+        <strong>Report Imports</strong>
         <span>
-          Upload production and food-cost files. Overlapping dates replace previous records without duplication.
+          Upload the original production and food-cost files. All dates in the file are imported; dates above control viewing and export only. Missing dates are filled and matching records are updated without removing other records.
         </span>
       </div>
 
