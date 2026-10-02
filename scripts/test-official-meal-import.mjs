@@ -1,0 +1,35 @@
+import {PGlite} from '@electric-sql/pglite';
+import {readFile} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const db=new PGlite();
+try {
+ await db.exec(`create role anon;create role authenticated;
+ create function verify_supervisor_pin(text) returns boolean language sql as $$select $1='test'$$;
+ create table locations(id bigint primary key,location_code text,school_name text,active boolean);
+ create table location_information(id bigint primary key,location_code text,school_name text,active boolean);
+ create table monthly_site_mappings(source_site_id text,main_location_id bigint,program_type text,active boolean);
+ create table spark_excluded_days(location_id bigint,service_date date);
+ insert into locations values(9,'8575','Carson HS',true);
+ insert into location_information values(99,'8575','Carson HS',true);
+ insert into monthly_site_mappings values('1857501',99,'main',true),('1857801',99,'offsite',true),('1951401',99,'EEC',true);
+ insert into spark_excluded_days values(9,'2026-09-07'),(9,'2026-09-04');
+ create table official_meal_counts(location_id bigint,service_date date,breakfast_count integer,lunch_count integer,supper_count integer,source_label text,source_filename text,imported_at timestamptz,updated_at timestamptz,primary key(location_id,service_date));
+ insert into official_meal_counts(location_id,service_date,breakfast_count) values(9,'2026-09-05',3);`);
+ await db.exec(await readFile('supabase/migrations/202610020001_official_meal_rollups.sql','utf8'));
+ const upload=async(rows,pin='test')=>db.query('select import_official_meal_counts($1,$2,$3)',[pin,'test.csv',rows]);
+ const row=(date,n,site='1857501')=>({location_id:9,source_site_id:site,service_date:date,breakfast_count:n,lunch_count:n*2,supper_count:n*3});
+ const totals=async()=> (await db.query('select service_date::text,breakfast_count,lunch_count,supper_count from official_meal_counts order by service_date')).rows;
+ const rows=[row('2026-09-11',100),row('2026-09-12',10),row('2026-09-13',20),row('2026-09-11',5,'1857801'),row('2026-09-11',7,'1951401'),row('2026-09-07',8),row('2026-09-04',4)];
+ await upload(rows);let before=await totals();
+ assert.deepEqual(before,[{service_date:'2026-08-28',breakfast_count:4,lunch_count:8,supper_count:12},{service_date:'2026-09-04',breakfast_count:11,lunch_count:16,supper_count:24},{service_date:'2026-09-11',breakfast_count:142,lunch_count:284,supper_count:426}]);
+ await upload(rows);assert.deepEqual(await totals(),before);
+ await upload([row('2026-09-11',0)]);assert.deepEqual(await totals(),before);
+ await upload([row('2026-09-11',110)]);assert.equal((await totals())[2].breakfast_count,152);
+ await upload([row('2026-09-12',12)]);assert.equal((await totals())[2].breakfast_count,154);
+ await upload([row('2026-09-12',12)]);assert.equal((await totals())[2].breakfast_count,154);
+ await assert.rejects(upload(rows,'bad'),/authorization/);
+ await assert.rejects(upload([row('2026-09-11',1,'unknown')]),/Unknown/);
+ assert.equal((await db.query("select jsonb_array_length(get_official_meal_count_mappings('test')) n")).rows[0].n,3);
+ await db.exec('set role anon');await assert.rejects(db.exec('select * from official_meal_count_sources'),/permission denied/);
+ console.log('PASS: weekend/holiday/Friday-holiday rollover, offsite/EEC totals, historical-date cleanup, repeat and overlapping uploads, zero protection, positive replacement, authorization.');
+}finally{await db.close();}

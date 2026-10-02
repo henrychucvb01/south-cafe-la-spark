@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { supabase } from "../supabaseClient";
-import { importOfficialMealCounts, loadOfficialMealCounts } from "../monthlyScorecards/monthlyScorecardService";
+import { loadOfficialMealCountMappings, importOfficialMealCounts, loadOfficialMealCounts } from "../monthlyScorecards/monthlyScorecardService";
 import { parseOfficialMealCountCsv } from "../mealCountAudit/officialMealCountParser";
 
 function isDemoSchool(school) {
@@ -348,7 +348,8 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
     setUploading(true);
     setFeedback("");
     try {
-      const parsed = parseOfficialMealCountCsv(await file.text(), schools);
+      const mappings = await loadOfficialMealCountMappings(supervisorPin);
+      const parsed = parseOfficialMealCountCsv(await file.text(), schools, mappings);
       const result = await importOfficialMealCounts(supervisorPin, file.name, parsed.records);
       const notes = [];
       if (parsed.rejected.length) notes.push(`${parsed.rejected.length} invalid row(s) skipped`);

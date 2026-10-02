@@ -89,6 +89,12 @@ export async function importOfficialMealCounts(supervisorPin, filename, records)
   return data || {};
 }
 
+export async function loadOfficialMealCountMappings(supervisorPin) {
+  const { data, error } = await supabase.rpc("get_official_meal_count_mappings", { p_supervisor_pin: supervisorPin });
+  if (error) throw error;
+  return data || [];
+}
+
 export async function loadMonthlyScorecardDatasetWithRetry(...args) {
   try{return await loadMonthlyScorecardDataset(...args);}
   catch(error){if(!/timeout|canceling statement/i.test(error?.message||""))throw error;return loadMonthlyScorecardDataset(...args);}

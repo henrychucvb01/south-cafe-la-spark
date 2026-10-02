@@ -48,7 +48,7 @@ function mealName(value) {
   return null;
 }
 
-function schoolLookup(schools) {
+function schoolLookup(schools, mappings) {
   const lookup = new Map();
   schools.forEach((school) => {
     [school.location_code, school.source_site_id, school.id]
@@ -56,12 +56,20 @@ function schoolLookup(schools) {
       .filter(Boolean)
       .forEach((value) => lookup.set(value, school));
   });
+  mappings.forEach((mapping) => {
+    const school = schools.find((s) => Number(s.id) === Number(mapping.location_id));
+    if (!school) return;
+    const mapped = { ...school, import_source_id: mapping.source_site_id };
+    lookup.set(key(mapping.source_site_id), mapped);
+    if (/^1\d{4}01$/.test(mapping.source_site_id)) lookup.set(key(mapping.source_site_id.slice(1, 5)), mapped);
+    if (mapping.program_type === "main") lookup.set(key(school.id), mapped);
+  });
   return lookup;
 }
 
-export function parseOfficialMealCountCsv(csvText, schools) {
+export function parseOfficialMealCountCsv(csvText, schools, mappings = []) {
   const rows = parseCsv(csvText);
-  const lookup = schoolLookup(schools || []);
+  const lookup = schoolLookup(schools || [], mappings);
   const headerIndex = rows.findIndex((row) => {
     const map = new Map(row.map((cell, index) => [key(cell), index]));
     const hasIdentity = indexFor(map, aliases.site) >= 0;
@@ -101,9 +109,12 @@ export function parseOfficialMealCountCsv(csvText, schools) {
       rejected.push({ row: sourceRow, reason: "invalid service date" });
       return;
     }
-    const recordKey = `${school.id}|${serviceDate}`;
+    // Keep each source site/date intact. The RPC applies the configured school
+    // calendar and sums current source values, including across overlapping files.
+    const recordKey = `${school.import_source_id || school.id}|${serviceDate}`;
     const current = records.get(recordKey) || {
       location_id: Number(school.id),
+      ...(school.import_source_id ? { source_site_id: school.import_source_id } : {}),
       service_date: serviceDate,
       breakfast_count: null,
       lunch_count: null,
