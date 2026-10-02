@@ -135,7 +135,7 @@ function WeekSummary({ label, week }) {
   );
 }
 
-export default function MonthlySchoolScorecard({ card, onBack, backLabel = "Monthly Scorecards", showToolbar = true }) {
+export default function MonthlySchoolScorecard({ card, onBack, backLabel = "Monthly Scorecards", showToolbar = true, showSupper = false }) {
   usePageNavigation({ active: showToolbar, level: 2, title: card.school.school_name || 'School Scorecard', destination: backLabel, onNavigate: onBack });
   const { school, current, previous, changes, summary } = card;
   const previousLabel = previous
@@ -235,7 +235,8 @@ export default function MonthlySchoolScorecard({ card, onBack, backLabel = "Mont
           current.participationTrend.some(
             (row) =>
               row.lunchParticipation !== null ||
-              row.breakfastParticipation !== null
+              row.breakfastParticipation !== null ||
+              (showSupper && row.supper != null)
           ) ? (
             <div className="scorecard-chart" style={{ height: "230px" }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -258,23 +259,25 @@ export default function MonthlySchoolScorecard({ card, onBack, backLabel = "Mont
                     axisLine={false}
                     tickLine={false}
                   />
+                  {showSupper && <YAxis
+                    yAxisId="supper" orientation="right" allowDecimals={false}
+                    tick={{ fontSize: 10, fill: "#7762aa" }}
+                    axisLine={false} tickLine={false} width={48}
+                    label={{ value: "Supper meals", angle: -90, position: "insideRight", fontSize: 10 }}
+                  />}
                   <Tooltip
-                    formatter={(val, name) => [
-                      val !== null ? `${Number(val).toFixed(1)}%` : "No data",
-                      name === "breakfastParticipation"
-                        ? "Breakfast %"
-                        : "Lunch %",
-                    ]}
+                    formatter={(val, name, item) => {
+                      const meal = name === "breakfastParticipation" ? "breakfast" : name === "lunchParticipation" ? "lunch" : "supper";
+                      const count = item?.payload?.[meal];
+                      return [count == null ? "No data" : `${integer(count)} meals`, meal.charAt(0).toUpperCase() + meal.slice(1)];
+                    }}
                     labelFormatter={(v) => readableDate(v)}
                   />
                   <Legend
                     verticalAlign="top"
-                    height={30}
-                    formatter={(name) =>
-                      name === "breakfastParticipation"
-                        ? "Breakfast Participation %"
-                        : "Lunch Participation %"
-                    }
+                    height={showSupper ? 48 : 30}
+                    wrapperStyle={{ fontSize: 12 }}
+                    formatter={(name) => name === "breakfastParticipation" ? "Breakfast Participation %" : name === "lunchParticipation" ? "Lunch Participation %" : "Supper meals (right axis)"}
                   />
                   <Line
                     type="bumpX"
@@ -296,6 +299,12 @@ export default function MonthlySchoolScorecard({ card, onBack, backLabel = "Mont
                     activeDot={{ r: 5 }}
                     connectNulls={false}
                   />
+                  {showSupper && <Line
+                    type="bumpX" dataKey="supper" name="supper" yAxisId="supper"
+                    stroke="#8862b3" strokeWidth={2.5}
+                    dot={{ r: 2.5, fill: "#fff", strokeWidth: 2 }}
+                    activeDot={{ r: 5 }} connectNulls={false}
+                  />}
                 </LineChart>
               </ResponsiveContainer>
             </div>

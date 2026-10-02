@@ -1,0 +1,23 @@
+import React,{act} from 'react';
+import {createRoot} from 'react-dom/client';
+import Scorecard from './MonthlySchoolScorecard';
+import {buildSchoolScorecard} from './monthlyScorecardCalculations';
+let mockLines=[],mockTooltip;
+jest.mock('recharts',()=>{const React=require('react');const box=({children})=><div>{children}</div>;return {ResponsiveContainer:box,LineChart:box,Line:props=>{mockLines.push(props);return null;},XAxis:()=>null,YAxis:()=>null,CartesianGrid:()=>null,Legend:()=>null,Tooltip:props=>{mockTooltip=props;return null;}};});
+test('manager graph plots supper counts separately and tooltips show exact meals with unchanged smooth curves',async()=>{
+ global.IS_REACT_ACT_ENVIRONMENT=true;
+ const school={location_id:15,directory_id:27,school_name:'Carson',enrollment:620};
+ const data={official_meal_counts:[{location_id:15,service_date:'2026-09-01',breakfast_count:601,lunch_count:403,supper_count:45}]};
+ const card=buildSchoolScorecard(school,data,{startDate:'2026-09-01',endDate:'2026-09-01'});
+ expect(card.current.participationTrend[0].supper).toBe(45);
+ const host=document.createElement('div');const root=createRoot(host);
+ await act(async()=>root.render(<Scorecard card={card} showSupper showToolbar={false}/>));
+ expect(mockLines.map(l=>l.dataKey)).toEqual(['breakfastParticipation','lunchParticipation','supper']);
+ expect(mockLines.every(l=>l.type==='bumpX'&&l.connectNulls===false)).toBe(true);
+ expect(mockLines[2].yAxisId).toBe('supper');
+ expect(mockTooltip.formatter(65,'lunchParticipation',{payload:card.current.participationTrend[0]})).toEqual(['403 meals','Lunch']);
+ expect(mockTooltip.formatter(0,'supper',{payload:{supper:0}})).toEqual(['0 meals','Supper']);
+ expect(mockTooltip.formatter(null,'supper',{payload:{supper:null}})).toEqual(['No data','Supper']);
+ mockLines=[];await act(async()=>root.render(<Scorecard card={card} showToolbar={false}/>));expect(mockLines).toHaveLength(2);
+ await act(async()=>root.unmount());
+});

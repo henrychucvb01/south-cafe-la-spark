@@ -388,11 +388,13 @@ export function calculateDateRange(school, dataset, startDate, endDate, excluded
       (row) => row.date === date && row.meal === "breakfast"
     );
 
+    const supperRow = services.find(row => row.date === date && row.meal === "supper");
     const lunchCount = lunchRow ? lunchRow.count : null;
     const breakfastCount = breakfastRow ? breakfastRow.count : null;
 
     return {
       date,
+      supper: supperRow ? supperRow.count : null,
       lunch: lunchCount,
       lunchParticipation:
         enrollment && lunchCount !== null ? (lunchCount / enrollment) * 100 : null,
