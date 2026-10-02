@@ -46,12 +46,33 @@ export async function saveMonthlyImport({ supervisorPin, reportType, filename, p
   return { saved, months: [...months].sort() };
 }
 
+async function attachExcludedDays(dataset, reportingMonth) {
+  const ids = [...new Set((dataset.schools || []).map(s => s.location_id).filter(Boolean))];
+  if (!ids.length) return { ...dataset, excluded_days: [] };
+  const start = new Date(`${reportingMonth.slice(0, 7)}-01T12:00:00Z`);
+  start.setUTCMonth(start.getUTCMonth() - 1);
+  const end = new Date(`${reportingMonth.slice(0, 7)}-01T12:00:00Z`);
+  end.setUTCMonth(end.getUTCMonth() + 1);
+  const rows = [];
+  for (let offset = 0; ; offset += 100) {
+    const { data, error } = await supabase.from("spark_excluded_days")
+      .select("location_id, service_date").in("location_id", ids)
+      .gte("service_date", start.toISOString().slice(0, 10))
+      .lt("service_date", end.toISOString().slice(0, 10))
+      .order("location_id").order("service_date").range(offset, offset + 99);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < 100) break;
+  }
+  return { ...dataset, excluded_days: rows };
+}
+
 export async function loadMonthlyScorecardDataset(supervisorPin,schoolYear,reportingMonth) {
   const { data,error } = await supabase.rpc("get_monthly_scorecard_dataset",{
     p_supervisor_pin:supervisorPin,p_school_year:schoolYear,p_reporting_month:reportingMonth,
   });
   if (error) throw error;
-  return data || {};
+  return attachExcludedDays(data || {}, reportingMonth);
 }
 
 export async function loadManagerMonthlyScorecardDataset({ managerPin, employeeId, locationId, schoolYear, reportingMonth }) {

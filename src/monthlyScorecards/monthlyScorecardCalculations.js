@@ -379,7 +379,12 @@ function weeklyPerformance({ dates, services, production, dailyMplh, enrollment,
 }
 
 export function calculateDateRange(school, dataset, startDate, endDate, excludedDates = []) {
-  const excludedSet = new Set(excludedDates || []);
+  const excludedSet = new Set([
+    ...(excludedDates || []),
+    ...(dataset.excluded_days || [])
+      .filter(row => String(row.location_id) === String(school.location_id))
+      .map(row => row.service_date),
+  ]);
 
   const services = serviceCounts(
     school,

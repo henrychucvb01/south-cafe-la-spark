@@ -13,3 +13,14 @@ test("keeps valid breakfast and lunch cost when supper cost is unavailable",()=>
 test("does not classify components as entrees",()=>{expect(isLikelyEntree({item_name:"Chocolate Milk",mma_oz_eq:2})).toBe(false);expect(isLikelyEntree({item_name:"Chicken Sandwich",mma_oz_eq:2})).toBe(true);});
 test("does not estimate wages when PWI staffing is unavailable",()=>{const card=buildSchoolScorecard({...school,source_site_id:"missing"},dataset,"2026-09-01");expect(card.current.laborCost).toBeNull();});
 test("Dolores Monthly Scorecard uses the school-specific 20-22 MPLH target",()=>{const card=buildSchoolScorecard({...school,school_name:"DOLORES EL",location_code:"3452",labor_type:"elementary_nnc"},dataset,{startDate:"2026-09-01",endDate:"2026-09-01"});expect(card.current.target).toEqual(expect.objectContaining({min:20,max:22}));});
+
+
+test("configured school holidays are excluded from totals, graphs, costs and operating-day averages", () => {
+  const holidayData = {...dataset, excluded_days:[{location_id:10,service_date:"2026-09-01"}]};
+  const card = buildSchoolScorecard(school,holidayData,{startDate:"2026-09-01",endDate:"2026-09-02"});
+  const expected = buildSchoolScorecard(school,dataset,{startDate:"2026-09-01",endDate:"2026-09-02"},["2026-09-01"]);
+  expect(card.current).toEqual(expected.current);
+  expect(card.current.operatingDays).toBe(1);
+  const otherSchool = buildSchoolScorecard({...school,location_id:11},holidayData,{startDate:"2026-09-01",endDate:"2026-09-02"});
+  expect(otherSchool.current.operatingDays).toBe(2);
+});

@@ -141,6 +141,12 @@ function MonthlyScorecardsPageContent({ supervisorPin }) {
     return list;
   }, [appliedRange]);
 
+  const automaticDates = useMemo(() => {
+    const schools = (dataset?.schools || []).filter(s => !isExcludedSchool(s) && s.location_id);
+    const excluded = new Set((dataset?.excluded_days || []).map(r => `${r.location_id}|${r.service_date}`));
+    return new Set(weekdaysInRange.filter(day => schools.length && schools.every(s => excluded.has(`${s.location_id}|${day.date}`))).map(day => day.date));
+  }, [dataset, weekdaysInRange]);
+
   function toggleDateExcluded(dStr) {
     setExcludedDates((prev) =>
       prev.includes(dStr) ? prev.filter((d) => d !== dStr) : [...prev, dStr]
@@ -374,10 +380,10 @@ function MonthlyScorecardsPageContent({ supervisorPin }) {
             onClick={() => setShowDaysPanel((prev) => !prev)}
             style={{ background: "#f0f4f8", border: "1px solid #ccd6e0", fontWeight: "700" }}
           >
-            📅 Operating Days ({Math.max(0, weekdaysInRange.length - excludedDates.length)} of {weekdaysInRange.length} days active) {showDaysPanel ? "▲" : "▼"}
+            📅 Operating Days ({weekdaysInRange.filter(day => !automaticDates.has(day.date) && !excludedDates.includes(day.date)).length} of {weekdaysInRange.length} days active) {showDaysPanel ? "▲" : "▼"}
           </button>
           <span style={{ fontSize: "11px", color: "#667482" }}>
-            Uncheck holidays, pupil-free days, or unassigned dates
+            Configured holidays are excluded automatically for each school. Uncheck additional non-operating dates.
           </span>
         </div>
 
@@ -394,7 +400,7 @@ function MonthlyScorecardsPageContent({ supervisorPin }) {
             }}
           >
             {weekdaysInRange.map((item) => {
-              const isChecked = !excludedDates.includes(item.date);
+              const isChecked = !automaticDates.has(item.date) && !excludedDates.includes(item.date);
               return (
                 <label
                   key={item.date}
@@ -414,6 +420,7 @@ function MonthlyScorecardsPageContent({ supervisorPin }) {
                   <input
                     type="checkbox"
                     checked={isChecked}
+                    disabled={automaticDates.has(item.date)}
                     onChange={() => toggleDateExcluded(item.date)}
                   />
                   <span style={{ textDecoration: isChecked ? "none" : "line-through" }}>
