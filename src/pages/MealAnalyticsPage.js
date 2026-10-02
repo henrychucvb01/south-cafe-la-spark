@@ -808,7 +808,7 @@ function MealAnalyticsPage({ location, employee, onBack, backLabel = "School Das
                         <Tooltip />
 
                         <Line
-                          type="monotone"
+                          type="bumpX"
                           dataKey={chartView}
                           stroke="#2878d0"
                           strokeWidth={3}

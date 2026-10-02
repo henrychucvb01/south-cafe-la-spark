@@ -277,7 +277,7 @@ export default function MonthlySchoolScorecard({ card, onBack, backLabel = "Mont
                     }
                   />
                   <Line
-                    type="monotone"
+                    type="bumpX"
                     dataKey="breakfastParticipation"
                     name="breakfastParticipation"
                     stroke="#e5962d"
@@ -287,7 +287,7 @@ export default function MonthlySchoolScorecard({ card, onBack, backLabel = "Mont
                     connectNulls={false}
                   />
                   <Line
-                    type="monotone"
+                    type="bumpX"
                     dataKey="lunchParticipation"
                     name="lunchParticipation"
                     stroke="#16855b"

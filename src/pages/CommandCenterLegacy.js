@@ -2773,7 +2773,7 @@ function MetricCard({ label, value, note, icon, color }) {
 }
 
 function TrendCard({ title, data, dataKey, color }) {
-  return <section className="dashboard-card" style={{ padding: 20 }}><h3 style={{ marginTop: 0 }}>{title}</h3><div style={{ width: "100%", height: 230 }}><ResponsiveContainer><LineChart data={data}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" tickFormatter={(value) => value.slice(5)} fontSize={11} /><YAxis fontSize={11} /><Tooltip labelFormatter={(value) => new Date(`${value}T12:00:00`).toLocaleDateString()} formatter={(value) => [Number(value).toFixed(1), title]} /><Line type="monotone" dataKey={dataKey} stroke={color} strokeWidth={2.5} connectNulls={false} dot={{ r: 3 }} /></LineChart></ResponsiveContainer></div></section>;
+  return <section className="dashboard-card" style={{ padding: 20 }}><h3 style={{ marginTop: 0 }}>{title}</h3><div style={{ width: "100%", height: 230 }}><ResponsiveContainer><LineChart data={data}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" tickFormatter={(value) => value.slice(5)} fontSize={11} /><YAxis fontSize={11} /><Tooltip labelFormatter={(value) => new Date(`${value}T12:00:00`).toLocaleDateString()} formatter={(value) => [Number(value).toFixed(1), title]} /><Line type="bumpX" dataKey={dataKey} stroke={color} strokeWidth={2.5} connectNulls={false} dot={{ r: 3 }} /></LineChart></ResponsiveContainer></div></section>;
 }
 
 function RecentChangesView({

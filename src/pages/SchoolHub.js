@@ -1324,7 +1324,7 @@ function SchoolHub({
                     {chartView === "all" && (
                       <>
                         <Line
-                          type="monotone"
+                          type="bumpX"
                           dataKey="breakfast"
                           name="Breakfast"
                           stroke="#2878d0"
@@ -1341,7 +1341,7 @@ function SchoolHub({
                         />
 
                         <Line
-                          type="monotone"
+                          type="bumpX"
                           dataKey="lunch"
                           name="Lunch"
                           stroke="#1b9b62"
@@ -1358,7 +1358,7 @@ function SchoolHub({
                         />
 
                         <Line
-                          type="monotone"
+                          type="bumpX"
                           dataKey="supper"
                           name="Supper"
                           stroke="#e58b23"
@@ -1382,7 +1382,7 @@ function SchoolHub({
 
                     {(chartView === "all" || chartView === "breakfast") && (
                       <Line
-                        type="monotone"
+                        type="bumpX"
                         dataKey="breakfast"
                         name="Breakfast"
                         stroke="#2878d0"
@@ -1405,7 +1405,7 @@ function SchoolHub({
 
                     {(chartView === "all" || chartView === "lunch") && (
                       <Line
-                        type="monotone"
+                        type="bumpX"
                         dataKey="lunch"
                         name="Lunch"
                         stroke="#1b9b62"
@@ -1428,7 +1428,7 @@ function SchoolHub({
 
                     {(chartView === "all" || chartView === "supper") && (
                       <Line
-                        type="monotone"
+                        type="bumpX"
                         dataKey="supper"
                         name="Supper"
                         stroke="#e58b23"
@@ -1451,7 +1451,7 @@ function SchoolHub({
 
                     {chartView === "total" && (
                       <Line
-                        type="monotone"
+                        type="bumpX"
                         dataKey="total"
                         name="Daily Total"
                         stroke="#5b4bb7"
