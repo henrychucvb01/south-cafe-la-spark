@@ -32,3 +32,16 @@ test("mapped main, offsite and EEC stay separate until the database aggregates s
   expect(parsed.records.map(r=>r.breakfast_count)).toEqual([100,11,5]);
   expect(parseOfficialMealCountCsv(csv,schools,mappings)).toEqual(parsed);
 });
+
+test("recognizes NEWTON daily headers and uses Site ID rather than Main Site ID", () => {
+  const header = "Date,Main Site ID,Main Site,Site ID,Site Description,RM,AFSS,Breakfast Counts,Lunch Counts,Snack Counts,Supper Counts,Total Student Meals,Incomplete Meals,Second Meals,Employee Meals,Adult Meals,BIC Adult Meals,Breakfast Check,Lunch Check,Snack Check,Supper Check,BIC Adult Check,CheckFLT";
+  const csv = header + "\n9/11/2026,1857501,MAIN,1857501,MAIN,,,100,200,999,30,1329,0,0,0,0,0,OK,OK,OK,OK,OK,OK"
+    + "\n9/11/2026,1857501,MAIN,1857801,OFFSITE,,,10,20,999,3,1032,0,0,0,0,0,OK,OK,OK,OK,OK,OK";
+  const mappings = [{source_site_id:"1857501",location_id:9,program_type:"main"},{source_site_id:"1857801",location_id:9,program_type:"offsite"}];
+  const parsed = parseOfficialMealCountCsv(csv, schools, mappings);
+  expect(parsed.rejected).toEqual([]);
+  expect(parsed.records).toEqual([
+    {location_id:9,source_site_id:"1857501",service_date:"2026-09-11",breakfast_count:100,lunch_count:200,supper_count:30},
+    {location_id:9,source_site_id:"1857801",service_date:"2026-09-11",breakfast_count:10,lunch_count:20,supper_count:3},
+  ]);
+});

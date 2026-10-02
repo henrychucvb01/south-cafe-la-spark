@@ -12,9 +12,9 @@ const numberValue = (value) => {
 const aliases = {
   site: ["location code", "location", "loc", "site id", "site", "school code", "serving site id", "cost center"],
   date: ["service date", "meal date", "date", "calendar date"],
-  breakfast: ["breakfast", "breakfast count", "breakfast meals", "breakfast served"],
-  lunch: ["lunch", "lunch count", "lunch meals", "lunch served"],
-  supper: ["supper", "supper count", "supper meals", "supper served", "dinner"],
+  breakfast: ["breakfast", "breakfast count", "breakfast counts", "breakfast meals", "breakfast served"],
+  lunch: ["lunch", "lunch count", "lunch counts", "lunch meals", "lunch served"],
+  supper: ["supper", "supper count", "supper counts", "supper meals", "supper served", "dinner"],
   meal: ["meal", "meal type", "meal service", "service"],
   count: ["official count", "meal count", "meals served", "count", "total meals"],
 };
