@@ -1,1 +1,32 @@
 .ma-root{display:grid;gap:18px;color:#19314d}.ma-card{background:white;border:1px solid #dce4ec;border-radius:16px;padding:22px;min-width:0}.ma-card h2,.ma-card h3{margin:0 0 10px}.ma-card p,.ma-card small{color:#5b6c7e;line-height:1.5}.ma-tabs,.ma-filters,.ma-toggles{display:flex;gap:14px;flex-wrap:wrap;margin:18px 0}.ma-tabs button,.ma-school-list button{background:white;border:1px solid #dce4ec;padding:12px 16px;border-radius:9px;color:#19314d;cursor:pointer;text-align:left}.ma-tabs [aria-selected=true],.ma-school-list [aria-pressed=true]{background:#193e60;color:white}.ma-filters label{display:flex;flex-direction:column;gap:6px;font-weight:600;font-size:14px}.ma-filters select,.ma-filters input{padding:10px;border:1px solid #bfcddd;border-radius:7px;background:white;color:#19314d;max-width:100%}.ma-filters .ma-check{flex-direction:row;align-items:center;font-weight:400}.ma-layout{display:grid;grid-template-columns:210px minmax(0,1fr);gap:20px}.ma-school-list{display:flex;flex-direction:column;gap:7px;max-height:75vh;overflow:auto;position:sticky;top:12px;align-self:start}.ma-content{display:grid;gap:18px;min-width:0}.ma-metrics{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:18px 0}.ma-metrics span{display:block;color:#5b6c7e;font-size:13px}.ma-metrics strong{display:block;font-size:26px;margin-top:7px}.ma-card table{width:100%;border-collapse:collapse;font-size:14px}.ma-card th,.ma-card td{padding:10px 7px;border-bottom:1px solid #e8eef3;text-align:right}.ma-card th:first-child{text-align:left}.ma-graph{height:340px;width:100%;min-width:0;background:white}.ma-comparison{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}.ma-school-a,.ma-school-b{min-width:0;border-top:4px solid #1874c9;border-radius:12px}.ma-school-b{border-color:#8853b7}.ma-dot{display:inline-block;width:10px;height:10px;border-radius:50%}.ma-dot.blue{background:#1874c9}.ma-dot.purple{background:#8853b7}.ma-table-scroll{overflow:auto}.ma-card summary{cursor:pointer;font-weight:700}.ma-error{color:#a92d30}.ma-root button:focus-visible,.ma-root input:focus-visible,.ma-root select:focus-visible{outline:3px solid #e6b349;outline-offset:2px}@media(max-width:760px){.ma-layout{grid-template-columns:1fr}.ma-school-list{position:static;max-height:180px}.ma-comparison{grid-template-columns:1fr}.ma-card{padding:15px}.ma-filters label{flex:1 1 140px}.ma-metrics strong{font-size:22px}.ma-graph{height:290px}}
+
+/* Match the Command Center's readable table type without shrinking on phones. */
+.ma-root {
+  font-family: inherit;
+  font-size: 16px;
+}
+.ma-root button,
+.ma-root select,
+.ma-root input {
+  font-family: inherit;
+  font-size: 16px;
+}
+.ma-root .ma-card table,
+.ma-root .ma-card th,
+.ma-root .ma-card td {
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 1.5;
+}
+.ma-root .ma-card th,
+.ma-root .ma-card td {
+  padding: 14px 12px;
+}
+.ma-root .ma-card td {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.ma-root .ma-graph {
+  font-family: inherit;
+  font-size: 14px;
+}
