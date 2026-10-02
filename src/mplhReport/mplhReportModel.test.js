@@ -122,3 +122,27 @@ test("export waits for the visible range and locks the selected school", () => {
   expect(resolveMplhExportRequest(model, 999, "2026-09-01", "2026-09-02")).toBeNull();
   expect(prepareMplhPdfData(model, 1).reports.map((report) => report.school.id)).toEqual([1]);
 });
+
+test("official Meal Audit values override Finish Line, including zero and pending supper", () => {
+  const report=build({officialMealRows:[{...meals[0],breakfast_count:0,lunch_count:300,supper_count:50}]}).schools[0];
+  expect(report.daily[0]).toMatchObject({breakfast:0,lunch:300,supper:50,mealEquivalents:350});
+  expect(report.daily[0].flags).toEqual([]);
+  expect(report.daily[1].breakfast).toBe(120);
+});
+
+test("missing official meals fall back individually to Finish Line", () => {
+  const report=build({officialMealRows:[{...meals[0],breakfast_count:150,lunch_count:null,supper_count:null}]}).schools[0];
+  expect(report.daily[0]).toMatchObject({breakfast:150,lunch:200});
+});
+
+test("all schools including those without checklist rows use official data in report and PDF", () => {
+  const schools=Array.from({length:28},(_,i)=>({...school,id:i+1,school_name:`School ${i+1}`}));
+  const officialMealRows=schools.map(s=>({location_id:s.id,service_date:"2026-09-01",breakfast_count:100+s.id,lunch_count:200+s.id,supper_count:30+s.id}));
+  const model=build({schools,mealRows:[],officialMealRows,endDate:"2026-09-01"});
+  model.schools.forEach((r,i)=>{
+    expect(r.summary.daysWithMealData).toBe(1);
+    expect(r.daily[0].breakfast).toBe(101+i);
+    expect(r.daily[0].flags).toEqual([]);
+    expect(prepareMplhPdfData(model,i+1).reports[0].daily[0].lunch).toBe(201+i);
+  });
+});

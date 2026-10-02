@@ -25,6 +25,7 @@ import LaborOptimizationPage from "../monthlyScorecards/LaborOptimizationPage";
 import StaffManagementPage from "../staffing/StaffManagementPage";
 import MealCountAuditPage from "./MealCountAuditPage";
 import { buildMplhReportModel, resolveMplhExportRequest } from "../mplhReport/mplhReportModel";
+import { loadMplhReportData } from "../mplhReport/mplhReportService";
 import { exportMplhReportPdf } from "../mplhReport/mplhReportPdf";
 import { getMplhTarget } from "../mplhTargets";
 
@@ -1491,6 +1492,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
             />
           ) : view === "mplh-report" ? (
             <MplhReportView
+              supervisorPin={supervisorPin}
               schools={schools}
               dashboardDate={dashboardDate}
               formatDate={formatDate}
@@ -2794,7 +2796,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
     </div>
   );
 }
-function MplhReportView({ schools, dashboardDate, formatDate }) {
+function MplhReportView({ schools, dashboardDate, formatDate, supervisorPin }) {
   const [startDate, setStartDate] = useState(dashboardDate);
   const [endDate, setEndDate] = useState(dashboardDate);
   const [selectedSchoolId, setSelectedSchoolId] = useState("all");
@@ -2810,16 +2812,9 @@ function MplhReportView({ schools, dashboardDate, formatDate }) {
       setReportError("");
       try {
         const ids = schools.map((school) => school.id);
-        const [mealResult, laborResult, excludedResult] = await Promise.all([
-          supabase.from("meal_counts").select("location_id, service_date, breakfast_count, lunch_count, supper_count, supper_status").in("location_id", ids).gte("service_date", startDate).lte("service_date", endDate),
-          supabase.from("labor_hours").select("location_id, service_date, additional_worker_hours, manager_overtime_hours").in("location_id", ids).gte("service_date", startDate).lte("service_date", endDate),
-          supabase.from("spark_excluded_days").select("location_id, service_date").in("location_id", ids).gte("service_date", startDate).lte("service_date", endDate),
-        ]);
-        if (mealResult.error) throw mealResult.error;
-        if (laborResult.error) throw laborResult.error;
-        if (excludedResult.error) throw excludedResult.error;
+        const dataset = await loadMplhReportData(supervisorPin, ids, startDate, endDate);
         if (active) {
-          setModel(buildMplhReportModel({ schools, mealRows: mealResult.data, laborRows: laborResult.data, excludedRows: excludedResult.data, startDate, endDate }));
+          setModel(buildMplhReportModel({ schools, ...dataset, startDate, endDate }));
         }
       } catch (err) {
         if (active) setReportError(err.message || "Could not load the MPLH report.");
@@ -2829,7 +2824,7 @@ function MplhReportView({ schools, dashboardDate, formatDate }) {
     }
     loadRange();
     return () => { active = false; };
-  }, [schools, startDate, endDate]);
+  }, [schools, startDate, endDate, supervisorPin]);
 
   const selectedReport = selectedSchoolId === "all" ? null : model?.schools.find((item) => String(item.school.id) === String(selectedSchoolId));
   usePageNavigation({ active: !!selectedReport, level: 2, title: selectedReport?.school.school_name || 'School MPLH', destination: 'MPLH Report', onNavigate: () => setSelectedSchoolId('all') });

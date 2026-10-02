@@ -59,6 +59,7 @@ export function findExtremeMealVariance(valuesByDate) {
 export function buildMplhReportModel({
   schools,
   mealRows,
+  officialMealRows = [],
   laborRows,
   excludedRows,
   startDate,
@@ -66,6 +67,19 @@ export function buildMplhReportModel({
 }) {
   const weekdays = dateKeysBetween(startDate, endDate);
   const meals = new Map((mealRows || []).map((row) => [`${row.location_id}|${row.service_date}`, row]));
+  officialMealRows.forEach((row) => {
+    const key = `${row.location_id}|${row.service_date}`;
+    const merged = { ...meals.get(key), location_id: row.location_id, service_date: row.service_date };
+    ["breakfast", "lunch", "supper"].forEach((meal) => {
+      const value = numberOrNull(row[`${meal}_count`]);
+      // Official zero is a real count. Only missing values use Finish Line.
+      if (value !== null) {
+        merged[`${meal}_count`] = value;
+        if (meal === "supper") merged.supper_status = "complete";
+      }
+    });
+    meals.set(key, merged);
+  });
   const labor = new Map((laborRows || []).map((row) => [`${row.location_id}|${row.service_date}`, row]));
   const excluded = new Set((excludedRows || []).map((row) => `${row.location_id}|${row.service_date}`));
 
@@ -85,7 +99,7 @@ export function buildMplhReportModel({
       const rawSupper = numberOrNull(meal?.supper_count);
       const supper = meal?.supper_status === "pending" ? 0 : rawSupper;
       const hasMealData = Boolean(meal && (breakfast !== null || lunch !== null || rawSupper !== null));
-      const mealEquivalents = meal
+      const mealEquivalents = hasMealData
         ? (breakfast || 0) * 0.66 + (lunch || 0) + (supper || 0)
         : null;
       const baseline = Number(school.budget_labor_hours) || 0;
@@ -93,7 +107,7 @@ export function buildMplhReportModel({
         (Number(laborRow?.additional_worker_hours) || 0) +
         (Number(laborRow?.manager_overtime_hours) || 0);
       const actual = baseline + added;
-      const mplh = meal && actual > 0 ? mealEquivalents / actual : null;
+      const mplh = hasMealData && actual > 0 ? mealEquivalents / actual : null;
       const flags = [];
       if (!meal || breakfast === null) flags.push({ type: "missing", meal: "Breakfast", message: "Missing Breakfast" });
       if (!meal || lunch === null) flags.push({ type: "missing", meal: "Lunch", message: "Missing Lunch" });
