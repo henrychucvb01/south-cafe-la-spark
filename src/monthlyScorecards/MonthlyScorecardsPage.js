@@ -100,6 +100,7 @@ function MonthlyScorecardsPageContent({ supervisorPin }) {
     setError("");
 
     try {
+      const reportingMonth = `${appliedRange.startDate.slice(0, 7)}-01`;
       const [nextImports, nextDataset] = await Promise.all([
         loadMonthlyImports(supervisorPin, schoolYear, reportingMonth),
         loadMonthlyScorecardDataset(supervisorPin, schoolYear, reportingMonth),
