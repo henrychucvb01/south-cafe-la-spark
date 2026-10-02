@@ -1,7 +1,7 @@
 import {buildSchoolScorecard,isLikelyEntree} from "./monthlyScorecardCalculations";
 
 const school={directory_id:1,location_id:10,source_site_id:"1857501",school_name:"CARSON HS",location_code:"8575",enrollment:100,budget_labor_hours:10,labor_type:"secondary"};
-const dataset={rates:[{meal_type:"breakfast",rate:4.08},{meal_type:"lunch",rate:5.9},{meal_type:"supper",rate:5.9}],labor_rates:[{classification_key:"worker",hourly_rate:26.87265},{classification_key:"senior_worker",hourly_rate:29.83181},{classification_key:"manager_iv",hourly_rate:30.82139}],staffing:[{source_site_id:"1857501",classification_key:"manager_iv",filled_count:1,filled_daily_hours:8},{source_site_id:"1857501",classification_key:"senior_worker",filled_count:1,filled_daily_hours:6.5},{source_site_id:"1857501",classification_key:"worker",filled_count:5,filled_daily_hours:30.5}],meal_counts:[],labor_hours:[],cost_rows:[{location_id:1,production_date:"2026-09-01",meal_type:"breakfast",food_cost:50},{location_id:1,production_date:"2026-09-01",meal_type:"lunch",food_cost:100}],production_rows:[
+const dataset={rates:[{meal_type:"breakfast",rate:4.08},{meal_type:"lunch",rate:5.9},{meal_type:"supper",rate:5.9}],labor_rates:[{classification_key:"worker",hourly_rate:26.87265},{classification_key:"senior_worker",hourly_rate:29.83181},{classification_key:"manager_iv",hourly_rate:30.82139}],staffing:[{source_site_id:"1857501",classification_key:"manager_iv",filled_count:1,filled_daily_hours:8},{source_site_id:"1857501",classification_key:"senior_worker",filled_count:1,filled_daily_hours:6.5},{source_site_id:"1857501",classification_key:"worker",filled_count:5,filled_daily_hours:30.5}],meal_counts:[{location_id:10,service_date:"2026-09-01",breakfast_count:50,lunch_count:80,supper_count:0}],labor_hours:[],cost_rows:[{location_id:1,production_date:"2026-09-01",meal_type:"breakfast",food_cost:50},{location_id:1,production_date:"2026-09-01",meal_type:"lunch",food_cost:100}],production_rows:[
   {location_id:1,production_date:"2026-09-01",meal_type:"breakfast",meals_served:50,item_name:"Bean Burrito",mma_oz_eq:1,served:45,planned:50,prepared:50,leftover:5,wasted:0},
   {location_id:1,production_date:"2026-09-01",meal_type:"lunch",meals_served:80,item_name:"Milk White",mma_oz_eq:0,served:75,planned:80,prepared:80,leftover:5,wasted:0},
   {location_id:1,production_date:"2026-09-01",meal_type:"lunch",meals_served:80,item_name:"Chicken Sandwich",mma_oz_eq:2,served:70,planned:75,prepared:75,leftover:5,wasted:3},
@@ -23,4 +23,11 @@ test("configured school holidays are excluded from totals, graphs, costs and ope
   expect(card.current.operatingDays).toBe(1);
   const otherSchool = buildSchoolScorecard({...school,location_id:11},holidayData,{startDate:"2026-09-01",endDate:"2026-09-02"});
   expect(otherSchool.current.operatingDays).toBe(2);
+});
+
+
+test("official meal counts win, zero falls back to Finish Line, and directory ID collisions never mix schools",()=>{
+ const data={...dataset,meal_counts:[{location_id:10,service_date:"2026-09-01",breakfast_count:40,lunch_count:80,supper_count:0},{location_id:1,service_date:"2026-09-01",breakfast_count:999,lunch_count:999,supper_count:999}],official_meal_counts:[{location_id:10,service_date:"2026-09-01",breakfast_count:60,lunch_count:0,supper_count:0}]};
+ const card=buildSchoolScorecard(school,data,"2026-09-01");
+ expect(card.current.totals).toEqual({breakfast:60,lunch:80,supper:0});
 });

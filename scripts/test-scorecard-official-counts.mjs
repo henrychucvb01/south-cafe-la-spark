@@ -1,0 +1,35 @@
+import {PGlite} from '@electric-sql/pglite';
+import {readFile} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const db=new PGlite();try{
+await db.exec(`create table locations(id bigint,location_code text,school_name text,active boolean,enrollment int,labor_type text,budget_labor_hours numeric);
+create table location_information(id bigint,location_code text,school_name text,site_type text,active boolean);
+create table employees(id bigint,location_id bigint,active boolean);
+create table monthly_site_mappings(source_site_id text,main_location_id bigint,active boolean,program_type text);
+create table meal_counts(location_id bigint,service_date date,breakfast_count int,lunch_count int,supper_count int);
+create table official_meal_counts(like meal_counts);
+create table spark_excluded_days(location_id bigint,service_date date);
+create table labor_hours(location_id bigint,service_date date);
+create table monthly_import_batches(id int,school_year text,reporting_month date);
+create table monthly_production_rows(batch_id int,source_site_id text,production_date date);
+create table monthly_production_cost_rows(like monthly_production_rows);
+create table monthly_reimbursement_rates(school_year text);
+create table monthly_labor_rates(school_year text);
+create table monthly_staffing_allocations(school_year text,source_site_id text);
+create function verify_supervisor_pin(text) returns boolean language sql as $$select $1='test'$$;
+create function verify_covering_pin(text) returns boolean language sql as $$select $1='test'$$;
+create function verify_manager_pin(bigint,text) returns boolean language sql as $$select $2='test'$$;
+insert into locations values(15,'2836','Carson El',true,620,'elementary',20),(27,'7205','Towne El',true,300,'elementary',20);
+insert into location_information values(27,'2836','Carson El','PREP',true),(22,'7205','Towne El','PREP',true);
+insert into monthly_site_mappings values('1283601',27,true,'main'),('1720501',22,true,'main');
+insert into employees values(1,15,true);
+insert into official_meal_counts values(15,'2026-09-01',601,403,45),(27,'2026-09-01',220,156,80),(15,'2026-08-20',500,400,40),(15,'2026-10-01',510,410,50);
+insert into spark_excluded_days values(15,'2026-09-04'),(27,'2026-09-07');`);
+await db.exec(await readFile('supabase/migrations/202610020003_scorecard_official_counts.sql','utf8'));
+const supervisor=async(pin='test')=>(await db.query("select get_monthly_scorecard_dataset($1,'2026-27','2026-09-01') data",[pin])).rows[0].data;
+const manager=async(pin='test',id=15)=>(await db.query("select get_manager_monthly_scorecard_dataset($1,1,$2,'2026-27','2026-09-01') data",[pin,id])).rows[0].data;
+const all=await supervisor();assert.equal(all.official_meal_counts.length,3);assert.equal(all.excluded_days.length,2);
+const one=await manager();assert.equal(one.official_meal_counts.length,2);assert(one.official_meal_counts.every(r=>r.location_id===15));assert.equal(one.excluded_days.length,1);
+await assert.rejects(supervisor('wrong'),/authorization/);await assert.rejects(manager('wrong'),/authorization/);await assert.rejects(manager('test',27),/authorization/);
+console.log('PASS: supervisor and manager source counts, calendar, month boundaries, location isolation and authorization.');
+}finally{await db.close();}

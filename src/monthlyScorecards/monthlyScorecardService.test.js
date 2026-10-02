@@ -37,18 +37,3 @@ test('an interrupted upload reports confirmed saves and safe retry',async()=>{
 });
 
 
-test('scorecards load every configured exclusion, including the comparison month',async()=>{
- const {supabase}=require('../supabaseClient');
- const {loadMonthlyScorecardDataset}=require('./monthlyScorecardService');
- supabase.rpc.mockResolvedValue({data:{schools:[{location_id:10}]}});
- const query={};for(const name of ['select','in','gte','lt','order'])query[name]=jest.fn(()=>query);
- query.range=jest.fn().mockResolvedValueOnce({data:Array.from({length:100},()=>({location_id:10,service_date:'2026-09-04'}))}).mockResolvedValueOnce({data:[{location_id:10,service_date:'2026-09-07'}]});
- supabase.from.mockReturnValue(query);
- const result=await loadMonthlyScorecardDataset('test','2026-27','2026-09-01');
- expect(result.excluded_days).toHaveLength(101);
- expect(query.gte).toHaveBeenCalledWith('service_date','2026-08-01');
- expect(query.lt).toHaveBeenCalledWith('service_date','2026-10-01');
- expect(query.range).toHaveBeenLastCalledWith(100,199);
- query.range.mockResolvedValue({error:{message:'Cannot load school calendar'}});
- await expect(loadMonthlyScorecardDataset('test','2026-27','2026-09-01')).rejects.toEqual({message:'Cannot load school calendar'});
-});

@@ -125,71 +125,21 @@ function laborCostForMonth(school, dataset, operatingDays, laborRows) {
   };
 }
 
-// PRIMARY SOURCE OF TRUTH RESOLUTION:
-// 1. Prioritize uploaded district meal counts
-// 2. Fall back to manager production rows only if date is missing
-function serviceCounts(school, rawProductionRows, rawMealRows, startDate, endDate) {
-  const schoolMatches = (row) => {
-    const loc = String(row?.location_id || row?.source_site_id || "");
-    return (
-      loc === String(school?.location_id) ||
-      loc === String(school?.source_site_id) ||
-      loc === String(school?.directory_id)
-    );
-  };
-
-  const byDay = new Map();
-
-  // 1. Load Uploaded District Meal Counts (PRIMARY)
-  const mealRows = deduplicateRowsByKey(
-    rawMealRows,
-    (r) => `${r.location_id || r.source_site_id}|${r.service_date || r.date}`
+// Meal Audit uses operational location IDs; directory IDs belong only to
+// production/cost records and must never be matched against meal-count IDs.
+function serviceCounts(school, officialRows, mealRows, startDate, endDate) {
+  const select = rows => new Map(rows.filter(row =>
+    school.location_id != null && String(row.location_id) === String(school.location_id) &&
+    inRange(row.service_date, startDate, endDate)
+  ).map(row => [row.service_date, row]));
+  const official = select(officialRows), finish = select(mealRows);
+  return [...new Set([...official.keys(), ...finish.keys()])].flatMap(date =>
+    MEALS.map(meal => {
+      const primary = n(official.get(date)?.[`${meal}_count`]);
+      const fallback = n(finish.get(date)?.[`${meal}_count`]);
+      return {date, meal, count: primary > 0 ? primary : Math.max(0, fallback)};
+    })
   );
-
-  mealRows
-    .filter((row) => schoolMatches(row) && inRange(row?.service_date || row?.date, startDate, endDate))
-    .forEach((row) => {
-      const d = String(row?.service_date || row?.date).slice(0, 10);
-      const b = row.breakfast_count !== undefined ? row.breakfast_count : row.breakfast;
-      const l = row.lunch_count !== undefined ? row.lunch_count : row.lunch;
-      const s = row.supper_count !== undefined ? row.supper_count : row.supper;
-
-      if (b !== null && b !== undefined) byDay.set(`${d}|breakfast`, n(b));
-      if (l !== null && l !== undefined) byDay.set(`${d}|lunch`, n(l));
-      if (row.supper_status !== "pending" && s !== null && s !== undefined) {
-        byDay.set(`${d}|supper`, n(s));
-      }
-    });
-
-  // 2. Fall back to manager checklist / production ONLY if date/meal is missing from district upload
-  const prodRows = deduplicateRowsByKey(
-    rawProductionRows,
-    (r) => `${r.location_id || r.source_site_id}|${r.production_date || r.date}|${r.meal_type}|${r.item_name}`
-  );
-
-  const prodByDayMeal = new Map();
-  prodRows
-    .filter((row) => schoolMatches(row) && inRange(row?.production_date || row?.date, startDate, endDate))
-    .forEach((row) => {
-      const d = String(row?.production_date || row?.date).slice(0, 10);
-      const meal = String(row?.meal_type || "").toLowerCase();
-      if (!MEALS.includes(meal)) return;
-      const k = `${d}|${meal}`;
-      const served = n(row?.meals_served ?? row?.served);
-      const curr = prodByDayMeal.get(k) || 0;
-      if (served > curr) prodByDayMeal.set(k, served);
-    });
-
-  prodByDayMeal.forEach((count, k) => {
-    if (!byDay.has(k) && count > 0) {
-      byDay.set(k, count);
-    }
-  });
-
-  return [...byDay].map(([key, count]) => {
-    const [date, meal] = key.split("|");
-    return { date, meal, count };
-  });
 }
 
 function mondayFor(value) {
@@ -388,7 +338,7 @@ export function calculateDateRange(school, dataset, startDate, endDate, excluded
 
   const services = serviceCounts(
     school,
-    dataset?.production_rows || [],
+    dataset?.official_meal_counts || [],
     dataset?.meal_counts || [],
     startDate,
     endDate
