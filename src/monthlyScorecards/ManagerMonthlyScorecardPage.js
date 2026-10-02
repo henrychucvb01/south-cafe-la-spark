@@ -107,7 +107,7 @@ export default function ManagerMonthlyScorecardPage({ location, employee, manage
           </div>
           {loading && <div className="monthly-scorecard-loading">Loading your monthly scorecard...</div>}
           {error && <div className="monthly-alert error" role="alert">{error}</div>}
-          {!loading && !error && card && <MonthlySchoolScorecard card={card} onBack={onBack} showToolbar={false} showSupper />}
+          {!loading && !error && card && <MonthlySchoolScorecard card={card} onBack={onBack} showToolbar={false} />}
           {!loading && !error && !card && <div className="monthly-alert error">No scorecard data is available for this location.</div>}
         </section>
       </main>

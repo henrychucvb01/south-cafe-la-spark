@@ -135,7 +135,7 @@ function WeekSummary({ label, week }) {
   );
 }
 
-export default function MonthlySchoolScorecard({ card, onBack, backLabel = "Monthly Scorecards", showToolbar = true, showSupper = false }) {
+export default function MonthlySchoolScorecard({ card, onBack, backLabel = "Monthly Scorecards", showToolbar = true }) {
   usePageNavigation({ active: showToolbar, level: 2, title: card.school.school_name || 'School Scorecard', destination: backLabel, onNavigate: onBack });
   const { school, current, previous, changes, summary } = card;
   const previousLabel = previous
@@ -228,15 +228,13 @@ export default function MonthlySchoolScorecard({ card, onBack, backLabel = "Mont
         <div style={{ marginTop: "18px" }}>
           <div style={{ marginBottom: "8px" }}>
             <strong style={{ fontSize: "12px", color: "#36454f" }}>
-              Participation Trend (Daily Operating Days)
+              Meal Counts (Daily Operating Days)
             </strong>
           </div>
           {current.participationTrend &&
           current.participationTrend.some(
             (row) =>
-              row.lunchParticipation !== null ||
-              row.breakfastParticipation !== null ||
-              (showSupper && row.supper != null)
+              row.lunch != null || row.breakfast != null || row.supper != null
           ) ? (
             <div className="scorecard-chart" style={{ height: "230px" }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -254,20 +252,14 @@ export default function MonthlySchoolScorecard({ card, onBack, backLabel = "Mont
                     tickLine={false}
                   />
                   <YAxis
-                    unit="%"
+                    allowDecimals={false}
                     tick={{ fontSize: 10, fill: "#66766e" }}
                     axisLine={false}
                     tickLine={false}
                   />
-                  {showSupper && <YAxis
-                    yAxisId="supper" orientation="right" allowDecimals={false}
-                    tick={{ fontSize: 10, fill: "#7762aa" }}
-                    axisLine={false} tickLine={false} width={48}
-                    label={{ value: "Supper meals", angle: -90, position: "insideRight", fontSize: 10 }}
-                  />}
                   <Tooltip
                     formatter={(val, name, item) => {
-                      const meal = name === "breakfastParticipation" ? "breakfast" : name === "lunchParticipation" ? "lunch" : "supper";
+                      const meal = name;
                       const count = item?.payload?.[meal];
                       return [count == null ? "No data" : `${integer(count)} meals`, meal.charAt(0).toUpperCase() + meal.slice(1)];
                     }}
@@ -275,14 +267,14 @@ export default function MonthlySchoolScorecard({ card, onBack, backLabel = "Mont
                   />
                   <Legend
                     verticalAlign="top"
-                    height={showSupper ? 48 : 30}
+                    height={30}
                     wrapperStyle={{ fontSize: 12 }}
-                    formatter={(name) => name === "breakfastParticipation" ? "Breakfast Participation %" : name === "lunchParticipation" ? "Lunch Participation %" : "Supper meals (right axis)"}
+                    formatter={(name) => name === "breakfast" ? "Breakfast" : name === "lunch" ? "Lunch" : "Supper"}
                   />
                   <Line
                     type="bumpX"
-                    dataKey="breakfastParticipation"
-                    name="breakfastParticipation"
+                    dataKey="breakfast"
+                    name="breakfast"
                     stroke="#e5962d"
                     strokeWidth={2}
                     dot={{ r: 2 }}
@@ -291,26 +283,26 @@ export default function MonthlySchoolScorecard({ card, onBack, backLabel = "Mont
                   />
                   <Line
                     type="bumpX"
-                    dataKey="lunchParticipation"
-                    name="lunchParticipation"
+                    dataKey="lunch"
+                    name="lunch"
                     stroke="#16855b"
                     strokeWidth={2.5}
                     dot={{ r: 2.5, fill: "#fff", strokeWidth: 2 }}
                     activeDot={{ r: 5 }}
                     connectNulls={false}
                   />
-                  {showSupper && <Line
-                    type="bumpX" dataKey="supper" name="supper" yAxisId="supper"
+                  <Line
+                    type="bumpX" dataKey="supper" name="supper"
                     stroke="#8862b3" strokeWidth={2.5}
                     dot={{ r: 2.5, fill: "#fff", strokeWidth: 2 }}
                     activeDot={{ r: 5 }} connectNulls={false}
-                  />}
+                  />
                 </LineChart>
               </ResponsiveContainer>
             </div>
           ) : (
             <p className="scorecard-empty">
-              Enrollment and meal data are required to plot participation trends.
+              Meal data is required to plot meal-count trends.
             </p>
           )}
         </div>
