@@ -1,5 +1,7 @@
 import React,{useEffect,useState} from 'react';
 import {openSession,closeSession,listClassrooms,saveClassroom} from './service';
+import DailyDashboard from './DailyDashboard';
+import BreakfastDispatch from './BreakfastDispatch';
 import PackingPrint from './PackingPrint';
 import BreakfastSettings from './BreakfastSettings';
 import ClassroomForm from './ClassroomForm';
@@ -16,14 +18,16 @@ export default function BreakfastPage({location,employee,managerPin}) {
  },[location,employee,managerPin,retry]);
  async function save(values,record=editing?.record){setBusy(true);setError('');setMessage('');try{const saved=await saveClassroom(token,record,values);setRecords(old=>[...old.filter(r=>r.id!==saved.id),saved]);setEditing(null);setMessage(`Room ${saved.room_code} saved.`);}catch(e){setError(e.message);}finally{setBusy(false);}}
  const active=records.filter(r=>r.active),visible=records.filter(r=>filter==='all'||(filter==='active'?r.active:!r.active)).sort((a,b)=>a.campus_label.localeCompare(b.campus_label)||a.room_code.localeCompare(b.room_code,undefined,{numeric:true}));
- return <main className="ba-root"><header className="ba-heading"><p>{location.school_name} · {location.location_code}</p><h1>Breakfast Accountability</h1><p>Classroom setup and history</p></header>
+ return <main className="ba-root"><header className="ba-heading"><p>{location.school_name} · {location.location_code}</p><h1>Breakfast Accountability</h1><p>Daily operations and classroom history</p></header>
   {error&&<div role="alert" className="ba-error">{error} <button disabled={busy} onClick={()=>{setEditing(null);setSelected(null);setRetry(v=>v+1);}}>Reconnect / Refresh</button></div>}
   {message&&<p role="status" className="ba-success">{message}</p>}
   {!token&&busy&&<p role="status">Opening your school’s Breakfast area…</p>}
   {token&&(showSettings?<BreakfastSettings token={token} onBack={()=>setShowSettings(false)}/>:selected?<ClassroomHistory key={selected.id} token={token} record={selected} location={location} onBack={()=>setSelected(null)}/>:<>
+   <DailyDashboard token={token}/>
+   {!editing&&<BreakfastDispatch token={token}/>}
    <PackingPrint token={token}/>
    <div className="ba-totals"><section><strong>{active.length}</strong><span>Active classrooms</span></section><section><strong>{active.reduce((sum,r)=>sum+r.enrolled_students,0)}</strong><span>Enrolled students</span></section><section><strong>{records.length-active.length}</strong><span>Inactive classrooms</span></section></div>
-   <p className="ba-info">Set up your permanent classroom roster here. Open a classroom to show its QR, send teacher messages, or view submitted counts. Staff can enter returned bag counts from each classroom QR. Set the school menu and worker PIN in Breakfast settings.</p>
+   <p className="ba-info">Set up your permanent classroom roster here. Open a classroom to show its QR, send teacher messages, or view submitted counts. Cafeteria Workers enter packing and leftover counts through the classroom QR. Enter today’s school menu above; the daily dashboard tracks submissions and review.</p>
    {editing?<ClassroomForm key={editing.record?.id||'new'} record={editing.record} onSave={save} onCancel={()=>setEditing(null)} busy={busy}/>:<section className="ba-panel">
     <div className="ba-toolbar"><h2>Classrooms</h2><button onClick={()=>setShowSettings(true)}>Breakfast settings</button><button className="ba-primary" disabled={busy} onClick={()=>setEditing({record:null})}>+ Add classroom</button><label>Show<select value={filter} onChange={e=>setFilter(e.target.value)}><option value="active">Active</option><option value="inactive">Inactive</option><option value="all">All classrooms</option></select></label></div>
     {!visible.length&&<p>No {filter==='all'?'':filter+' '}classrooms yet. Add a classroom to get started.</p>}

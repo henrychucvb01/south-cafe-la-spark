@@ -1,0 +1,13 @@
+import React,{act} from 'react';
+import {createRoot} from 'react-dom/client';
+import DailyDashboard,{breakfastFlags,breakfastStatus} from './DailyDashboard';
+import * as api from './service';
+jest.mock('./service');
+let host,root;
+const row={classroom_id:'c1',room:'203',teacher:'Teacher',record:{number_sent:30,teacher_meal_count:24,teacher_certified:true,packing_submitted_at:'2026-10-07T14:00:00Z',teacher_submitted_at:'2026-10-07T15:00:00Z',worker_submitted_at:'2026-10-07T16:00:00Z',menu_snapshot:{fruit:'Apple'},items_sent:{fruit:30},returned_counts:{fruit:6},updated_at:'2026-10-07T16:00:00Z',review_status:'needs_review'}};
+beforeEach(()=>{global.IS_REACT_ACT_ENVIRONMENT=true;jest.clearAllMocks();api.dailyDashboard.mockResolvedValue({rows:[row],total:24});api.reviewBreakfast.mockResolvedValue();host=document.createElement('div');document.body.append(host);root=createRoot(host);});
+afterEach(async()=>{await act(async()=>root.unmount());host.remove();});
+const click=text=>act(async()=>[...host.querySelectorAll('button')].find(b=>b.textContent===text).click());
+test('Refresh fetches the selected school/date again and updates totals',async()=>{await act(async()=>root.render(<DailyDashboard token="manager-session"/>));expect(host.textContent).toContain('Apple: 6');const date=host.querySelector('input[type=date]').value;api.dailyDashboard.mockResolvedValue({rows:[row],total:25});await click('Refresh');expect(api.dailyDashboard).toHaveBeenLastCalledWith('manager-session',date);expect(api.dailyDashboard).toHaveBeenCalledTimes(2);expect(host.querySelector('.ba-totals strong').textContent).toBe('25');});
+test('manager review sends the current record version then refreshes',async()=>{await act(async()=>root.render(<DailyDashboard token="manager-session"/>));await click('Review');await act(async()=>host.querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));expect(api.reviewBreakfast).toHaveBeenCalledWith('manager-session',row,expect.any(String),'');expect(api.dailyDashboard).toHaveBeenCalledTimes(2);});
+test('statuses require all three steps; component warnings never alter meal totals',()=>{expect(breakfastStatus(null)).toBe('Awaiting packing');expect(breakfastStatus({packing_submitted_at:'today'})).toBe('Awaiting teacher');expect(breakfastStatus({...row.record,worker_submitted_at:null})).toBe('Awaiting returns');expect(breakfastStatus({...row.record,review_status:'reviewed',reviewed_at:'today'})).toBe('Reviewed');expect(breakfastFlags({...row.record,teacher_meal_count:31,returned_counts:{fruit:32}})).toEqual(['Teacher count exceeds meals sent','Apple: returns exceed sent']);});
