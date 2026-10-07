@@ -13,3 +13,6 @@ for(const rotation of [0,90,180,270])for(const layout of ['vertical','horizontal
 await assert.rejects(()=>buildQrPrintPdf([],qrPrintDefaults),/Select/);await assert.rejects(()=>buildQrPrintPdf([{room_code:'203'}],qrPrintDefaults),/QR is missing/);
 await writeFile('node_modules/.cache/qr-print/room-only.pdf',await buildQrPrintPdf(records.slice(0,1),{...qrPrintDefaults,showCampus:false,perPage:1}));
 console.log('QR labels: page counts, orientation, rotations, layouts, bounds, and missing QR validation passed.');
+
+await writeFile('node_modules/.cache/qr-print/compact.pdf',await buildQrPrintPdf(records.slice(0,1),{...qrPrintDefaults,perPage:1,showCampus:false,spacing:0,doubleText:true,doubleQr:true}));
+await writeFile('node_modules/.cache/qr-print/spaced.pdf',await buildQrPrintPdf(records.slice(0,1),{...qrPrintDefaults,perPage:1,showCampus:false,spacing:100}));

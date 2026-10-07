@@ -5,7 +5,7 @@ import {classroomQr} from './service';
 import {buildQrPrintPdf} from './qrPrintPdf';
 jest.mock('./service',()=>({classroomQr:jest.fn()}));
 jest.mock('./TeacherPage',()=>({teacherLink:qr=>`https://spark.test/#breakfast/${qr}`}));
-jest.mock('./qrPrintPdf',()=>({qrPrintDefaults:{orientation:'portrait',perPage:4,layout:'vertical',order:'qr,room,campus',showCampus:true,qrSize:144,fontSize:32,campusSize:18,qrRotation:0,textRotation:0},buildQrPrintPdf:jest.fn()}));
+jest.mock('./qrPrintPdf',()=>({qrPrintDefaults:{orientation:'portrait',perPage:4,layout:'vertical',order:'qr,room,campus',showCampus:true,qrSize:144,fontSize:32,campusSize:18,qrRotation:0,textRotation:0,spacing:24,doubleText:false,doubleQr:false},buildQrPrintPdf:jest.fn()}));
 let root,host;
 const classrooms=[{id:'a',room_code:'203',campus_label:'Main',active:true},{id:'b',room_code:'S14',campus_label:'West',active:true},{id:'c',room_code:'OLD',active:false}];
 beforeEach(()=>{global.IS_REACT_ACT_ENVIRONMENT=true;jest.useFakeTimers();jest.clearAllMocks();classroomQr.mockImplementation(async(t,id)=>`qr-${id}`);buildQrPrintPdf.mockResolvedValue(new Uint8Array([1,2]));URL.createObjectURL=jest.fn(()=> 'blob:test');URL.revokeObjectURL=jest.fn();host=document.createElement('div');document.body.append(host);root=createRoot(host);});
