@@ -26,7 +26,7 @@ export default function BreakfastPage({location,employee,managerPin}) {
   {token&&(showSettings?<BreakfastSettings token={token} onBack={()=>setShowSettings(false)}/>:selected?<ClassroomHistory key={selected.id} token={token} record={selected} location={location} onBack={()=>setSelected(null)}/>:<>
    <div className="ba-toolbar"><div role="tablist" aria-label="Breakfast sections" className="ba-tabs">{tabs.map(([id,label],index)=><button key={id} id={`ba-tab-${id}`} role="tab" aria-selected={tab===id} aria-controls={`ba-panel-${id}`} tabIndex={tab===id?0:-1} disabled={Boolean(editing)} onClick={()=>setTab(id)} onKeyDown={e=>{const next=e.key==='ArrowRight'?(index+1)%tabs.length:e.key==='ArrowLeft'?(index+tabs.length-1)%tabs.length:e.key==='Home'?0:e.key==='End'?tabs.length-1:null;if(next!==null){e.preventDefault();setTab(tabs[next][0]);document.getElementById(`ba-tab-${tabs[next][0]}`)?.focus();}}}>{label}</button>)}</div><button disabled={Boolean(editing)} onClick={()=>setShowSettings(true)}>Breakfast settings</button></div>
    <section role="tabpanel" id={`ba-panel-${tab}`} aria-labelledby={`ba-tab-${tab}`}>
-   {tab==='dashboard'&&<DailyDashboard token={token}/>}
+   {tab==='dashboard'&&<DailyDashboard token={token} onClassroom={setSelected}/>}
    {tab==='menu'&&<BreakfastDispatch token={token} expanded/>}
    {tab==='packing'&&<PackingPrint token={token} expanded/>}
    {tab==='classrooms'&&<>

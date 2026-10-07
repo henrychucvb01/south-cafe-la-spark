@@ -1,0 +1,14 @@
+import React,{act} from 'react';
+import {createRoot} from 'react-dom/client';
+import FinishLineBreakfast from './FinishLineBreakfast';
+import * as api from './service';
+jest.mock('./service');
+let host,root;const location={id:1},employee={id:2},onUse=jest.fn();
+const full={total:26,rows:[{record:{teacher_submitted_at:'today',teacher_certified:true,adult_meal_received:true}}]};
+beforeEach(()=>{global.IS_REACT_ACT_ENVIRONMENT=true;jest.clearAllMocks();api.openSession.mockResolvedValue('token');api.closeSession.mockResolvedValue();api.dailyDashboard.mockResolvedValue(full);host=document.createElement('div');document.body.append(host);root=createRoot(host);});
+afterEach(async()=>{await act(async()=>root.unmount());host.remove();});
+const render=date=>act(async()=>root.render(<FinishLineBreakfast location={location} employee={employee} managerPin="test" date={date} onUse={onUse}/>));
+const button=text=>[...host.querySelectorAll('button')].find(b=>b.textContent===text);
+test('copies student count only on manager click using selected historical date',async()=>{await render('2026-10-06');expect(api.dailyDashboard).toHaveBeenCalledWith('token','2026-10-06');expect(onUse).not.toHaveBeenCalled();await act(async()=>button('Use BIC total').click());expect(onUse).toHaveBeenCalledWith('26');expect(host.textContent).toContain('submit Finish Line to save');});
+test('incomplete counts cannot replace the existing Finish Line count, refresh can enable zero',async()=>{api.dailyDashboard.mockResolvedValue({total:8,rows:[{record:null}]});await render('2026-10-06');expect(button('Use BIC total').disabled).toBe(true);api.dailyDashboard.mockResolvedValue({...full,total:0});await act(async()=>button('Refresh BIC total').click());await act(async()=>button('Use BIC total').click());expect(onUse).toHaveBeenCalledWith('0');});
+test('date change reloads scoped totals and does not reuse earlier result',async()=>{await render('2026-10-06');await render('2026-10-07');expect(api.dailyDashboard).toHaveBeenLastCalledWith('token','2026-10-07');expect(api.closeSession).toHaveBeenCalledWith('token');expect(onUse).not.toHaveBeenCalled();});

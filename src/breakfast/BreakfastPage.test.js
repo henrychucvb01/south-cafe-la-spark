@@ -2,6 +2,7 @@ import React,{act} from 'react';
 import {createRoot} from 'react-dom/client';
 import BreakfastPage from './BreakfastPage';
 import * as api from './service';
+jest.mock('./ClassroomTrend',()=>()=>null);
 jest.mock('./service',()=>({openSession:jest.fn(),closeSession:jest.fn(),listClassrooms:jest.fn(),saveClassroom:jest.fn(),classroomHistory:jest.fn(),addNote:jest.fn(),dailyDashboard:jest.fn(),breakfastMenu:jest.fn(),breakfastPacking:jest.fn().mockResolvedValue({sent:null,items:{},revision:0})}));
 const location={id:1,school_name:'School A',location_code:'1234'},employee={id:11,employee_name:'Manager'};
 const record={id:'class-1',location_id:1,room_code:'B-203',teacher_name:'Ms. Garcia',enrolled_students:28,campus_label:'',active:true,revision:1};

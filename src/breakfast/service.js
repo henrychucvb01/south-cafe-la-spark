@@ -32,3 +32,5 @@ export const workerPackingReport=(qr,token)=>rpc('breakfast_worker_packing_repor
 export const workerPack=(qr,token,page,sent,items,certified)=>rpc('breakfast_worker_pack',{p_qr:qr,p_token:token,p_date:page.service_date,p_sent:sent,p_items:items,p_menu:page.menu,p_certified:certified,p_revision:page.packing_revision});
 export const dailyDashboard=(token,date)=>rpc('breakfast_daily_dashboard',{p_token:token,p_date:date});
 export const reviewBreakfast=(token,row,date,notes)=>rpc('breakfast_review_day',{p_token:token,p_id:row.classroom_id,p_date:date,p_updated:row.record.updated_at,p_notes:notes});
+
+export const teacherAdultMeal=(qr,page,received)=>rpc('breakfast_teacher_adult_meal',{p_qr:qr,p_date:page.service_date,p_received:received,p_revision:page.record?.adult_revision||0});

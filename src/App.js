@@ -113,7 +113,7 @@ function App() {
   }
 
   if (screen === "finishLine") {
-    const page = <FinishLinePage location={selectedLocation} employee={selectedEmployee} existingCheck={editingCheck} onBack={() => { const parent = supervisorContext ? "commandCenter" : editingCheck ? "schoolDashboard" : "schoolHub"; setEditingCheck(null); setScreen(parent); }} onComplete={() => { setEditingCheck(null); setScreen(supervisorContext ? "commandCenter" : "schoolDashboard"); }} />;
+    const page = <FinishLinePage managerPin={supervisorContext?null:managerSessionPin} location={selectedLocation} employee={selectedEmployee} existingCheck={editingCheck} onBack={() => { const parent = supervisorContext ? "commandCenter" : editingCheck ? "schoolDashboard" : "schoolHub"; setEditingCheck(null); setScreen(parent); }} onComplete={() => { setEditingCheck(null); setScreen(supervisorContext ? "commandCenter" : "schoolDashboard"); }} />;
     return editingCheck?.previewMode ? page : managerPage(page);
   }
 

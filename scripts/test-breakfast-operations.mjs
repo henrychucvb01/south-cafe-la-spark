@@ -22,6 +22,7 @@ const db=new PGlite({extensions:{pgcrypto}});try {
  await db.exec("insert into breakfast_worker_access(location_id,pin_hash) values(1,extensions.crypt('4321',extensions.gen_salt('bf',10)));");
  await db.exec((await readFile('supabase/migrations/202610070002_breakfast_operations.sql','utf8')).replaceAll('clock_timestamp()', 'public.test_now()'));
  await db.exec((await readFile('supabase/migrations/202610070003_breakfast_item_packing.sql','utf8')).replaceAll('clock_timestamp()', 'public.test_now()'));
+ await db.exec((await readFile('supabase/migrations/202610070004_breakfast_adult_meal.sql','utf8')).replaceAll('clock_timestamp()', 'public.test_now()'));
  const q=async(sql,args=[])=>(await db.query(sql,args)).rows;
  await db.exec('set role anon');
  const token=(await q("select open_supper_monitoring_session(1,11,'1234',null) t"))[0].t;
@@ -64,10 +65,14 @@ const db=new PGlite({extensions:{pgcrypto}});try {
  const d=dashboard.rows[0].record;
  await assert.rejects(q("select breakfast_review_day($1,$2,'2026-10-06',$3,'Checked')",[other,c.id,d.updated_at]),/not found/);
  await q("select breakfast_review_day($1,$2,'2026-10-06',$3,'Checked')",[token,c.id,d.updated_at]);assert.equal((await dash()).rows[0].record.review_status,'reviewed');
+ const adult=async(received,rev=0,date='2026-10-06')=>(await q('select breakfast_teacher_adult_meal($1,$2,$3,$4) v',[qr,date,received,rev]))[0].v;
+ let adultPage=await adult(true);assert.equal(adultPage.record.adult_received,true);assert.equal(adultPage.record.count,24);assert.equal((await dash()).total,24);assert.equal((await dash()).rows[0].record.reviewed_at,null);
+ assert.equal((await adult(true)).record.adult_revision,1);await assert.rejects(adult(false),/another session/);assert.equal((await adult(false,1)).record.adult_received,false);assert.equal((await adult(true,2)).record.adult_revision,3);
+ await assert.rejects(adult(true,3,'2026-10-05'),/service date/);
  await submit(23,1);assert.equal((await dash()).total,23);assert.equal((await dash()).rows[0].record.reviewed_at,null);
  await clock('2026-10-06 15:01:00+00');await pack(1,{...packed,fruit:29});
  await assert.rejects(q("select breakfast_review_day($1,$2,'2026-10-06',$3,'Stale')",[token,c.id,d.updated_at]),/changed/);
- await clock('2026-10-06 16:01:00+00');await ret(1,{...left,fruit:5});assert.equal((await dash()).rows[0].record.worker_name,'Manager A');
+ await clock('2026-10-06 16:01:00+00');await assert.rejects(adult(false,3),/closed/);await ret(1,{...left,fruit:5});assert.equal((await dash()).rows[0].record.worker_name,'Manager A');
  const report=(await q('select breakfast_worker_packing_report($1,$2) v',[qr,packer]))[0].v;assert.deepEqual(report.menu,menu);assert.equal(report.rows[0].items.fruit,29);
  await assert.rejects(pack(2,packed,menu,true,'2026-10-05'),/service date changed/);
  await db.exec('reset role');assert.equal((await q('select breakfast_count from meal_counts'))[0].breakfast_count,642);await db.exec('set role anon');

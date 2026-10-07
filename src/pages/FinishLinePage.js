@@ -1,3 +1,5 @@
+import {breakfastToday} from '../breakfast/BreakfastDispatch';
+import FinishLineBreakfast from '../breakfast/FinishLineBreakfast';
 import {loadSchoolBenefits} from '../mysteryPull/benefits';
 import React, { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
@@ -141,6 +143,7 @@ function ResponseComment({ answer, value, onChange }) {
 FINISH LINE PAGE
 ========================================================= */
 function FinishLinePage({
+  managerPin,
   location,
   employee,
   existingCheck,
@@ -169,7 +172,7 @@ SUPERVISOR PREVIEW MODE
 
   // When editing a historical Finish Line, keep every load/save tied
   // to that original service date instead of today's date.
-  const todayServiceDate = new Date().toISOString().split("T")[0];
+  const todayServiceDate = breakfastToday();
   const activeServiceDate =
     !isPreviewMode && existingCheck?.service_date
       ? existingCheck.service_date
@@ -1233,6 +1236,7 @@ PAGE HEADER
                   <p>Enter counts directly from the End-of-Day Report.</p>
                 </div>
               </div>
+              {!isPreviewMode&&<FinishLineBreakfast location={location} employee={employee} managerPin={managerPin} date={activeServiceDate} disabled={loading} onUse={value=>updateMealCount("breakfast",value)}/>}
               <div
                 style={{
                   padding: "16px",

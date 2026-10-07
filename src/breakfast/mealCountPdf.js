@@ -7,12 +7,12 @@ export function weekDates(value){
  return Array.from({length:5},(_,i)=>new Date(d.getTime()+i*86400000).toISOString().slice(0,10));
 }
 export async function buildMealCountPdf(template,{location,record,days,week}){
- const dates=weekDates(week),submitted=days.filter(d=>dates.includes(d.service_date)&&d.teacher_submitted_at&&d.teacher_certified);
- if(!submitted.length)throw new Error('No submitted teacher counts for this classroom in the selected week.');
+ const dates=weekDates(week),submitted=days.filter(d=>dates.includes(d.service_date)&&((d.teacher_submitted_at&&d.teacher_certified)||d.adult_meal_recorded_at));
+ if(!submitted.length)throw new Error('No submitted student or adult counts for this classroom in the selected week.');
  if(new Set(submitted.map(d=>d.service_date)).size!==submitted.length)throw new Error('Duplicate service dates found. Refresh before printing.');
  if(submitted.some(d=>d.classroom_id!==record.id))throw new Error('The report contains a different classroom.');
  const rooms=new Set(submitted.map(d=>d.room_snapshot));if(rooms.size>1)throw new Error('The room changed during this week. Review the classroom history before preparing this form.');
- for(const day of submitted)if(!Number.isInteger(day.teacher_meal_count)||day.teacher_meal_count<0||day.teacher_meal_count>40)throw new Error('The supplied district form has 40 numbered boxes per day. A saved count is outside that range; it has not been changed or truncated.');
+ for(const day of submitted)if(day.teacher_submitted_at&&day.teacher_certified&&(!Number.isInteger(day.teacher_meal_count)||day.teacher_meal_count<0||day.teacher_meal_count>40))throw new Error('The supplied district form has 40 numbered boxes per day. A saved count is outside that range; it has not been changed or truncated.');
  const pdf=await PDFDocument.load(template),form=pdf.getForm(),font=await pdf.embedFont(StandardFonts.Helvetica),page=pdf.getPages()[0];
  function fill(name,value){const field=form.getTextField(name),text=String(value??'');field.setText(text);field.acroField.setDefaultAppearance('/Helv 11 Tf 0 g');const width=field.acroField.getWidgets()[0].getRectangle().width-5;field.setFontSize(Math.min(11,width/Math.max(font.widthOfTextAtSize(text,1),1)));field.enableReadOnly();}
  fill('Text1',location.school_name);fill('Text3',location.location_code);fill('Text4',submitted[0].room_snapshot);
@@ -20,10 +20,12 @@ export async function buildMealCountPdf(template,{location,record,days,week}){
  dates.forEach((date,i)=>{
   fill(`Text${7+i*3}`,`${date.slice(5,7)}/${date.slice(8,10)}/${date.slice(0,4)}`);
   const day=submitted.find(d=>d.service_date===date);if(!day)return;
+  if(day.adult_meal_recorded_at)fill(i===0?'Todays Adult Meal':`Todays Adult Meal_${i+1}`,day.adult_meal_received?1:0);
+  if(!day.teacher_submitted_at||!day.teacher_certified)return;
   fill(totalFields[i],day.teacher_meal_count);
   marks[i].slice(0,day.teacher_meal_count).forEach(([x,y])=>page.drawLine({start:{x:x-5,y:y-5},end:{x:x+5,y:y+5},thickness:1,color:rgb(0,0,0)}));
  });
- // Uncollected attendance/adult meals/preorders/designee/signatures remain blank.
+ // Uncollected attendance/preorders/designee/signatures remain blank.
  // Keep the supplied AcroForm interactive; do not invent a teacher signature.
  form.updateFieldAppearances(font);
  pdf.setTitle(`Breakfast Meal Count - ${submitted[0].room_snapshot} - ${dates[0]}`);

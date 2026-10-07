@@ -2,7 +2,7 @@ import React,{act} from 'react';
 import {createRoot} from 'react-dom/client';
 import TeacherPage,{teacherToken,teacherLink} from './TeacherPage';
 import * as api from './service';
-jest.mock('./service',()=>({teacherPage:jest.fn(),teacherSubmit:jest.fn(),teacherMessage:jest.fn()}));
+jest.mock('./service',()=>({teacherPage:jest.fn(),teacherSubmit:jest.fn(),teacherMessage:jest.fn(),teacherAdultMeal:jest.fn()}));
 let host,root;
 const qr='00000000-0000-4000-8000-000000000001';
 const base={room:'S14',teacher:'Ms. Garcia',enrollment:28,campus:'Main',service_date:'2026-10-06',cutoff:'09:00:00',closed:false,record:null,messages:[],training_url:'',tips_url:''};
@@ -31,4 +31,14 @@ test('shows the meal reminder and supplied resources with the large plus below t
  await render();expect(host.textContent).toContain('including a fruit and an entrée');
  const counter=host.querySelector('.ba-counter');expect(counter.firstElementChild.tagName).toBe('OUTPUT');expect(counter.lastElementChild.getAttribute('aria-label')).toBe('Add one meal');
  expect(host.querySelector('.ba-certification [aria-label="Subtract one meal"]')).toBeTruthy();expect([...host.querySelectorAll('a')].some(a=>a.getAttribute('href')==='/breakfast/teacher-quick-tips.pdf')).toBe(true);
+});
+
+test('adult meal saves separately and repeated response preserves the student draft',async()=>{
+ await render();await click(host.querySelector('[aria-label="Add one meal"]'));api.teacherAdultMeal.mockResolvedValue({...base,record:{adult_received:true,adult_recorded_at:'2026-10-06T15:00:00Z',adult_revision:1}});
+ await click(host.querySelector('.ba-adult-meal'));expect(api.teacherAdultMeal).toHaveBeenCalledWith(qr,base,true);expect(host.querySelector('output').textContent).toBe('1');expect(host.querySelector('.ba-adult-meal').getAttribute('aria-pressed')).toBe('true');expect(api.teacherSubmit).not.toHaveBeenCalled();
+ api.teacherAdultMeal.mockResolvedValue({...base,record:{adult_received:false,adult_recorded_at:'2026-10-06T15:01:00Z',adult_revision:2}});await click(host.querySelector('.ba-adult-meal'));expect(host.querySelector('.ba-adult-meal').getAttribute('aria-pressed')).toBe('false');expect(host.querySelector('output').textContent).toBe('1');
+});
+
+test('Done / Close thanks the teacher and removes counting controls even if the browser stays open',async()=>{
+ api.teacherPage.mockResolvedValue({...base,record:{count:24,revision:1,submitted_at:'2026-10-06T15:17:00Z'}});const close=jest.spyOn(window,'close').mockImplementation(()=>{});await render();await click(button('Done / Close'));expect(host.textContent).toContain('Thank you for your help!');expect(button('Correct breakfast count')).toBeUndefined();expect(button('Done / Close')).toBeUndefined();await act(async()=>jest.advanceTimersByTime(1500));expect(close).toHaveBeenCalledTimes(1);expect(host.textContent).toContain('Your breakfast count is saved');expect(api.teacherSubmit).not.toHaveBeenCalled();close.mockRestore();
 });

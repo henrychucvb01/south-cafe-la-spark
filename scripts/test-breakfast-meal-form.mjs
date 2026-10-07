@@ -7,11 +7,13 @@ const {weekDates,buildMealCountPdf}=new Function('PDFDocument','StandardFonts','
 assert.deepEqual(weekDates('2026-10-11'),['2026-10-05','2026-10-06','2026-10-07','2026-10-08','2026-10-09']);
 assert.throws(()=>weekDates('2026-02-30'),/valid date/);
 const template=await readFile('public/breakfast/meal-count-5-day.pdf');
-const args={location:{school_name:'SPARK Test School',location_code:'TEST'},record:{id:'class-1'},week:'2026-10-06',days:weekDates('2026-10-06').map((date,i)=>({classroom_id:'class-1',service_date:date,room_snapshot:'B-203',teacher_certified:true,teacher_submitted_at:date+'T15:00:00Z',teacher_meal_count:[24,0,40,1,39][i]}))};
+const args={location:{school_name:'SPARK Test School',location_code:'TEST'},record:{id:'class-1'},week:'2026-10-06',days:weekDates('2026-10-06').map((date,i)=>({classroom_id:'class-1',service_date:date,room_snapshot:'B-203',teacher_certified:true,teacher_submitted_at:date+'T15:00:00Z',teacher_meal_count:[24,0,40,1,39][i],adult_meal_received:i!==1,adult_meal_recorded_at:i<2?date+'T15:00:00Z':null}))};
 const bytes=await buildMealCountPdf(template,args),pdf=await PDFDocument.load(bytes),form=pdf.getForm();
 assert.equal(form.getTextField('Text1').getText(),'SPARK Test School');assert.equal(form.getTextField('Text4').getText(),'B-203');
 for(const [name,value] of [['Text5','24'],['Todays Total Student Meals','0'],['Todays Total Student Meals_2','40'],['Todays Total Student Meals_3','1'],['Todays Total Student Meals_4','39'],['Text7','10/05/2026'],['Text19','10/09/2026']])assert.equal(form.getTextField(name).getText(),value);
-for(const name of ['Text2','Text8','Todays Adult Meal','Amount needed'])assert(!form.getTextField(name).getText());
+for(const name of ['Text2','Text8','Todays Adult Meal_3','Amount needed'])assert(!form.getTextField(name).getText());
+assert.equal(form.getTextField('Todays Adult Meal').getText(),'1');assert.equal(form.getTextField('Todays Adult Meal_2').getText(),'0');
+const adultOnly=await PDFDocument.load(await buildMealCountPdf(template,{...args,days:[{...args.days[0],teacher_submitted_at:null,teacher_certified:false,teacher_meal_count:null}]}));assert.equal(adultOnly.getForm().getTextField('Todays Adult Meal').getText(),'1');assert(!adultOnly.getForm().getTextField('Text5').getText());
 assert(form.getTextField('Text5').isReadOnly());assert(!form.getTextField('Text8').isReadOnly());assert.equal(pdf.getPageCount(),1);
 const missing=await PDFDocument.load(await buildMealCountPdf(template,{...args,days:args.days.slice(0,1)}));assert(!missing.getForm().getTextField('Todays Total Student Meals').getText());
 await assert.rejects(buildMealCountPdf(template,{...args,days:[]}),/No submitted/);
