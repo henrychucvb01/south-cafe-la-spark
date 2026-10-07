@@ -1,12 +1,11 @@
 import React,{useCallback,useEffect,useState} from 'react';
 import ClassroomTrend from './ClassroomTrend';
-import MealCountPrint from './MealCountPrint';
 import ClassroomTeacherTools from './ClassroomTeacherTools';
 import {classroomHistory} from './service';
 import {usePageNavigation} from '../navigation/PageNavigation';
 const time=value=>new Date(value).toLocaleString('en-US',{timeZone:'America/Los_Angeles'});
 const eventTitle=value=>value.replaceAll('_',' ').replace(/^./,c=>c.toUpperCase());
-export default function ClassroomHistory({token,record,location,onBack}) {
+export default function ClassroomHistory({token,record,onBack}) {
  const [data,setData]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false);
  const [beforeDate,setBeforeDate]=useState(null);
  usePageNavigation({title:`Room ${record.room_code}`,destination:'Breakfast',onNavigate:onBack,level:2});
@@ -20,7 +19,6 @@ export default function ClassroomHistory({token,record,location,onBack}) {
   {error&&<p role="alert" className="ba-error">{error} <button onClick={load}>Retry</button></p>}
   {data&&<ClassroomTrend days={data.days.slice(0,50)}/>}
   <ClassroomTeacherTools token={token} record={classroom} onMessage={load}/>
-  {location&&<MealCountPrint token={token} record={classroom} location={location}/>}
   <h3>Classroom breakfast history</h3>
   <p>Historical records retain the room and teacher details from that service date.</p>
   {busy&&<p role="status">Loading…</p>}

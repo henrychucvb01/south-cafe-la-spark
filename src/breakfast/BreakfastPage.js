@@ -2,7 +2,7 @@ import React,{useEffect,useState} from 'react';
 import {openSession,closeSession,listClassrooms,saveClassroom} from './service';
 import DailyDashboard from './DailyDashboard';
 import BreakfastDispatch from './BreakfastDispatch';
-import PackingPrint from './PackingPrint';
+import BreakfastReports from './BreakfastReports';
 import BreakfastSettings from './BreakfastSettings';
 import ClassroomForm from './ClassroomForm';
 import ClassroomHistory from './ClassroomHistory';
@@ -10,7 +10,7 @@ import './breakfast.css';
 export default function BreakfastPage({location,employee,managerPin}) {
  const [token,setToken]=useState(''),[records,setRecords]=useState([]),[error,setError]=useState(''),[busy,setBusy]=useState(true),[retry,setRetry]=useState(0);
  const [showSettings,setShowSettings]=useState(false),[tab,setTab]=useState('dashboard');
- const tabs=[['dashboard','Daily Dashboard'],['menu','School Breakfast Menu'],['packing','Morning Packing Report'],['classrooms','Classrooms']];
+ const tabs=[['dashboard','Daily Dashboard'],['menu','School Breakfast Menu'],['packing','Packing and BIC Meal Count report'],['classrooms','Classrooms']];
  const [editing,setEditing]=useState(null),[selected,setSelected]=useState(null),[filter,setFilter]=useState('active'),[message,setMessage]=useState('');
  useEffect(()=>{let cancelled=false,session;
   setBusy(true);setError('');setToken('');setRecords([]);
@@ -28,7 +28,7 @@ export default function BreakfastPage({location,employee,managerPin}) {
    <section role="tabpanel" id={`ba-panel-${tab}`} aria-labelledby={`ba-tab-${tab}`}>
    {tab==='dashboard'&&<DailyDashboard token={token} onClassroom={setSelected}/>}
    {tab==='menu'&&<BreakfastDispatch token={token} expanded/>}
-   {tab==='packing'&&<PackingPrint token={token} expanded/>}
+   {tab==='packing'&&<BreakfastReports token={token} location={location} classrooms={records}/>}
    {tab==='classrooms'&&<>
    <div className="ba-totals"><section><strong>{active.length}</strong><span>Active classrooms</span></section><section><strong>{active.reduce((sum,r)=>sum+r.enrolled_students,0)}</strong><span>Enrolled students</span></section><section><strong>{records.length-active.length}</strong><span>Inactive classrooms</span></section></div>
    <p className="ba-info">Set up your permanent classroom roster here. Open a classroom to show its QR, send teacher messages, or view submitted counts. Cafeteria Workers enter packing and leftover counts through the classroom QR. Use the School Breakfast Menu tab to set today’s items; the Daily Dashboard tab tracks submissions and review.</p>
