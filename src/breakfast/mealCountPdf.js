@@ -21,11 +21,15 @@ export async function buildMealCountPdf(template,{location,record,days,week}){
   fill(`Text${7+i*3}`,`${date.slice(5,7)}/${date.slice(8,10)}/${date.slice(0,4)}`);
   const day=submitted.find(d=>d.service_date===date);if(!day)return;
   if(day.adult_meal_recorded_at)fill(i===0?'Todays Adult Meal':`Todays Adult Meal_${i+1}`,day.adult_meal_received?1:0);
+  if(day.preorder_submitted_at&&day.preorder_date){
+   const suffix=i===0?'':`_${i*3+1}`;fill(`Entrée Name${suffix}`,day.preorder_entree);fill(`Amount needed${suffix}`,day.preorder_count);
+   const y=[594.121,460.071,327.067,191.635,55.49][i];page.drawRectangle({x:18,y:y-2,width:109,height:12,color:rgb(1,1,1)});page.drawText(`Pre-order for ${day.preorder_date.slice(5,7)}/${day.preorder_date.slice(8,10)}/${day.preorder_date.slice(0,4)}`,{x:19,y,size:8,font,color:rgb(0,0,0)});
+  }
   if(!day.teacher_submitted_at||!day.teacher_certified)return;
   fill(totalFields[i],day.teacher_meal_count);
   marks[i].slice(0,day.teacher_meal_count).forEach(([x,y])=>page.drawLine({start:{x:x-5,y:y-5},end:{x:x+5,y:y+5},thickness:1,color:rgb(0,0,0)}));
  });
- // Uncollected attendance/preorders/designee/signatures remain blank.
+ // Uncollected attendance/designee/signatures remain blank.
  // Keep the supplied AcroForm interactive; do not invent a teacher signature.
  form.updateFieldAppearances(font);
  pdf.setTitle(`Breakfast Meal Count - ${submitted[0].room_snapshot} - ${dates[0]}`);

@@ -34,3 +34,5 @@ export const dailyDashboard=(token,date)=>rpc('breakfast_daily_dashboard',{p_tok
 export const reviewBreakfast=(token,row,date,notes)=>rpc('breakfast_review_day',{p_token:token,p_id:row.classroom_id,p_date:date,p_updated:row.record.updated_at,p_notes:notes});
 
 export const teacherAdultMeal=(qr,page,received)=>rpc('breakfast_teacher_adult_meal',{p_qr:qr,p_date:page.service_date,p_received:received,p_revision:page.record?.adult_revision||0});
+
+export const teacherPreorder=(qr,page,entree,count)=>rpc('breakfast_teacher_preorder',{p_qr:qr,p_date:page.service_date,p_for_date:page.preorder_date,p_entree:entree,p_count:count,p_revision:page.record?.preorder_revision||0});

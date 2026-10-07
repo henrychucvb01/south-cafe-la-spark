@@ -23,6 +23,8 @@ const db=new PGlite({extensions:{pgcrypto}});try {
  await db.exec((await readFile('supabase/migrations/202610070002_breakfast_operations.sql','utf8')).replaceAll('clock_timestamp()', 'public.test_now()'));
  await db.exec((await readFile('supabase/migrations/202610070003_breakfast_item_packing.sql','utf8')).replaceAll('clock_timestamp()', 'public.test_now()'));
  await db.exec((await readFile('supabase/migrations/202610070004_breakfast_adult_meal.sql','utf8')).replaceAll('clock_timestamp()', 'public.test_now()'));
+ await db.exec('create table spark_excluded_days(location_id bigint,service_date date);');
+ await db.exec((await readFile('supabase/migrations/202610070005_breakfast_preorders.sql','utf8')).replaceAll('clock_timestamp()', 'public.test_now()'));
  const q=async(sql,args=[])=>(await db.query(sql,args)).rows;
  await db.exec('set role anon');
  const token=(await q("select open_supper_monitoring_session(1,11,'1234',null) t"))[0].t;
@@ -77,5 +79,18 @@ const db=new PGlite({extensions:{pgcrypto}});try {
  await assert.rejects(pack(2,packed,menu,true,'2026-10-05'),/service date changed/);
  await db.exec('reset role');assert.equal((await q('select breakfast_count from meal_counts'))[0].breakfast_count,642);await db.exec('set role anon');
  await assert.rejects(q('select breakfast_daily_dashboard($1,$2)',['invalid','2026-10-06']),/Session/);
+ await db.exec('reset role');
+ await db.exec("insert into spark_excluded_days values(1,'2026-10-07'),(1,'2026-10-08'),(1,'2026-10-12');");
+ assert.equal((await q("select breakfast_next_service_date(1,'2026-10-09')::text d"))[0].d,'2026-10-13');
+ assert.equal((await q("select breakfast_next_service_date(2,'2026-10-09')::text d"))[0].d,'2026-10-12');
+ await db.exec('set role anon');
+ const preorder=async(entree,count,rev=0,target='2026-10-09')=>(await q("select breakfast_teacher_preorder($1,'2026-10-06',$2,$3,$4,$5) v",[qr,target,entree,count,rev]))[0].v;
+ let ordered=await preorder('Breakfast burrito',20);assert.equal(ordered.record.preorder_count,20);assert.equal(ordered.record.count,23);assert.equal((await dash()).total,23);
+ assert.equal((await preorder('Breakfast burrito',20)).record.preorder_revision,1);
+ await assert.rejects(preorder('Cereal',10),/another session/);await assert.rejects(preorder('Cereal',10,1,'2026-10-07'),/date changed/);await assert.rejects(preorder('',10,1),/entree/);await assert.rejects(preorder('Cereal',-1,1),/quantity/);
+ assert.equal((await preorder('Cereal',0,1)).record.preorder_count,0);
+ const nextDash=(await q("select breakfast_daily_dashboard($1,'2026-10-09') v",[token]))[0].v;assert.equal(nextDash.total,0);assert.equal(nextDash.preorders[0].quantity,0);assert.equal(nextDash.preorders[0].entree,'Cereal');
+ assert.equal((await q("select breakfast_daily_dashboard($1,'2026-10-09') v",[other]))[0].v.preorders.length,0);
+ console.log('PASS: pre-orders skip school exclusions/weekends, reject stale edits, stay school scoped, save after count cutoff, and never change meals served.');
  console.log('PASS: exact menu packing, no-menu/stale-menu protection, different workers for packing and returns, certification, idempotency, quantity validation, manager scope, daily total, review/invalidation, packing PDF data, cutoff independence, unchanged official meals.');
 }finally{await db.close();}
