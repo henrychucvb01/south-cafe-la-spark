@@ -36,3 +36,16 @@ test('Breakfast tabs show separate sections and milk checkboxes save selected it
  await click('Packing and BIC Meal Count report');expect(host.textContent).toContain('Preview / Print packing report');expect(host.querySelector('details')).toBeNull();await act(async()=>{const select=host.querySelector('.ba-report-classroom select');select.value='class-1';select.dispatchEvent(new Event('change',{bubbles:true}));});expect(host.textContent).toContain('Preview / Print meal count form');
  await click('Classrooms');expect(host.textContent).toContain('Room B-203');expect(host.textContent).not.toContain('Preview / Print packing report');
 });
+
+test('creates ten rows and retries only failed classrooms after a partial save',async()=>{
+ await render();await click('Classrooms');await click('+ Add classroom');await click('Submit');expect(host.querySelectorAll('.ba-classroom-entry tbody tr')).toHaveLength(10);
+ for(let i=10;i>2;i--)await click('Remove');
+ expect(host.querySelectorAll('.ba-classroom-entry tbody tr')).toHaveLength(2);
+ await act(async()=>{const inputs=host.querySelectorAll('form input');set(inputs[0],'S14');set(inputs[1],'Teacher A');set(inputs[2],'24');set(inputs[4],'S15');set(inputs[5],'Teacher B');set(inputs[6],'20');});
+ api.saveClassroom.mockResolvedValueOnce({...record,id:'saved-a',room_code:'S14'}).mockRejectedValueOnce(new Error('Please correct this room'));
+ await act(async()=>host.querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+ expect(api.saveClassroom).toHaveBeenCalledTimes(2);expect(host.querySelector('form input').disabled).toBe(true);expect(host.textContent).toContain('Please correct this room');
+ api.saveClassroom.mockResolvedValueOnce({...record,id:'saved-b',room_code:'S15'});
+ await act(async()=>host.querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+ expect(api.saveClassroom).toHaveBeenCalledTimes(3);expect(api.saveClassroom.mock.calls[2][2].room_code).toBe('S15');await click('Done');expect(host.textContent).toContain('Room S14');expect(host.textContent).toContain('Room S15');
+});
