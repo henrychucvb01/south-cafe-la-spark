@@ -9,7 +9,8 @@ import ClassroomHistory from './ClassroomHistory';
 import './breakfast.css';
 export default function BreakfastPage({location,employee,managerPin}) {
  const [token,setToken]=useState(''),[records,setRecords]=useState([]),[error,setError]=useState(''),[busy,setBusy]=useState(true),[retry,setRetry]=useState(0);
- const [showSettings,setShowSettings]=useState(false);
+ const [showSettings,setShowSettings]=useState(false),[tab,setTab]=useState('dashboard');
+ const tabs=[['dashboard','Daily Dashboard'],['menu','School Breakfast Menu'],['packing','Morning Packing Report'],['classrooms','Classrooms']];
  const [editing,setEditing]=useState(null),[selected,setSelected]=useState(null),[filter,setFilter]=useState('active'),[message,setMessage]=useState('');
  useEffect(()=>{let cancelled=false,session;
   setBusy(true);setError('');setToken('');setRecords([]);
@@ -23,17 +24,22 @@ export default function BreakfastPage({location,employee,managerPin}) {
   {message&&<p role="status" className="ba-success">{message}</p>}
   {!token&&busy&&<p role="status">Opening your school’s Breakfast area…</p>}
   {token&&(showSettings?<BreakfastSettings token={token} onBack={()=>setShowSettings(false)}/>:selected?<ClassroomHistory key={selected.id} token={token} record={selected} location={location} onBack={()=>setSelected(null)}/>:<>
-   <DailyDashboard token={token}/>
-   {!editing&&<BreakfastDispatch token={token}/>}
-   <PackingPrint token={token}/>
+   <div className="ba-toolbar"><div role="tablist" aria-label="Breakfast sections" className="ba-tabs">{tabs.map(([id,label],index)=><button key={id} id={`ba-tab-${id}`} role="tab" aria-selected={tab===id} aria-controls={`ba-panel-${id}`} tabIndex={tab===id?0:-1} disabled={Boolean(editing)} onClick={()=>setTab(id)} onKeyDown={e=>{const next=e.key==='ArrowRight'?(index+1)%tabs.length:e.key==='ArrowLeft'?(index+tabs.length-1)%tabs.length:e.key==='Home'?0:e.key==='End'?tabs.length-1:null;if(next!==null){e.preventDefault();setTab(tabs[next][0]);document.getElementById(`ba-tab-${tabs[next][0]}`)?.focus();}}}>{label}</button>)}</div><button disabled={Boolean(editing)} onClick={()=>setShowSettings(true)}>Breakfast settings</button></div>
+   <section role="tabpanel" id={`ba-panel-${tab}`} aria-labelledby={`ba-tab-${tab}`}>
+   {tab==='dashboard'&&<DailyDashboard token={token}/>}
+   {tab==='menu'&&<BreakfastDispatch token={token} expanded/>}
+   {tab==='packing'&&<PackingPrint token={token} expanded/>}
+   {tab==='classrooms'&&<>
    <div className="ba-totals"><section><strong>{active.length}</strong><span>Active classrooms</span></section><section><strong>{active.reduce((sum,r)=>sum+r.enrolled_students,0)}</strong><span>Enrolled students</span></section><section><strong>{records.length-active.length}</strong><span>Inactive classrooms</span></section></div>
-   <p className="ba-info">Set up your permanent classroom roster here. Open a classroom to show its QR, send teacher messages, or view submitted counts. Cafeteria Workers enter packing and leftover counts through the classroom QR. Enter today’s school menu above; the daily dashboard tracks submissions and review.</p>
+   <p className="ba-info">Set up your permanent classroom roster here. Open a classroom to show its QR, send teacher messages, or view submitted counts. Cafeteria Workers enter packing and leftover counts through the classroom QR. Use the School Breakfast Menu tab to set today’s items; the Daily Dashboard tab tracks submissions and review.</p>
    {editing?<ClassroomForm key={editing.record?.id||'new'} record={editing.record} onSave={save} onCancel={()=>setEditing(null)} busy={busy}/>:<section className="ba-panel">
-    <div className="ba-toolbar"><h2>Classrooms</h2><button onClick={()=>setShowSettings(true)}>Breakfast settings</button><button className="ba-primary" disabled={busy} onClick={()=>setEditing({record:null})}>+ Add classroom</button><label>Show<select value={filter} onChange={e=>setFilter(e.target.value)}><option value="active">Active</option><option value="inactive">Inactive</option><option value="all">All classrooms</option></select></label></div>
+    <div className="ba-toolbar"><h2>Classrooms</h2><button className="ba-primary" disabled={busy} onClick={()=>setEditing({record:null})}>+ Add classroom</button><label>Show<select value={filter} onChange={e=>setFilter(e.target.value)}><option value="active">Active</option><option value="inactive">Inactive</option><option value="all">All classrooms</option></select></label></div>
     {!visible.length&&<p>No {filter==='all'?'':filter+' '}classrooms yet. Add a classroom to get started.</p>}
     {!!visible.length&&<div className="ba-table-scroll"><table className="ba-classroom-table"><thead><tr><th scope="col">Room</th><th scope="col">Teacher</th><th scope="col">Students</th><th scope="col">Campus</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead><tbody>{visible.map(record=><tr className="ba-classroom" key={record.id}><th scope="row">Room {record.room_code}</th><td>{record.teacher_name}</td><td>{record.enrolled_students}</td><td>{record.campus_label||'—'}</td><td><span className={`ba-badge ${record.active?'':'ba-muted'}`}>{record.active?'Active':'Inactive'}</span></td><td><div className="ba-actions"><button disabled={busy} onClick={()=>setSelected(record)}>View & history</button><button disabled={busy} onClick={()=>setEditing({record})}>Edit</button><button disabled={busy} onClick={()=>save({...record,active:!record.active},record)}>{record.active?'Deactivate':'Reactivate'}</button></div></td></tr>)}</tbody></table></div>}
 
    </section>}
+   </>}
+   </section>
   </>)}
  </main>;
 }

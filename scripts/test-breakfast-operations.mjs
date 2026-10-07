@@ -21,6 +21,7 @@ const db=new PGlite({extensions:{pgcrypto}});try {
  await db.exec((await readFile('supabase/migrations/202610070001_breakfast_worker.sql','utf8')).replaceAll('clock_timestamp()', 'public.test_now()'));
  await db.exec("insert into breakfast_worker_access(location_id,pin_hash) values(1,extensions.crypt('4321',extensions.gen_salt('bf',10)));");
  await db.exec((await readFile('supabase/migrations/202610070002_breakfast_operations.sql','utf8')).replaceAll('clock_timestamp()', 'public.test_now()'));
+ await db.exec((await readFile('supabase/migrations/202610070003_breakfast_item_packing.sql','utf8')).replaceAll('clock_timestamp()', 'public.test_now()'));
  const q=async(sql,args=[])=>(await db.query(sql,args)).rows;
  await db.exec('set role anon');
  const token=(await q("select open_supper_monitoring_session(1,11,'1234',null) t"))[0].t;
@@ -38,7 +39,7 @@ const db=new PGlite({extensions:{pgcrypto}});try {
  const packer=await login('staff:101'),returner=await login('employee:11');
  assert.ok(packer);assert.ok(returner);
  const wp=async t=>(await q('select breakfast_worker_page($1,$2) v',[qr,t||packer]))[0].v;
- const pack=async(rev=0,items=packed,m=menu,cert=true,date='2026-10-06')=>(await q('select breakfast_worker_pack($1,$2,$3,30,$4,$5,$6,$7) v',[qr,packer,date,JSON.stringify(items),JSON.stringify(m),cert,rev]))[0].v;
+ const pack=async(rev=0,items=packed,m=menu,cert=true,date='2026-10-06')=>(await q('select breakfast_worker_pack($1,$2,$3,null,$4,$5,$6,$7) v',[qr,packer,date,JSON.stringify(items),JSON.stringify(m),cert,rev]))[0].v;
  const ret=async(rev=0,items=left,cert=true)=>(await q('select breakfast_worker_submit($1,$2,$3,$4,$5,$6,$7) v',[qr,returner,'2026-10-06',JSON.stringify(items),'Returned after service',cert,rev]))[0].v;
  const dash=async(t=token)=>(await q("select breakfast_daily_dashboard($1,'2026-10-06') v",[t]))[0].v;
  await assert.rejects(pack(),/manager must enter/);await assert.rejects(ret(),/morning packing/);
@@ -49,7 +50,7 @@ const db=new PGlite({extensions:{pgcrypto}});try {
  await assert.rejects(pack(0,{entree1:20}),/every menu item/);
  await assert.rejects(pack(0,{...packed,other:0}),/every menu item/);
  await assert.rejects(pack(0,{...packed,fruit:-1}),/every menu item/);
- let p=await pack();assert.equal(p.packing_worker_name,'Worker A');assert.equal(p.packing_revision,1);
+ let p=await pack();assert.equal(p.sent,null);assert.equal(p.packing_worker_name,'Worker A');assert.equal(p.packing_revision,1);
  assert.equal((await pack()).packing_revision,1);
  await assert.rejects(pack(0,{...packed,fruit:29}),/another session/);
  await assert.rejects(q("select breakfast_menu($1,'2026-10-06',$2)",[token,JSON.stringify({...menu,fruit:'Banana'})]),/Packing has started/);
