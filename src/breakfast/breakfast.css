@@ -24,3 +24,5 @@
 .ba-root .ba-minus{background:#fff0ed;border:2px solid #ba3b34;color:#9f2722}.ba-root .ba-minus:hover:not(:disabled){background:#ffe0da}
 
 .ba-rollout-schools{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:10px}.ba-rollout-school{padding:14px;border:1px solid #cfdfdf;border-radius:10px;background:#fff}.ba-rollout-school small{display:block;margin-top:4px;color:#527080}
+
+.ba-card-meals{display:flex;align-items:center;justify-content:space-between;gap:12px}.ba-card-meals .ba-card-count{flex:1;min-width:0}.ba-card-preorder{flex:0 1 50%;min-width:0;padding:6px 8px;border-radius:8px;background:#e5f3ec;color:#175947;font-size:12px;line-height:1.4;text-align:right}.ba-card-preorder span,.ba-card-preorder strong{display:block}
