@@ -8,6 +8,7 @@ jest.mock('../pages/ManagerPinPage',()=>props=><button onClick={()=>props.onSucc
 jest.mock('../pages/SupervisorPinPage',()=>props=><button onClick={()=>props.onSuccess('supervisor-session')}>Verify supervisor</button>);
 jest.mock('../pages/HomeBase',()=>props=><><h1>Manager Hub</h1><button onClick={props.onBreakfast}>Breakfast</button><button onClick={props.onManagerResources}>Resources</button><button onClick={props.onSchoolHub}>School</button></>);
 jest.mock('../breakfast/BreakfastPage',()=>()=> <h1>Breakfast Accountability</h1>);
+jest.mock('../breakfast/TeacherPage',()=>({__esModule:true,...jest.requireActual('../breakfast/TeacherPage'),default:()=> <h1>Teacher breakfast counter</h1>}));
 jest.mock('../pages/ManagerResourcesPage',()=>props=><button onClick={props.onAskSpark}>Ask</button>);
 jest.mock('../pages/AskSparkPage',()=>()=> <h1>Ask SPARK</h1>);
 jest.mock('../pages/SchoolHub',()=>props=><button onClick={props.onMealAnalytics}>Analytics</button>);
@@ -34,4 +35,11 @@ test('Manager tools return through resources and school dashboard without select
 
 test('Breakfast uses the authenticated Manager Hub route and returns without signing in again',()=>{
  click('Manager sign in');click('Choose manager');click('Verify manager');click('Breakfast');expect(host.textContent).toContain('Breakfast Accountability');click('← Manager Hub');expect(host.textContent).toContain('Manager Hub');expect(host.textContent).not.toContain('Verify manager');
+});
+
+test('classroom QR opens the teacher page without a Manager login or Manager navigation',()=>{
+ act(()=>{window.location.hash='breakfast/00000000-0000-4000-8000-000000000001';window.dispatchEvent(new Event('hashchange'));});
+ expect(host.textContent).toContain('Teacher breakfast counter');expect(host.textContent).not.toContain('Manager sign in');expect(host.querySelector('nav')).toBeNull();
+ act(()=>{window.location.hash='';window.dispatchEvent(new Event('hashchange'));});
+ expect(host.textContent).toContain('Manager sign in');
 });

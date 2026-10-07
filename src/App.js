@@ -10,6 +10,7 @@ import CommandCenter from "./pages/CommandCenter";
 import SupervisorPinPage from "./pages/SupervisorPinPage";
 import HomeBase from "./pages/HomeBase";
 import BreakfastPage from "./breakfast/BreakfastPage";
+import TeacherPage, {teacherToken} from "./breakfast/TeacherPage";
 import IncidentRecordHelper from "./pages/IncidentRecordHelper";
 import MealAnalyticsPage from "./pages/MealAnalyticsPage";
 import SpotlightArchive from "./spotlight/SpotlightArchive";
@@ -29,6 +30,7 @@ import MysteryPullPage from "./mysteryPull/MysteryPullPage";
 import { mysteryRpc, saveSession } from "./mysteryPull/service";
 
 function App() {
+  const [qrToken, setQrToken] = useState(()=>teacherToken(window.location.hash));
   const [screen, setScreen] = useState(()=>window.location.hash === "#mystery-pull" ? "mysteryPull" : "login");
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
@@ -58,7 +60,7 @@ function App() {
     finishLine: ["Finish Line", supervisorContext ? "Command Center" : editingCheck ? "Finish Line History" : "School Dashboard", supervisorContext ? "commandCenter" : editingCheck ? "schoolDashboard" : "schoolHub"],
   };
   const navigation = destinations[screen];
-  usePageNavigation({ active: !!navigation, level: 0, title: navigation?.[0], destination: navigation?.[1], onNavigate: () => { setEditingCheck(null); setScreen(navigation[2]); } });
+  usePageNavigation({ active: !!navigation && !qrToken, level: 0, title: navigation?.[0], destination: navigation?.[1], onNavigate: () => { setEditingCheck(null); setScreen(navigation[2]); } });
 
   useEffect(() => {
     function handleBeforeInstallPrompt(event) { event.preventDefault(); setInstallPrompt(event); setCanInstall(true); }
@@ -69,7 +71,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const navigate = () => setScreen(current => window.location.hash === '#mystery-pull' ? 'mysteryPull' : current === 'mysteryPull' ? 'login' : current);
+    const navigate = () => { setQrToken(teacherToken(window.location.hash)); setScreen(current => window.location.hash === '#mystery-pull' ? 'mysteryPull' : current === 'mysteryPull' ? 'login' : current); };
     window.addEventListener('hashchange', navigate);
     return () => window.removeEventListener('hashchange', navigate);
   }, []);
@@ -87,6 +89,7 @@ function App() {
   function managerPage(content) { return <>{content}<ManagerFeedback location={selectedLocation} employee={selectedEmployee} pageRoute={screen} /></>; }
 
   if (screen === "mysteryPull") return <MysteryPullPage onBack={() => { window.history.replaceState(null, "", window.location.pathname + window.location.search); resetToLogin(); }} />;
+  if (qrToken) return <TeacherPage key={qrToken} qr={qrToken}/>;
   if (screen === "login") return <LoginPage onMysteryPull={async (code) => { const session = await mysteryRpc("open", { p_code: code }); saveSession(session); window.location.hash = "mystery-pull"; setScreen("mysteryPull"); }} canInstall={canInstall} onInstall={handleInstallApp} onLocationSelected={(location) => { setSelectedLocation(location); setSelectedEmployee(null); setEditingCheck(null); setScreen("employeeSelect"); }} onSupervisor={() => { setEditingCheck(null); setScreen("supervisorPin"); }} />;
   if (screen === "supervisorPin") return <SupervisorPinPage onSuccess={(verifiedPin) => { setSupervisorSessionPin(verifiedPin); setScreen("commandCenter"); }} onBack={() => { setSupervisorSessionPin(""); setScreen("login"); }} />;
   if (screen === "employeeSelect") return <EmployeeSelectPage location={selectedLocation} onEmployeeSelected={(employee) => { setSelectedEmployee(employee); setEditingCheck(null); setScreen("managerPin"); }} onBack={resetToLogin} />;
