@@ -16,3 +16,15 @@ export const sendMessage=(token,id,values)=>rpc('breakfast_send_message',{p_toke
 export const teacherPage=qr=>rpc('breakfast_teacher_page',{p_qr:qr});
 export const teacherMessage=(qr,id,ack=false)=>rpc('breakfast_teacher_message',{p_qr:qr,p_message:id,p_ack:ack});
 export const teacherSubmit=(qr,page,count,comments,certified)=>rpc('breakfast_teacher_submit',{p_qr:qr,p_date:page.service_date,p_count:count,p_comments:comments,p_certified:certified,p_revision:page.record?.revision||0});
+
+export const workerNames=qr=>rpc('breakfast_worker_names',{p_qr:qr});
+export const workerLogin=(qr,employee,pin)=>rpc('breakfast_worker_login',{p_qr:qr,p_employee:employee,p_pin:pin});
+export const workerPage=(qr,token)=>rpc('breakfast_worker_page',{p_qr:qr,p_token:token});
+export const workerSubmit=(qr,token,page,counts,notes,certified)=>rpc('breakfast_worker_submit',{p_qr:qr,p_token:token,p_date:page.service_date,p_counts:counts,p_notes:notes,p_certified:certified,p_revision:page.revision});
+export const workerLogout=token=>rpc('breakfast_worker_logout',{p_token:token});
+export const setWorkerPin=(token,pin)=>rpc('breakfast_set_worker_pin',{p_token:token,p_pin:pin});
+export const breakfastMenu=(token,date,items)=>rpc('breakfast_menu',{p_token:token,p_date:date,...(items?{p_items:items}:{})});
+export const breakfastPacking=(token,id,date,values)=>rpc('breakfast_packing',{p_token:token,p_id:id,p_date:date,...(values?{p_save:true,p_sent:values.sent,p_items:values.items,p_revision:values.revision}:{})});
+
+export const packingReport=(token,date)=>rpc('breakfast_packing_report',{p_token:token,p_date:date});
+export const workerPackingReport=(qr,token)=>rpc('breakfast_worker_packing_report',{p_qr:qr,p_token:token});

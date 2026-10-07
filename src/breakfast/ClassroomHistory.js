@@ -1,5 +1,6 @@
 import React,{useCallback,useEffect,useState} from 'react';
 import MealCountPrint from './MealCountPrint';
+import BreakfastDispatch from './BreakfastDispatch';
 import ClassroomTeacherTools from './ClassroomTeacherTools';
 import {classroomHistory} from './service';
 import {usePageNavigation} from '../navigation/PageNavigation';
@@ -19,11 +20,12 @@ export default function ClassroomHistory({token,record,location,onBack}) {
   {error&&<p role="alert" className="ba-error">{error} <button onClick={load}>Retry</button></p>}
   <ClassroomTeacherTools token={token} record={classroom} onMessage={load}/>
   {location&&<MealCountPrint token={token} record={classroom} location={location}/>}
+  {classroom.active&&<BreakfastDispatch token={token} record={classroom} onSaved={load}/>}
   <h3>Classroom breakfast history</h3>
   <p>Historical records retain the room and teacher details from that service date.</p>
   {busy&&<p role="status">Loading…</p>}
   {data&&!data.days.length&&<p>No daily breakfast records yet. Teacher submissions from the classroom QR will appear here.</p>}
-  {!!data?.days.length&&<div className="ba-table-scroll"><table className="ba-history-table" aria-label="Classroom breakfast history"><thead><tr><th scope="col">Date</th><th scope="col">Room</th><th scope="col">Teacher</th><th scope="col">Status</th><th scope="col">Sent</th><th scope="col">Teacher count</th><th scope="col">Returned items</th><th scope="col">Difference</th><th scope="col">Teacher submitted</th><th scope="col">Details</th></tr></thead><tbody>{data.days.slice(0,50).map(day=><tr key={day.id}><th scope="row">{day.service_date}</th><td>{day.room_snapshot}</td><td>{day.teacher_snapshot}</td><td>{eventTitle(day.review_status)}</td><td>{day.number_sent??'—'}</td><td>{day.teacher_meal_count??'—'}</td><td>{Object.entries(day.returned_counts||{}).map(([key,value])=>`${key}: ${value}`).join(', ')||'Not recorded'}</td><td>{day.discrepancy??'—'}</td><td>{day.teacher_submitted_at?time(day.teacher_submitted_at):'—'}</td><td>{day.worker_submitted_at||day.teacher_comments||day.manager_notes?<details><summary>View details</summary>{day.worker_submitted_at&&<p>Returns submitted: {time(day.worker_submitted_at)}</p>}{day.teacher_comments&&<p>Teacher comments: {day.teacher_comments}</p>}{day.manager_notes&&<p>Manager notes: {day.manager_notes}</p>}</details>:'—'}</td></tr>)}</tbody></table></div>}
+  {!!data?.days.length&&<div className="ba-table-scroll"><table className="ba-history-table" aria-label="Classroom breakfast history"><thead><tr><th scope="col">Date</th><th scope="col">Room</th><th scope="col">Teacher</th><th scope="col">Status</th><th scope="col">Sent</th><th scope="col">Teacher count</th><th scope="col">Returned items</th><th scope="col">Difference</th><th scope="col">Teacher submitted</th><th scope="col">Details</th></tr></thead><tbody>{data.days.slice(0,50).map(day=><tr key={day.id}><th scope="row">{day.service_date}</th><td>{day.room_snapshot}</td><td>{day.teacher_snapshot}</td><td>{eventTitle(day.review_status)}</td><td>{day.number_sent??'—'}</td><td>{day.teacher_meal_count??'—'}</td><td>{Object.entries(day.returned_counts||{}).map(([key,value])=>`${key}: ${value}`).join(', ')||'Not recorded'}</td><td>{day.discrepancy??'—'}</td><td>{day.teacher_submitted_at?time(day.teacher_submitted_at):'—'}</td><td>{day.worker_submitted_at||day.teacher_comments||day.manager_notes?<details><summary>View details</summary>{day.worker_submitted_at&&<p>Returns submitted: {time(day.worker_submitted_at)}{day.worker_name?` · ${day.worker_name}`:''}</p>}{day.worker_notes&&<p>Worker notes: {day.worker_notes}</p>}{day.teacher_comments&&<p>Teacher comments: {day.teacher_comments}</p>}{day.manager_notes&&<p>Manager notes: {day.manager_notes}</p>}</details>:'—'}</td></tr>)}</tbody></table></div>}
   {!!data&&<div className="ba-actions">{beforeDate&&<button disabled={busy} onClick={()=>setBeforeDate(null)}>Newest days</button>}{data.days.length>50&&<button disabled={busy} onClick={()=>setBeforeDate(data.days[49].service_date)}>Older days</button>}</div>}
 
  </section>;

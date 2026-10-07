@@ -1,0 +1,11 @@
+import React,{useEffect,useRef,useState} from 'react';
+import {packingReport,workerPackingReport} from './service';
+import {buildPackingPdf} from './packingPdf';
+import {PACKING_URL} from './resources';
+export default function PackingPrint({token,qr,workerToken}){
+ const [date,setDate]=useState(()=>new Date().toLocaleDateString('en-CA',{timeZone:'America/Los_Angeles'})),[busy,setBusy]=useState(false),[error,setError]=useState(''),[url,setUrl]=useState(''),[filename,setFilename]=useState('BIC-packing-report');
+ const objectUrl=useRef('');useEffect(()=>()=>{if(objectUrl.current)URL.revokeObjectURL(objectUrl.current);},[]);
+ function clear(){if(objectUrl.current)URL.revokeObjectURL(objectUrl.current);objectUrl.current='';setUrl('');}
+ async function preview(){setBusy(true);setError('');clear();try{const data=qr?await workerPackingReport(qr,workerToken):await packingReport(token,date);const response=await fetch(PACKING_URL);if(!response.ok)throw new Error('The district packing template could not be loaded.');const bytes=await buildPackingPdf(await response.arrayBuffer(),data);objectUrl.current=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));setUrl(objectUrl.current);setFilename(`BIC-packing-${data.school}-${data.service_date}`);}catch(e){setError(e.message);}finally{setBusy(false);}}
+ return <details className="ba-print-tools"><summary>Morning packing report</summary><p>{qr?'Today’s packing report for this classroom.':'Daily packing report for your school’s classrooms.'} Saved menu and sent quantities fill the district PDF. Unknown quantities and signatures stay blank.</p>{!qr&&<label>Packing date<input type="date" value={date} required disabled={busy} onChange={e=>{clear();setDate(e.target.value);}}/></label>}<button type="button" disabled={busy||!date} onClick={preview}>{busy?'Preparing…':'Preview / Print packing report'}</button>{error&&<p role="alert">{error}</p>}{url&&<><label>PDF filename<input value={filename} maxLength={150} onChange={e=>setFilename(e.target.value)}/></label><a href={url} target="_blank" rel="noreferrer">Open packing PDF to print</a><a href={url} download={`${(filename.trim()||'BIC-packing').replace(/[<>:"/\\|?*]/g,'-').replace(/\.pdf$/i,'')}.pdf`}>Download packing PDF</a><iframe className="ba-print-preview" title="Filled daily packing report" src={url}/></>}</details>;
+}
