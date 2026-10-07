@@ -6,7 +6,8 @@ jest.mock('../pages/LoginPage',()=>props=><><button onClick={()=>props.onLocatio
 jest.mock('../pages/EmployeeSelectPage',()=>props=><button onClick={()=>props.onEmployeeSelected({id:2,employee_name:'Manager'})}>Choose manager</button>);
 jest.mock('../pages/ManagerPinPage',()=>props=><button onClick={()=>props.onSuccess('manager-session')}>Verify manager</button>);
 jest.mock('../pages/SupervisorPinPage',()=>props=><button onClick={()=>props.onSuccess('supervisor-session')}>Verify supervisor</button>);
-jest.mock('../pages/HomeBase',()=>props=><><h1>Manager Hub</h1><button onClick={props.onManagerResources}>Resources</button><button onClick={props.onSchoolHub}>School</button></>);
+jest.mock('../pages/HomeBase',()=>props=><><h1>Manager Hub</h1><button onClick={props.onBreakfast}>Breakfast</button><button onClick={props.onManagerResources}>Resources</button><button onClick={props.onSchoolHub}>School</button></>);
+jest.mock('../breakfast/BreakfastPage',()=>()=> <h1>Breakfast Accountability</h1>);
 jest.mock('../pages/ManagerResourcesPage',()=>props=><button onClick={props.onAskSpark}>Ask</button>);
 jest.mock('../pages/AskSparkPage',()=>()=> <h1>Ask SPARK</h1>);
 jest.mock('../pages/SchoolHub',()=>props=><button onClick={props.onMealAnalytics}>Analytics</button>);
@@ -29,4 +30,8 @@ test('Supervisor school analytics returns to Command Center with its session, us
 test('Manager tools return through resources and school dashboard without selecting a location or PIN again',()=>{
  click('Manager sign in');click('Choose manager');click('Verify manager');click('Resources');click('Ask');click('← Manager Resources');expect(host.textContent).toContain('Resources');click('← Manager Hub');expect(host.textContent).toContain('Manager Hub');
  click('School');click('Analytics');click('← School Dashboard');expect(host.textContent).toContain('Analytics');click('← Manager Hub');expect(host.textContent).not.toContain('Verify manager');expect(host.textContent).not.toContain('Choose manager');
+});
+
+test('Breakfast uses the authenticated Manager Hub route and returns without signing in again',()=>{
+ click('Manager sign in');click('Choose manager');click('Verify manager');click('Breakfast');expect(host.textContent).toContain('Breakfast Accountability');click('← Manager Hub');expect(host.textContent).toContain('Manager Hub');expect(host.textContent).not.toContain('Verify manager');
 });

@@ -11,6 +11,7 @@ function HomeBase({
   onDailyBites,
   onManagerResources,
   onMonitoring,
+  onBreakfast,
   onExit,
 }) {
   const { count, error } = useMonitoringCorrections(location, employee, managerPin);
@@ -90,6 +91,12 @@ function HomeBase({
                 </span>
               </div>
 
+              <div className="homebase-card-arrow">›</div>
+            </button>
+
+            <button type="button" className="homebase-card" onClick={onBreakfast}>
+              <div className="homebase-card-icon">🥣</div>
+              <div className="homebase-card-body"><strong>Breakfast</strong><span>Manage your classroom roster and breakfast accountability history.</span></div>
               <div className="homebase-card-arrow">›</div>
             </button>
 
