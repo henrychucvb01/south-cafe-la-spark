@@ -1,4 +1,5 @@
 import React from "react";
+import {useBreakfastAccess} from "../breakfast/BreakfastAccess";
 import useMonitoringCorrections from "../monitoring/useMonitoringCorrections";
 
 function HomeBase({
@@ -14,6 +15,7 @@ function HomeBase({
   onBreakfast,
   onExit,
 }) {
+  const {enabled:breakfastEnabled}=useBreakfastAccess({location,employee,managerPin});
   const { count, error } = useMonitoringCorrections(location, employee, managerPin);
   return (
     <div className="login-app">
@@ -94,11 +96,11 @@ function HomeBase({
               <div className="homebase-card-arrow">›</div>
             </button>
 
-            <button type="button" className="homebase-card" onClick={onBreakfast}>
+            {breakfastEnabled&&<button type="button" className="homebase-card" onClick={onBreakfast}>
               <div className="homebase-card-icon">🥣</div>
               <div className="homebase-card-body"><strong>Breakfast</strong><span>Manage your classroom roster and breakfast accountability history.</span></div>
               <div className="homebase-card-arrow">›</div>
-            </button>
+            </button>}
 
             <button type="button" className={`homebase-card${count ? " homebase-card-corrections" : ""}`} onClick={onMonitoring}>
               <div className="homebase-card-icon">📋</div>

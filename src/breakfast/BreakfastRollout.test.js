@@ -1,0 +1,12 @@
+import React,{act} from 'react';
+import {createRoot} from 'react-dom/client';
+import BreakfastRollout from './BreakfastRollout';
+import * as api from './service';
+jest.mock('./service');
+let host,root;const rows=[{id:1,school_name:'School A',location_code:'001',enabled:false},{id:2,school_name:'School B',location_code:'002',enabled:false}];
+beforeEach(()=>{global.IS_REACT_ACT_ENVIRONMENT=true;jest.clearAllMocks();api.rolloutSettings.mockResolvedValue(rows);host=document.createElement('div');document.body.append(host);root=createRoot(host);});
+afterEach(async()=>{await act(async()=>root.unmount());host.remove();});
+const render=()=>act(async()=>root.render(<BreakfastRollout supervisorPin="supervisor"/>));
+const button=text=>[...host.querySelectorAll('button')].find(b=>b.textContent===text);
+test('loads default OFF and applies only selected schools with supervisor credentials',async()=>{await render();expect(host.textContent).toContain('0 of 2 schools enabled');expect(button('Apply Changes').disabled).toBe(true);await act(async()=>host.querySelector('input').click());expect(host.textContent).toContain('1 of 2 schools enabled (pending changes)');api.rolloutSettings.mockResolvedValue([{...rows[0],enabled:true},rows[1]]);await act(async()=>button('Apply Changes').click());expect(api.rolloutSettings).toHaveBeenLastCalledWith('supervisor',[{id:1,previous:false,enabled:true}]);expect(host.textContent).toContain('changes saved');expect(host.querySelectorAll('input')[1].checked).toBe(false);});
+test('failed save keeps pending selection without claiming success; reload retrieves saved values',async()=>{await render();await act(async()=>host.querySelector('input').click());api.rolloutSettings.mockRejectedValueOnce(new Error('Supervisor authorization required.'));await act(async()=>button('Apply Changes').click());expect(host.querySelector('[role="alert"]').textContent).toContain('authorization');expect(host.textContent).not.toContain('changes saved');expect(host.querySelector('input').checked).toBe(true);await act(async()=>button('Reload').click());expect(host.querySelector('input').checked).toBe(false);});

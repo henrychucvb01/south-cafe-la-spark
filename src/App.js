@@ -1,3 +1,4 @@
+import BreakfastAccess from "./breakfast/BreakfastAccess";
 import React, { useEffect, useState } from "react";
 
 import LoginPage from "./pages/LoginPage";
@@ -89,13 +90,13 @@ function App() {
   function managerPage(content) { return <>{content}<ManagerFeedback location={selectedLocation} employee={selectedEmployee} pageRoute={screen} /></>; }
 
   if (screen === "mysteryPull") return <MysteryPullPage onBack={() => { window.history.replaceState(null, "", window.location.pathname + window.location.search); resetToLogin(); }} />;
-  if (qrToken) return <TeacherPage key={qrToken} qr={qrToken}/>;
+  if (qrToken) return <BreakfastAccess key={qrToken} qr={qrToken}><TeacherPage qr={qrToken}/></BreakfastAccess>;
   if (screen === "login") return <LoginPage onMysteryPull={async (code) => { const session = await mysteryRpc("open", { p_code: code }); saveSession(session); window.location.hash = "mystery-pull"; setScreen("mysteryPull"); }} canInstall={canInstall} onInstall={handleInstallApp} onLocationSelected={(location) => { setSelectedLocation(location); setSelectedEmployee(null); setEditingCheck(null); setScreen("employeeSelect"); }} onSupervisor={() => { setEditingCheck(null); setScreen("supervisorPin"); }} />;
   if (screen === "supervisorPin") return <SupervisorPinPage onSuccess={(verifiedPin) => { setSupervisorSessionPin(verifiedPin); setScreen("commandCenter"); }} onBack={() => { setSupervisorSessionPin(""); setScreen("login"); }} />;
   if (screen === "employeeSelect") return <EmployeeSelectPage location={selectedLocation} onEmployeeSelected={(employee) => { setSelectedEmployee(employee); setEditingCheck(null); setScreen("managerPin"); }} onBack={resetToLogin} />;
   if (screen === "managerPin") return <ManagerPinPage location={selectedLocation} employee={selectedEmployee} onSuccess={(verifiedPin) => { setManagerSessionPin(verifiedPin); setScreen("homeBase"); }} onBack={() => { setSelectedEmployee(null); setManagerSessionPin(""); setScreen("employeeSelect"); }} />;
   if (screen === "homeBase") return managerPage(<HomeBase managerPin={managerSessionPin} location={selectedLocation} employee={selectedEmployee} onSchoolHub={() => setScreen("schoolHub")} onMonthlyScorecard={() => setScreen("managerMonthlyScorecard")} onIncidentHelper={() => setScreen("incidentHelper")} onDailyBites={() => setScreen("dailyBites")} onManagerResources={() => setScreen("managerResources")} onMonitoring={() => setScreen("monitoring")} onBreakfast={() => setScreen("breakfast")} onExit={resetToLogin} />);
-  if (screen === "breakfast" && selectedLocation && selectedEmployee) return managerPage(<BreakfastPage key={selectedLocation.id} location={selectedLocation} employee={selectedEmployee} managerPin={managerSessionPin} />);
+  if (screen === "breakfast" && selectedLocation && selectedEmployee) return managerPage(<BreakfastAccess location={selectedLocation} employee={selectedEmployee} managerPin={managerSessionPin}><BreakfastPage key={selectedLocation.id} location={selectedLocation} employee={selectedEmployee} managerPin={managerSessionPin} /></BreakfastAccess>);
   if (screen === "monitoring" && selectedLocation && selectedEmployee) return managerPage(<MonitoringPage location={selectedLocation} employee={selectedEmployee} managerPin={managerSessionPin} onBack={() => setScreen("homeBase")} />);
   if (screen === "managerMonthlyScorecard") return managerPage(<ManagerMonthlyScorecardPage location={selectedLocation} employee={selectedEmployee} managerPin={managerSessionPin} onBack={() => setScreen("homeBase")} />);
   if (screen === "managerResources") return managerPage(<ManagerResourcesPage onAskSpark={() => setScreen("askSpark")} onOperationsHelp={() => setScreen("operationsHelp")} onLocationInformation={() => setScreen("locationInformation")} onHowToEarnPoints={() => setScreen("howToEarnPoints")} onBack={() => setScreen("homeBase")} />);
