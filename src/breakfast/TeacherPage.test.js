@@ -11,7 +11,7 @@ afterEach(async()=>{await act(async()=>root.unmount());host.remove();jest.useRea
 const render=()=>act(async()=>root.render(<TeacherPage qr={qr}/>));
 const button=text=>[...host.querySelectorAll('button')].find(b=>b.textContent===text);
 const click=el=>act(async()=>el.click());
-test('permanent URL contains only the classroom bearer token',()=>{expect(teacherToken('#breakfast/'+qr)).toBe(qr);expect(teacherToken('#breakfast/not-a-token')).toBeNull();expect(teacherLink(qr)).toContain('#breakfast/'+qr);});
+test('permanent URL contains only the classroom bearer token',()=>{expect(teacherToken('#breakfast/'+qr)).toBe(qr);expect(teacherToken('#breakfast/not-a-token')).toBeNull();expect(teacherLink(qr)).toBe('https://south-cafe-la-spark.vercel.app/#breakfast/'+qr);});
 test('requires certification; counts, submits, and explicitly corrects with a fresh confirmation',async()=>{
  await render();expect(button('Submit breakfast count').disabled).toBe(true);await click(host.querySelector('[aria-label="Add one meal"]'));expect(host.querySelector('output').textContent).toBe('1');await click(host.querySelector('input[type="checkbox"]'));
  api.teacherSubmit.mockResolvedValue({...base,record:{count:1,comments:'',revision:1,submitted_at:'2026-10-06T15:17:00Z'}});await act(async()=>host.querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
@@ -42,3 +42,5 @@ test('adult meal saves separately and repeated response preserves the student dr
 test('Done / Close thanks the teacher and removes counting controls even if the browser stays open',async()=>{
  api.teacherPage.mockResolvedValue({...base,record:{count:24,revision:1,submitted_at:'2026-10-06T15:17:00Z'}});const close=jest.spyOn(window,'close').mockImplementation(()=>{});await render();await click(button('Done / Close'));expect(host.textContent).toContain('Thank you for your help!');expect(button('Correct breakfast count')).toBeUndefined();expect(button('Done / Close')).toBeUndefined();await act(async()=>jest.advanceTimersByTime(1500));expect(close).toHaveBeenCalledTimes(1);expect(host.textContent).toContain('Your breakfast count is saved');expect(api.teacherSubmit).not.toHaveBeenCalled();close.mockRestore();
 });
+
+test('QR links ignore manager page paths and local or preview origins',()=>{window.history.replaceState(null,'','/manager/preview?session=private');try{const link=new URL(teacherLink(qr));expect(link.origin).toBe('https://south-cafe-la-spark.vercel.app');expect(link.pathname).toBe('/');expect(link.search).toBe('');expect(teacherToken(link.hash)).toBe(qr);}finally{window.history.replaceState(null,'','/');}});
