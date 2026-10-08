@@ -1,6 +1,4 @@
 node_modules/
-.security-runtime/
-supabase/.temp/
 build/
 test-results/
 

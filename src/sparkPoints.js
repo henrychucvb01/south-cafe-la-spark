@@ -15,10 +15,16 @@ export async function awardSparkPoints({
     return false;
   }
 
-  const { error } = await supabase.rpc("spark_claim_school_points", {
-    p_location_id: locationId,
-    p_service_date: serviceDate,
-    p_kind: pointType,
+  const { error } = await supabase.from("spark_points").insert({
+    location_id: locationId,
+    points,
+    point_type: pointType,
+    description,
+    service_date: serviceDate,
+    source: "automatic",
+    employee_id: employeeId || null,
+    employee_name: employeeName || null,
+    unique_key: uniqueKey,
   });
 
   if (error) {
@@ -29,7 +35,8 @@ export async function awardSparkPoints({
       return true;
     }
 
-    throw new Error(error.message || "SPARK could not save the reward. Please retry the saved activity.");
+    console.error("SPARK Points award error:", error);
+    return false;
   }
 
   return true;

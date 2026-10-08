@@ -125,7 +125,6 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
   const [pointsReason, setPointsReason] = useState("");
   const [pointsLoading, setPointsLoading] = useState(false);
   const [pointsSaving, setPointsSaving] = useState(false);
-  const pointsRequest = useRef(null);
   const [pointsMessage, setPointsMessage] = useState("");
   const [pointsError, setPointsError] = useState("");
   const [excludedDate, setExcludedDate] = useState("");
@@ -590,21 +589,30 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
 
       const serviceDate = adjustmentServiceDate(pointsMonth);
       const monthLabel = pointsMonthOptions.find(option => option.value === pointsMonth)?.label;
-      const requestValues = JSON.stringify([pointsSchoolId,signedPoints,serviceDate,pointsReason.trim()]);
-      if (pointsRequest.current?.values !== requestValues) pointsRequest.current = { values: requestValues, id: crypto.randomUUID() };
-      const { error } = await supabase.rpc("spark_adjust_points", {
-        p_location_id: Number(pointsSchoolId),
-        p_points: signedPoints,
-        p_service_date: serviceDate,
-        p_reason: pointsReason.trim(),
-        p_request_id: pointsRequest.current.id,
+      const now = new Date();
+      const uniqueKey =
+        `supervisor-adjustment-${pointsSchoolId}-${now.getTime()}-` +
+        Math.random().toString(36).slice(2, 8);
+
+      const { error } = await supabase.from("spark_points").insert({
+        location_id: Number(pointsSchoolId),
+        points: signedPoints,
+        point_type: "supervisor_adjustment",
+        description:
+          pointsDirection === "subtract"
+            ? "Supervisor point correction"
+            : "Supervisor point award",
+        service_date: serviceDate,
+        source: "supervisor",
+        awarded_by: "Supervisor",
+        adjustment_reason: pointsReason.trim(),
+        unique_key: uniqueKey,
       });
 
       if (error) {
         throw error;
       }
 
-      pointsRequest.current = null;
       await loadSparkPointsSupervisor(pointsSchoolId);
       setPointsMessage(
         `${signedPoints > 0 ? "+" : ""}${signedPoints} points saved for ${monthLabel}.`
@@ -821,7 +829,12 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
     setPinResetLoading(true);
 
     try {
-      const { data, error } = await supabase.rpc("spark_supervisor_employees", { p_location_id: Number(locationId) });
+      const { data, error } = await supabase
+        .from("employees")
+        .select("id, employee_name, email, active")
+        .eq("location_id", locationId)
+        .eq("active", true)
+        .order("employee_name");
 
       if (error) {
         throw error;

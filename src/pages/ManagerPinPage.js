@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
-import { setSparkSession } from "../security/session";
 import { cleanManagerPin, shouldAutoVerifyManagerPin } from "../security/managerPinUtils";
 
 function ManagerPinPage({ location, employee, onSuccess, onBack }) {
@@ -110,12 +109,7 @@ function ManagerPinPage({ location, employee, onSuccess, onBack }) {
           return;
         }
 
-        const session = await supabase.rpc("spark_login", { p_role: "employee", p_employee_id: employee.id, p_pin: pin });
-        if (session.error || !session.data) throw new Error("Your PIN was created. Return to your name and sign in with it.");
-        setSparkSession(session.data);
-        setPin("");
-        setConfirmPin("");
-        onSuccess(session.data);
+        onSuccess(pin);
       }
     } catch (error) {
       console.error("Manager PIN error:", error);
@@ -133,10 +127,27 @@ function ManagerPinPage({ location, employee, onSuccess, onBack }) {
     setMessage("");
 
     try {
-      const { data, error } = await supabase.rpc("spark_login", {
-        p_role: isCovering ? "covering" : "employee",
-        p_employee_id: isCovering ? null : employee.id,
-        p_covering_name: isCovering ? employee.employee_name : null,
+      if (mode === "verify-covering") {
+        const { data, error } = await supabase.rpc("verify_covering_pin", {
+          p_pin: pinToVerify,
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        if (data !== true) {
+          setMessage("That temporary PIN is not correct.");
+          setPin("");
+          return;
+        }
+
+        onSuccess(pinToVerify);
+        return;
+      }
+
+      const { data, error } = await supabase.rpc("verify_manager_pin", {
+        p_employee_id: String(employee.id),
         p_pin: pinToVerify,
       });
 
@@ -144,15 +155,13 @@ function ManagerPinPage({ location, employee, onSuccess, onBack }) {
         throw error;
       }
 
-      if (!data) {
-        setMessage("That PIN could not be verified. After repeated attempts, wait 15 minutes and try again.");
+      if (data !== true) {
+        setMessage("That PIN is not correct. Please try again.");
         setPin("");
         return;
       }
 
-      setSparkSession(data);
-      setPin("");
-      onSuccess(data);
+      onSuccess(pinToVerify);
     } catch (error) {
       console.error("Manager PIN error:", error);
       setMessage(

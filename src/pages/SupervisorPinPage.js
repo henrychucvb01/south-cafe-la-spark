@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { supabase } from "../supabaseClient";
-import { setSparkSession } from "../security/session";
 
 function SupervisorPinPage({ onSuccess, onBack }) {
   const [pin, setPin] = useState("");
@@ -20,10 +19,9 @@ function SupervisorPinPage({ onSuccess, onBack }) {
 
     try {
       const { data, error: verifyError } = await supabase.rpc(
-        "spark_login",
+        "verify_supervisor_pin",
         {
           p_pin: pin,
-          p_role: "supervisor",
         }
       );
 
@@ -31,15 +29,13 @@ function SupervisorPinPage({ onSuccess, onBack }) {
         throw verifyError;
       }
 
-      if (!data) {
-        setError("Supervisor access could not be verified. After repeated attempts, wait 15 minutes and try again.");
+      if (data !== true) {
+        setError("Incorrect supervisor PIN.");
         setPin("");
         return;
       }
 
-      setSparkSession(data);
-      setPin("");
-      onSuccess(data);
+      onSuccess(pin);
     } catch (err) {
       console.error("Supervisor PIN error:", err);
       setError("SPARK could not verify supervisor access. Please try again.");

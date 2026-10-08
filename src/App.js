@@ -1,9 +1,6 @@
 import OctoberGames from "./octoberGames/OctoberGames";
 import BreakfastAccess from "./breakfast/BreakfastAccess";
 import React, { useEffect, useState } from "react";
-import { clearSparkSession } from "./security/session";
-import { supabase } from "./supabaseClient";
-import SecurityReadiness,{useSecurityReady} from "./security/SecurityReadiness";
 
 import LoginPage from "./pages/LoginPage";
 import EmployeeSelectPage from "./pages/EmployeeSelectPage";
@@ -35,7 +32,6 @@ import MysteryPullPage from "./mysteryPull/MysteryPullPage";
 import { mysteryRpc, saveSession } from "./mysteryPull/service";
 
 function App() {
-  const securityReady = useSecurityReady();
   const [qrToken, setQrToken] = useState(()=>teacherToken(window.location.hash));
   const [screen, setScreen] = useState(()=>window.location.hash === "#mystery-pull" ? "mysteryPull" : "login");
   const [selectedLocation, setSelectedLocation] = useState(null);
@@ -92,16 +88,11 @@ function App() {
     alert("To install SPARK on this computer, click the Install icon in the browser address bar, then select Install.");
   }
 
-  function resetToLogin() {
-    const token = clearSparkSession();
-    if (token) supabase.rpc("spark_logout", { p_token: token }).then(({ error }) => { if (error) console.error("Session sign-out could not reach SPARK."); });
-    setSelectedLocation(null); setSelectedEmployee(null); setManagerSessionPin(""); setSupervisorSessionPin(""); setEditingCheck(null); setScreen("login");
-  }
+  function resetToLogin() { setSelectedLocation(null); setSelectedEmployee(null); setManagerSessionPin(""); setSupervisorSessionPin(""); setEditingCheck(null); setScreen("login"); }
   function managerPage(content) { return <>{content}<ManagerFeedback location={selectedLocation} employee={selectedEmployee} pageRoute={screen} /></>; }
 
   if (screen === "mysteryPull") return <MysteryPullPage onBack={() => { window.history.replaceState(null, "", window.location.pathname + window.location.search); resetToLogin(); }} />;
   if (qrToken) return <BreakfastAccess key={qrToken} qr={qrToken}><TeacherPage qr={qrToken}/></BreakfastAccess>;
-  if (!securityReady) return <SecurityReadiness/>;
   if (screen === "login") return <LoginPage onMysteryPull={async (code) => { const session = await mysteryRpc("open", { p_code: code }); saveSession(session); window.location.hash = "mystery-pull"; setScreen("mysteryPull"); }} canInstall={canInstall} onInstall={handleInstallApp} onLocationSelected={(location) => { setSelectedLocation(location); setSelectedEmployee(null); setEditingCheck(null); setScreen("employeeSelect"); }} onSupervisor={() => { setEditingCheck(null); setScreen("supervisorPin"); }} />;
   if (screen === "supervisorPin") return <SupervisorPinPage onSuccess={(verifiedPin) => { setSupervisorSessionPin(verifiedPin); setScreen("commandCenter"); }} onBack={() => { setSupervisorSessionPin(""); setScreen("login"); }} />;
   if (screen === "employeeSelect") return <EmployeeSelectPage location={selectedLocation} onEmployeeSelected={(employee) => { setSelectedEmployee(employee); setEditingCheck(null); setScreen("managerPin"); }} onBack={resetToLogin} />;

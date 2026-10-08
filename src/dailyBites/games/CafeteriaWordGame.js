@@ -83,8 +83,8 @@ export default function CafeteriaWordGame({ puzzle, progress, streak, disabled, 
     setSaving(true);
     setMessage("");
     const success = won
-      ? await onComplete({ action: 'guess', input: { guess: currentGuess }, status: nextStatus, state: nextState, attemptCount: nextGuesses.length, points })
-      : await onSave({ action: 'guess', input: { guess: currentGuess }, status: nextStatus, state: nextState, attemptCount: nextGuesses.length });
+      ? await onComplete({ status: nextStatus, state: nextState, attemptCount: nextGuesses.length, points })
+      : await onSave({ status: nextStatus, state: nextState, attemptCount: nextGuesses.length });
 
     if (success) {
       const submittedRow = guesses.length;
