@@ -19,6 +19,7 @@ try{
  await db.exec(await readFile('supabase/migrations/202610080003_october_first_school_quests.sql','utf8'));
  await db.exec(await readFile('supabase/migrations/202610080004_october_quest_completion_lock.sql','utf8'));
  await db.exec(await readFile('supabase/migrations/202610080005_october_custom_quests.sql','utf8'));
+ await db.exec(await readFile('supabase/migrations/202610080006_october_quest_rewards.sql','utf8'));
  const call=async(action,payload={},token='school1',pin=null)=>(await db.query('select october_games_dev($1,$2,$3,$4) r',[action,token,pin,payload])).rows[0].r;
  const admin=(action,payload={})=>call(action,payload,null,'test-admin');
  const fail=async(p,regex)=>{await assert.rejects(p,regex);checks++;};
@@ -95,13 +96,24 @@ try{
  // New quests are supervisor-only, reject stale retries and retain the same one-school rewards.
  await fail(call('quest_create',{name:'Extra',description:'Photo',revision:d.settings.revision}),/Supervisor/);
  await fail(admin('quest_create',{revision:d.settings.revision,name:' ',description:'Photo'}),/name and instructions/);
- const creation={revision:d.settings.revision,name:'Extra quest',description:'Take a creative photo.',enabled:true};
+ const creation={revision:d.settings.revision,name:'Extra quest',description:'Take a creative photo.',enabled:true,reward_points:25};
  d=await admin('quest_create',creation);check(d.quests.length,16);check(d.quests.find(q=>q.id===16).eligible,null);
  await fail(admin('quest_create',creation),/Refresh/);
+ check(d.quests.find(q=>q.id===16).reward_points,25);
+ let custom=d.quests.find(q=>q.id===16);
+ for(const invalid of [0,-1,1.5,1001,null])await fail(admin('quest',{...custom,reward_points:invalid}),/Reward/);
+ await fail(call('quest',{...custom,reward_points:40}),/Supervisor/);
+ d=await admin('quest',{...custom,reward_points:40});custom=d.quests.find(q=>q.id===16);check(custom.reward_points,40);
  await call('submit',{...photo,quest:16});const added=(await admin('list')).entries.find(e=>e.quest===16);
  d=await admin('review',{id:added.id,revision:added.revision,state:'approved'});check(d.quests.find(q=>q.id===16).first_school,1);
- check(d.rewards.find(r=>r.event==='quest:first:16').points,10);check(d.unlock_events.filter(u=>u.entry===added.id).length,1);
+ check(d.rewards.find(r=>r.event==='quest:first:16').points,40);check(d.unlock_events.filter(u=>u.entry===added.id).length,1);
  await fail(call('submit',{...photo,quest:16},'school2'),/locked/);
+ await fail(admin('quest',{...custom,reward_points:50}),/locked/);
+ let winner=d.entries.find(e=>e.id===added.id);d=await admin('review',{id:winner.id,revision:winner.revision,state:'rejected'});
+ winner=d.entries.find(e=>e.id===added.id);d=await admin('review',{id:winner.id,revision:winner.revision,state:'approved'});
+ check(d.rewards.filter(r=>r.event==='quest:first:16'&&!r.voided).length,1);check(d.rewards.find(r=>r.event==='quest:first:16').points,40);
+ check(d.unlock_events.filter(u=>u.entry===added.id).length,1);check((await db.query('select sum(points) n from spark_points')).rows[0].n,500);
+
  await db.exec('set role anon');await fail(db.exec('select * from october_dev.entries'),/permission denied/);await fail(call('list'),/permission denied/);
  await db.exec('reset role;set role service_role');check((await call('list')).location_id,1);
  console.log(`PASS ${checks} assertions: school isolation, consent, review/resubmission, idempotent rewards/unlocks, hidden answers/photos, identity restrictions, 5 rounds/125 points, vote dates/own-school/duplicate checks, champion, corrections, notifications, live points unchanged, service-only RPC.`);

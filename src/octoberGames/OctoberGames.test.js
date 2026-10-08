@@ -59,3 +59,12 @@ test('manager preview shows a reversible happy-face example without saving',asyn
 test('only supervisor sees the new quest form',async()=>{
  await render();expect(button('+ Add quest')).toBeUndefined();data.admin=true;await render({supervisorPin:'admin-test'});await click('Games & Challenges');await click('+ Add quest');expect(button('Create quest').disabled).toBe(true);expect(host.textContent).toContain('New Side Quest');await click('Cancel new quest');expect(button('Create quest')).toBeUndefined();
 });
+
+test('quest card shows its configured SPARK reward at the bottom',async()=>{
+ data.quests[0].reward_points=40;await render();const card=host.querySelector('.og-quest-card');expect(card.lastElementChild.textContent).toBe('Reward: 40 SPARK Points');expect(host.textContent).not.toContain('First school: +10');expect(host.textContent).not.toContain('earn 10 points');
+});
+test('supervisor reward setting uses stored amount and completed rewards stay locked',async()=>{
+ data.admin=true;data.quests[0].reward_points=40;await render({supervisorPin:'admin-test'});await click('Games & Challenges');let input=host.querySelector('input[type=number]');expect(input.value).toBe('40');expect(input.disabled).toBe(false);
+ await act(async()=>input.closest('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));expect(api.gamesRequest).toHaveBeenLastCalledWith('quest',{pin:'admin-test'},expect.objectContaining({reward_points:40}),undefined);
+ data.quests[0].first_school=2;data.quests[0].revision++;await click('Refresh');input=host.querySelector('input[type=number]');expect(input.disabled).toBe(true);
+});

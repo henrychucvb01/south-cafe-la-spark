@@ -18,6 +18,7 @@ await db.exec(await readFile('supabase/migrations/202610080001_october_games_dev
  await db.exec(await readFile('supabase/migrations/202610080003_october_first_school_quests.sql','utf8'));
  await db.exec(await readFile('supabase/migrations/202610080004_october_quest_completion_lock.sql','utf8'));
  await db.exec(await readFile('supabase/migrations/202610080005_october_custom_quests.sql','utf8'));
+ await db.exec(await readFile('supabase/migrations/202610080006_october_quest_rewards.sql','utf8'));
 const rpc=async(action,payload={},admin=true)=>(await db.query('select october_games_dev($1,$2,$3,$4) r',[action,admin?null:'school1',admin?'test-admin':null,payload])).rows[0].r;
 const example=await sharp({create:{width:2400,height:1800,channels:3,background:'#ce7138'}}).jpeg().toBuffer();
 const webp=await sharp(example).resize(900).webp().toBuffer();const path='00000000-0000-0000-0000-000000000001/00000000-0000-0000-0000-000000000002.webp';photos.set(path,webp);

@@ -19,3 +19,5 @@
 .og-flip-back img{display:block;width:100%;height:210px;object-fit:contain;border-radius:10px;background:#fff}
 .og-happy{display:grid;place-items:center;height:210px;font-size:140px;line-height:1}.og-photo-unavailable{display:grid;place-items:center;min-height:210px}.og-example{max-width:340px;margin-bottom:24px}
 @media(prefers-reduced-motion:reduce){.og-flip-inner{transition:none}}
+
+.og-quest-card{display:flex;flex-direction:column;align-items:flex-start}.og-quest-card .og-submit{width:100%}.og-quest-reward{display:block;margin-top:auto;padding-top:16px;font-weight:800;color:#763900}.og-flip-face .og-quest-reward{padding-top:0;color:inherit}
