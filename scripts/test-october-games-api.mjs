@@ -27,7 +27,7 @@ check(res.status,200);const submitted=calls.find(c=>c[0]==='rpc'&&c[1].p_action=
 check(res.result.entries[0].photo_path,undefined);check(res.result.rounds[0].photo_path,undefined);check(res.result.rounds[1].photo_url,undefined);
 check(calls.some(c=>c[0]==='signed'&&c[1]==='secret.webp'),false);
 const image=Buffer.from(res.result.rounds[0].photo_url.split(',')[1],'base64');const {data:raw,info}=await sharp(image).raw().toBuffer({resolveWithObject:true});
-check(info.channels,3);for(let i=0;i<raw.length;i+=3){assert.deepEqual([...raw.subarray(i,i+3)],[53,39,66]);}checks++;
+check(info.channels,3);for(let i=0;i<raw.length;i+=3){assert.deepEqual([...raw.subarray(i,i+3)],[23,23,23]);}checks++;
 const full=await sharp(raster).ensureAlpha().composite([{input:maskSvg(pieces,32,80,60),blend:'dest-in'}]).png().toBuffer();assert((await sharp(full).stats()).channels[3].mean>254);checks++;
 const before=calls.filter(c=>c[0]==='upload').length;res=await request({action:'round',token:'manager',photo:{base64:raster.toString('base64')}});check(res.status,400);check(calls.filter(c=>c[0]==='upload').length,before);
 res=await request({action:'round',pin:'admin',payload:{id:1},photo:{base64:raster.toString('base64')}});check(res.status,200);

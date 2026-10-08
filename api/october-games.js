@@ -58,7 +58,7 @@ export function createHandler(db,enabled=previewEnabled()){
       const masked=await sharp(bytes).ensureAlpha().composite([{input:maskSvg(r.pieces,r.unlocked,meta.width,meta.height),blend:'dest-in'}]).png().toBuffer();
       // Flatten in a separate pass so even fully transparent RGB channels cannot
       // carry hidden pixels that a client could recover by editing the alpha.
-      const safe=await sharp(masked).flatten({background:'#352742'}).png().toBuffer();
+      const safe=await sharp(masked).flatten({background:'#171717'}).png().toBuffer();
       r.photo_url=`data:image/png;base64,${safe.toString('base64')}`;
      }
     }

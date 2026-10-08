@@ -1,4 +1,5 @@
-import OctoberGames from "../octoberGames/OctoberGames";
+import {OctoberBadge} from "../octoberGames/OctoberGames";
+import {useOctoberAvailable} from "../octoberGames/service";
 import SpotlightFeed from "../spotlight/SpotlightFeed";
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
@@ -73,7 +74,8 @@ function formatBiteCategory(category) {
     .join(" ");
 }
 
-function DailyBitesPage({ location, employee, managerPin, onBack, onViewSpotlights }) {
+function DailyBitesPage({ location, employee, managerPin, onBack, onViewSpotlights, onOctoberGames }) {
+  const octoberAvailable=useOctoberAvailable();
   const [doubleUntil,setDoubleUntil]=useState(null);
   useEffect(()=>{let alive=true;const refresh=()=>loadSchoolBenefits(location.id).then(b=>{if(alive)setDoubleUntil(b.doubleUntil);}).catch(()=>{});refresh();window.addEventListener('focus',refresh);return()=>{alive=false;window.removeEventListener('focus',refresh);};},[location.id]);
   const todaysBite = useMemo(() => getTodaysDailyBite(), []);
@@ -338,7 +340,7 @@ function DailyBitesPage({ location, employee, managerPin, onBack, onViewSpotligh
             </div>
           </div>
 
-          <OctoberGames location={location} employee={employee} managerPin={managerPin} />
+          {octoberAvailable&&<button className="og-shortcut" onClick={onOctoberGames}><strong>🎃 October Games</strong><OctoberBadge location={location} employee={employee} managerPin={managerPin}/><span>Open Side Quests, Halloween Doors & Mystery Photos →</span></button>}
           <SpotlightFeed location={location} employee={employee} managerPin={managerPin} onViewAll={onViewSpotlights} />
           {doubleUntil&&new Date(doubleUntil)>new Date()&&<p role="status" className="dashboard-card">🍎 Double Daily Bites is active until {new Date(doubleUntil).toLocaleString()}. Visit, Word, Connections and AR Training points are doubled automatically.</p>}
           <section className="dashboard-card">

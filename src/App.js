@@ -1,3 +1,4 @@
+import OctoberGames from "./octoberGames/OctoberGames";
 import BreakfastAccess from "./breakfast/BreakfastAccess";
 import React, { useEffect, useState } from "react";
 
@@ -53,6 +54,7 @@ function App() {
     askSpark: ["Ask SPARK", "Manager Resources", "managerResources"],
     locationInformation: ["Location Information", "Manager Resources", "managerResources"],
     spotlight: ["SPARK Spotlight", "Daily Bites", "dailyBites"],
+    octoberGames: ["October Games", "Manager Hub", "homeBase"],
     dailyBites: ["Daily Bites", "Manager Hub", "homeBase"],
     incidentHelper: ["Incident Record Helper", "Manager Hub", "homeBase"],
     schoolHub: ["School Dashboard", "Manager Hub", "homeBase"],
@@ -95,7 +97,7 @@ function App() {
   if (screen === "supervisorPin") return <SupervisorPinPage onSuccess={(verifiedPin) => { setSupervisorSessionPin(verifiedPin); setScreen("commandCenter"); }} onBack={() => { setSupervisorSessionPin(""); setScreen("login"); }} />;
   if (screen === "employeeSelect") return <EmployeeSelectPage location={selectedLocation} onEmployeeSelected={(employee) => { setSelectedEmployee(employee); setEditingCheck(null); setScreen("managerPin"); }} onBack={resetToLogin} />;
   if (screen === "managerPin") return <ManagerPinPage location={selectedLocation} employee={selectedEmployee} onSuccess={(verifiedPin) => { setManagerSessionPin(verifiedPin); setScreen("homeBase"); }} onBack={() => { setSelectedEmployee(null); setManagerSessionPin(""); setScreen("employeeSelect"); }} />;
-  if (screen === "homeBase") return managerPage(<HomeBase managerPin={managerSessionPin} location={selectedLocation} employee={selectedEmployee} onSchoolHub={() => setScreen("schoolHub")} onMonthlyScorecard={() => setScreen("managerMonthlyScorecard")} onIncidentHelper={() => setScreen("incidentHelper")} onDailyBites={() => setScreen("dailyBites")} onManagerResources={() => setScreen("managerResources")} onMonitoring={() => setScreen("monitoring")} onBreakfast={() => setScreen("breakfast")} onExit={resetToLogin} />);
+  if (screen === "homeBase") return managerPage(<HomeBase managerPin={managerSessionPin} location={selectedLocation} employee={selectedEmployee} onSchoolHub={() => setScreen("schoolHub")} onMonthlyScorecard={() => setScreen("managerMonthlyScorecard")} onIncidentHelper={() => setScreen("incidentHelper")} onOctoberGames={() => setScreen("octoberGames")} onDailyBites={() => setScreen("dailyBites")} onManagerResources={() => setScreen("managerResources")} onMonitoring={() => setScreen("monitoring")} onBreakfast={() => setScreen("breakfast")} onExit={resetToLogin} />);
   if (screen === "breakfast" && selectedLocation && selectedEmployee) return managerPage(<BreakfastAccess location={selectedLocation} employee={selectedEmployee} managerPin={managerSessionPin}><BreakfastPage key={selectedLocation.id} location={selectedLocation} employee={selectedEmployee} managerPin={managerSessionPin} /></BreakfastAccess>);
   if (screen === "monitoring" && selectedLocation && selectedEmployee) return managerPage(<MonitoringPage location={selectedLocation} employee={selectedEmployee} managerPin={managerSessionPin} onBack={() => setScreen("homeBase")} />);
   if (screen === "managerMonthlyScorecard") return managerPage(<ManagerMonthlyScorecardPage location={selectedLocation} employee={selectedEmployee} managerPin={managerSessionPin} onBack={() => setScreen("homeBase")} />);
@@ -105,7 +107,8 @@ function App() {
   if (screen === "askSpark") return managerPage(<AskSparkPage location={selectedLocation} onBack={() => setScreen("managerResources")} />);
   if (screen === "locationInformation") return managerPage(<LocationInformationPage location={selectedLocation} onBack={() => setScreen("managerResources")} />);
   if (screen === "spotlight") return managerPage(<SpotlightArchive location={selectedLocation} employee={selectedEmployee} managerPin={managerSessionPin} />);
-  if (screen === "dailyBites") return managerPage(<DailyBitesPage onViewSpotlights={() => setScreen("spotlight")} managerPin={managerSessionPin} location={selectedLocation} employee={selectedEmployee} onBack={() => setScreen("homeBase")} />);
+  if (screen === "octoberGames") return managerPage(<main className="og-page"><OctoberGames location={selectedLocation} employee={selectedEmployee} managerPin={managerSessionPin}/></main>);
+  if (screen === "dailyBites") return managerPage(<DailyBitesPage onOctoberGames={() => setScreen("octoberGames")} onViewSpotlights={() => setScreen("spotlight")} managerPin={managerSessionPin} location={selectedLocation} employee={selectedEmployee} onBack={() => setScreen("homeBase")} />);
   if (screen === "incidentHelper") return managerPage(<IncidentRecordHelper location={selectedLocation} employee={selectedEmployee} onBack={() => setScreen("homeBase")} />);
   if (screen === "schoolHub") return managerPage(<SchoolHub location={selectedLocation} employee={selectedEmployee} onFinishLine={() => { setEditingCheck(null); setScreen("finishLine"); }} onDashboard={() => setScreen("schoolDashboard")} onMealAnalytics={() => setScreen("mealAnalytics")} onExit={() => setScreen("homeBase")} />);
   if (screen === "mealAnalytics") {

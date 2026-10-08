@@ -23,7 +23,7 @@ Regular managers have a permanent employee ID. Covering managers currently suppl
 
 ## 2. October Side Quests
 
-Create these 15 challenges, worth 10 points each:
+Create these 15 challenges. The first school approved for each quest earns 10 points:
 
 1. **Picture Perfect Lunch:** Photograph a beautifully presented, complete school lunch tray.
 2. **Team Spirit:** Take a creative group photo of your cafeteria team.
@@ -43,7 +43,7 @@ Create these 15 challenges, worth 10 points each:
 
 ### Side Quest Rules
 
-- Each school can complete each quest once.
+- Each quest can be completed by only one school; one school may complete all 15 different quests.
 - Managers can complete as many available quests as they want.
 - Require photographic proof.
 - Allow phone camera capture or gallery/file uploads.
@@ -53,7 +53,7 @@ Create these 15 challenges, worth 10 points each:
 - Supervisor must approve every submission.
 - Supervisor may approve, reject, or request a new photo.
 - Rejected submissions can be resubmitted.
-- Award 10 points only after approval.
+- Award 10 points only to the first school approved for each quest. The quest then locks to other schools. Only the winning completion reveals five mystery pieces.
 - Prevent duplicate point awards.
 - Automatically publish approved photos as trading cards on Daily Bites, including school name, quest name, photo, and points.
 - Require appropriate permission for identifiable people shown in published photos.

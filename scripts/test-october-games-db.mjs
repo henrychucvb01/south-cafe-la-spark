@@ -16,6 +16,8 @@ try{
  create table spark_points(points int);insert into spark_points values(500);`);
  await db.exec(await readFile('supabase/migrations/202610080001_october_games_development.sql','utf8'));
  await db.exec(await readFile('supabase/migrations/202610080002_october_games_display.sql','utf8'));
+ await db.exec(await readFile('supabase/migrations/202610080003_october_first_school_quests.sql','utf8'));
+ await db.exec(await readFile('supabase/migrations/202610080004_october_quest_completion_lock.sql','utf8'));
  const call=async(action,payload={},token='school1',pin=null)=>(await db.query('select october_games_dev($1,$2,$3,$4) r',[action,token,pin,payload])).rows[0].r;
  const admin=(action,payload={})=>call(action,payload,null,'test-admin');
  const fail=async(p,regex)=>{await assert.rejects(p,regex);checks++;};
@@ -64,6 +66,30 @@ try{
  const reward=d.rewards[0];d=await admin('reward',{event:reward.event,voided:true,reason:'Test correction'});check(d.rewards.find(r=>r.event===reward.event).voided,true);
  d=await admin('reward',{event:reward.event,voided:false,reason:'Restore original'});check(d.rewards.find(r=>r.event===reward.event).voided,false);
  check((await call('list')).new_challenge,true);check((await call('seen')).new_challenge,false);
+
+ // Completed quests lock out other schools, including previously queued submissions.
+ await fail(call('submit',{...photo,quest:1},'school2'),/locked/);
+ check((await admin('list')).quests.find(x=>x.id===1).first_school,1);
+ await call('submit',{...photo,quest:2});await call('submit',{...photo,quest:2},'school2');
+ let open=(await admin('list')).entries.filter(x=>x.quest===2);
+ let first=open.find(x=>x.location_id===1),second=open.find(x=>x.location_id===2);
+ d=await admin('review',{id:first.id,revision:first.revision,state:'approved'});
+ second=d.entries.find(x=>x.id===second.id);check(second.state,'rejected');
+ await fail(admin('review',{id:second.id,revision:second.revision,state:'approved'}),/locked/);
+ check(d.rewards.find(x=>x.event==='quest:first:2').location_id,1);
+ check(d.unlock_events.filter(x=>x.entry===first.id).length,1);check(d.unlock_events.filter(x=>x.entry===second.id).length,0);
+ await fail(call('submit',{...photo,quest:2,revision:second.revision},'school2'),/locked/);
+
+ // One school may win every distinct quest (including supervisor-assigned BIC/Supper eligibility).
+ for(let quest=3;quest<=15;quest++){
+  const config=(await admin('list')).quests.find(q=>q.id===quest);
+  if(config.eligible!==null)await admin('quest',{...config,eligible:[1]});
+  await call('submit',{...photo,quest});const pending=(await admin('list')).entries.find(e=>e.quest===quest&&e.location_id===1);
+  await admin('review',{id:pending.id,revision:pending.revision,state:'approved'});
+ }
+ d=await admin('list');check(d.quests.filter(q=>q.first_school===1).length,15);
+ check(d.rewards.filter(r=>r.event.startsWith('quest:first:')&&!r.voided&&r.location_id===1).reduce((sum,r)=>sum+r.points,0),150);
+ check(d.unlock_events.length,15);
  check((await db.query('select sum(points) n from spark_points')).rows[0].n,500);
  await db.exec('set role anon');await fail(db.exec('select * from october_dev.entries'),/permission denied/);await fail(call('list'),/permission denied/);
  await db.exec('reset role;set role service_role');check((await call('list')).location_id,1);

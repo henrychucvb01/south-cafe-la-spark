@@ -15,6 +15,8 @@ await db.exec(`create role anon;create role authenticated;create role service_ro
  create function require_supper_monitoring_session(text) returns supper_monitoring_sessions language plpgsql as $$begin if $1='school1' then return (1,11,'manager')::supper_monitoring_sessions;else raise exception 'Invalid session';end if;end$$;`);
 await db.exec(await readFile('supabase/migrations/202610080001_october_games_development.sql','utf8'));
  await db.exec(await readFile('supabase/migrations/202610080002_october_games_display.sql','utf8'));
+ await db.exec(await readFile('supabase/migrations/202610080003_october_first_school_quests.sql','utf8'));
+ await db.exec(await readFile('supabase/migrations/202610080004_october_quest_completion_lock.sql','utf8'));
 const rpc=async(action,payload={},admin=true)=>(await db.query('select october_games_dev($1,$2,$3,$4) r',[action,admin?null:'school1',admin?'test-admin':null,payload])).rows[0].r;
 const example=await sharp({create:{width:2400,height:1800,channels:3,background:'#ce7138'}}).jpeg().toBuffer();
 const webp=await sharp(example).resize(900).webp().toBuffer();const path='00000000-0000-0000-0000-000000000001/00000000-0000-0000-0000-000000000002.webp';photos.set(path,webp);
@@ -46,18 +48,29 @@ try{
  });
  await page.goto(origin);await page.locator('#locationCode').fill('1111');await page.getByRole('button',{name:'Continue',exact:true}).click();
  await page.getByRole('button',{name:/Test Manager/}).click();await page.locator('#managerPin').fill('1234');
- await page.getByRole('button',{name:/Daily Bites/}).click();const games=page.locator('.og').first();await expect(games.getByRole('heading',{name:'A little mystery. A lot of SPARK.'})).toBeVisible();
+ await page.getByRole('button',{name:/Daily Bites/}).click();await expect(page.locator('.og-shortcut')).toBeVisible();await expect(page.locator('.og')).toHaveCount(0);assert.equal((await db.query('select count(*) n from october_dev.seen')).rows[0].n,0);await page.locator('.og-shortcut').click();const games=page.locator('.og').first();await expect(games.getByRole('heading',{name:'A little mystery. A lot of SPARK.'})).toBeVisible();
  await expect(page.getByText('Daily Bites Comic',{exact:true})).toHaveCount(0);
  await expect(games.getByRole('button',{name:'Games & Challenges',exact:true})).toHaveCount(0);
- await games.getByRole('button',{name:'Choose photo',exact:true}).first().click();
+ await games.getByRole('button',{name:'Upload photo',exact:true}).first().click();
  await games.locator('input[type=file]').first().setInputFiles({name:'test.jpg',mimeType:'image/jpeg',buffer:example});
  await expect(games.locator('.og-photo-picker img')).toBeVisible();const compressed=await games.locator('.og-photo-picker img').getAttribute('src');const meta=await sharp(Buffer.from(compressed.split(',')[1],'base64')).metadata();assert.equal(meta.format,'webp');assert(Math.max(meta.width,meta.height)<=1200);
  await games.getByLabel(/I have permission/).check();await games.getByRole('button',{name:'Submit for approval'}).click();await expect(games.getByText('Submitted — Pending Approval',{exact:true})).toBeVisible();
- const entry=(await rpc('list')).entries[0];await rpc('review',{id:entry.id,revision:entry.revision,state:'approved'});await games.getByRole('button',{name:'Refresh',exact:true}).click();await expect(games.locator('.og-trading')).toHaveCount(1);
+ const entry=(await rpc('list')).entries[0];await rpc('review',{id:entry.id,revision:entry.revision,state:'approved'});await games.getByRole('button',{name:'Refresh',exact:true}).click();await expect(games.locator('.og-trading')).toHaveCount(1);await expect(games.locator('.og-card').first()).toContainText('Completed · Locked');
  await games.getByRole('button',{name:'Mystery Photos',exact:true}).click();await expect(games.getByText(/5 \/ 32 pieces/)).toBeVisible();await games.getByLabel('Your one guess').fill('incorrect');await games.getByRole('button',{name:'Submit guess'}).click();await expect(games.getByText(/Your guess is saved/)).toBeVisible();
  await games.getByRole('button',{name:'Halloween Doors',exact:true}).click();await expect(games.locator('.og-door')).toHaveCount(28);assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Mobile layout must fit');
  await mkdir('test-results/october-games',{recursive:true});await games.screenshot({path:'test-results/october-games/mobile-gallery.png'});
  await page.setViewportSize({width:1360,height:960});await games.screenshot({path:'test-results/october-games/desktop-gallery.png'});
  await games.getByRole('button',{name:'Side Quests',exact:true}).click();await games.screenshot({path:'test-results/october-games/desktop-quests.png'});
- assert.deepEqual(errors,[]);console.log('PASS browser: existing login → Daily Bites; manager controls; camera/file chooser; WebP compression/max1200; preview/consent/submission; approval trading card; five puzzle pieces; one guess; 28 blank frames; desktop/mobile layouts with no horizontal overflow.');
+
+ // Nonparticipating-school preview stays local even when choosing a real file.
+ await db.exec('update october_dev.schools set participating=false where location_id=1');
+ await games.getByRole('button',{name:'Refresh',exact:true}).click();await games.getByRole('button',{name:'Preview manager experience'}).click();
+ const before=(await db.query('select (select count(*) from october_dev.entries) entries,(select count(*) from october_dev.guesses) guesses')).rows[0];
+ await games.getByRole('button',{name:'Upload photo',exact:true}).first().click();await games.locator('input[type=file]').first().setInputFiles({name:'preview.jpg',mimeType:'image/jpeg',buffer:example});
+ await games.getByLabel(/I have permission/).check();await games.getByRole('button',{name:'Submit for approval'}).click();await expect(games.getByText(/Nothing was uploaded or saved/)).toBeVisible();
+ await games.getByRole('button',{name:'Halloween Doors',exact:true}).click();await games.getByRole('button',{name:'Submit your school’s door'}).click();await expect(games.locator('.og-submit')).toBeVisible();
+ await games.getByRole('button',{name:'Mystery Photos',exact:true}).click();await games.getByLabel('Preview your guess').fill('Practice guess');await games.getByRole('button',{name:'Submit guess'}).click();await expect(games.getByText(/No real guess was used/)).toBeVisible();
+ assert.deepEqual((await db.query('select (select count(*) from october_dev.entries) entries,(select count(*) from october_dev.guesses) guesses')).rows[0],before);
+ await page.setViewportSize({width:390,height:844});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await games.screenshot({path:'test-results/october-games/mobile-preview.png'});
+ assert.deepEqual(errors,[]);console.log('PASS browser: existing login → Daily Bites shortcut → separate Games page; notification stays unread until Games opens; nonparticipating preview never saves; manager controls; camera/file chooser; WebP compression/max1200; preview/consent/submission; approval trading card; five puzzle pieces; one guess; 28 blank frames; desktop/mobile layouts with no horizontal overflow.');
 }finally{await browser.close();await new Promise(r=>server.close(r));await db.close();}
