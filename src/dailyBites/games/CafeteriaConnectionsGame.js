@@ -78,7 +78,7 @@ export default function CafeteriaConnectionsGame({ puzzle, progress, streak, dis
     setSaving(true);
     try {
       const nextHints = hintsUsed + 1;
-      const success = await onSave({status: "in_progress", state: {solvedGroupIds, mistakes, hintsUsed: nextHints}, attemptCount: mistakes});
+      const success = await onSave({action: 'hint', input: {}, status: "in_progress", state: {solvedGroupIds, mistakes, hintsUsed: nextHints}, attemptCount: mistakes});
       if (success) {
         setHintsUsed(nextHints);
         setMessage("Hint revealed. One point deducted from this puzzle's possible reward.");
@@ -121,8 +121,8 @@ export default function CafeteriaConnectionsGame({ puzzle, progress, streak, dis
       const nextState = { solvedGroupIds: nextSolved, mistakes, hintsUsed };
       const points = scoreSparkSort(chancesRemaining, hintsUsed);
       const success = won
-        ? await onComplete({ status: "won", state: nextState, attemptCount: mistakes, points })
-        : await onSave({ status: "in_progress", state: nextState, attemptCount: mistakes });
+        ? await onComplete({ action: 'group', input: { items: selected }, status: "won", state: nextState, attemptCount: mistakes, points })
+        : await onSave({ action: 'group', input: { items: selected }, status: "in_progress", state: nextState, attemptCount: mistakes });
       if (success) {
         setSolvedGroupIds(nextSolved);
         setSelected([]);
@@ -144,7 +144,7 @@ export default function CafeteriaConnectionsGame({ puzzle, progress, streak, dis
         return group.items.filter((item) => selectedSet.has(item)).length === 3;
       });
       const nextState = { solvedGroupIds, mistakes: nextMistakes, hintsUsed };
-      const success = await onSave({ status: lost ? "lost" : "in_progress", state: nextState, attemptCount: nextMistakes });
+      const success = await onSave({ action: 'group', input: { items: selected }, status: lost ? "lost" : "in_progress", state: nextState, attemptCount: nextMistakes });
       if (success) {
         setMistakes(nextMistakes);
         setSelected([]);

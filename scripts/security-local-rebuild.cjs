@@ -1,0 +1,30 @@
+// Rebuild the disposable LOCAL fixture. Host, port and database are fixed;
+// environment connection strings are deliberately ignored.
+const fs=require('node:fs');
+const path=require('node:path');
+const {execFileSync}=require('node:child_process');
+const assert=require('node:assert/strict');
+const root=path.resolve('.security-runtime');
+const bin=path.join(root,'postgres/pgsql/bin');
+const env={...process.env,PGPASSWORD:fs.readFileSync(path.join(root,'local-password'),'utf8').trim()};
+const connection=['-X','-h','127.0.0.1','-p','55432','-U','postgres','-d','spark_security','-v','ON_ERROR_STOP=1'];
+const psql=(sql)=>execFileSync(path.join(bin,'psql.exe'),connection,{input:sql,env,encoding:'utf8',maxBuffer:16*1024*1024,stdio:['pipe','pipe','pipe']});
+if(psql('select current_database();').includes('spark_security')===false)throw Error('Not the isolated fixture');
+require('./security-local-baseline.cjs');
+psql('DROP SCHEMA IF EXISTS spark_private,october_dev,october_live,public,extensions CASCADE; CREATE SCHEMA public;');
+psql(fs.readFileSync(path.join(root,'baseline.sql'),'utf8'));
+// Seed only this synthetic school before migration to verify data/PIN preservation.
+psql(`INSERT INTO locations(id,location_code,school_name,active) VALUES(900009,'9009','Synthetic Preservation',true);
+INSERT INTO employees(id,location_id,employee_name,active,manager_pin_hash) VALUES(900009,900009,'Synthetic Preserved Manager',true,extensions.crypt('1957',extensions.gen_salt('bf')));
+INSERT INTO meal_counts(location_id,service_date,breakfast_count,lunch_count) VALUES(900009,'2026-09-01',17,21);
+INSERT INTO breakfast_classrooms(location_id,room_code,teacher_name,enrolled_students) VALUES(900009,'Preserved','Synthetic Teacher',25);`);
+const records=()=>psql(`select jsonb_build_object('employees',(select jsonb_agg(to_jsonb(e)) from employees e where location_id=900009),'meals',(select jsonb_agg(to_jsonb(m)) from meal_counts m where location_id=900009),'classrooms',(select jsonb_agg(to_jsonb(c)) from breakfast_classrooms c where location_id=900009))::text;`);
+const before=records();
+const migration=fs.readFileSync('supabase/migrations/20261008173201_spark_security_phase1.sql','utf8');
+assert.throws(()=>psql(migration.replace(/COMMIT;\s*$/i,'SELECT 1/0; COMMIT;')),'Forced migration failure must roll back');
+assert.equal(records(),before,'Failed migration retains every fixture record and PIN');
+assert.ok(psql("select to_regprocedure('public.spark_login(text,text,bigint,text)') is null;").includes('t'),'Failed migration leaves no partially installed login');
+psql(migration);
+assert.equal(records(),before,'Successful migration preserves every fixture record, PIN and QR');
+psql("NOTIFY pgrst,'reload schema';");
+console.log('PASS: isolated migration failure rolls back; successful migration preserves existing synthetic records, PIN hashes and QR codes. No cloud database accessed.');

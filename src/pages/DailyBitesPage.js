@@ -221,74 +221,24 @@ function DailyBitesPage({ location, employee, managerPin, onBack, onViewSpotligh
 
   async function saveGameProgress(gameType, puzzle, update) {
     setGamesError("");
-    const payload = {
-      location_id: location.id,
-      employee_id: employee?.id || null,
-      employee_name: employee?.employee_name || "Covering Employee",
-      game_type: gameType,
-      puzzle_id: puzzle.puzzleId,
-      service_date: gameDate,
-      status: update.status,
-      state: update.state,
-      attempt_count: update.attemptCount,
-      completed_at: update.status === "lost" ? new Date().toISOString() : null,
-      updated_at: new Date().toISOString(),
-    };
-
-    const { data, error } = await supabase
-      .from("daily_bites_game_progress")
-      .upsert(payload, { onConflict: "location_id,game_type,puzzle_id" })
-      .select("game_type, puzzle_id, service_date, status, state, attempt_count")
-      .single();
-
+    const { data, error } = await supabase.rpc("spark_game_action", {
+      p_location_id: location.id,
+      p_puzzle_id: puzzle.puzzleId,
+      p_action: update.action,
+      p_input: update.input,
+      p_expected_state: getCurrentGameProgress(gameType, puzzle.puzzleId)?.state || {},
+    });
     if (error) {
-      console.error("Daily Bites game save error:", error);
       setGamesError(error.message || "Could not save game progress.");
       return false;
     }
-
     mergeGameProgress(data);
+    setBingoActivityVersion(v => v + 1);
     return true;
   }
 
   async function completeGame(gameType, puzzle, update) {
-    setGamesError("");
-    const isWord = gameType === "word";
-    const pointType = isWord ? "daily_bites_word_game" : "daily_bites_spark_sort";
-    const gameName = isWord ? "Cafeteria Word" : "SPARK Sort";
-    const uniqueKey = `daily-bites-${gameType}-${location.id}-${puzzle.puzzleId}`;
-
-    const { error } = await supabase.rpc("complete_daily_bites_game", {
-      p_location_id: location.id,
-      p_employee_id: employee?.id || null,
-      p_employee_name: employee?.employee_name || "Covering Employee",
-      p_game_type: gameType,
-      p_puzzle_id: puzzle.puzzleId,
-      p_service_date: gameDate,
-      p_state: update.state,
-      p_attempt_count: update.attemptCount,
-      p_points: update.points,
-      p_point_type: pointType,
-      p_description: `${gameName} completed${update.points > 0 ? ` — ${update.points} points` : ""}`,
-      p_unique_key: uniqueKey,
-    });
-
-    if (error) {
-      console.error("Daily Bites game completion error:", error);
-      setGamesError(error.message || "Could not complete the game.");
-      return false;
-    }
-
-    setBingoActivityVersion(v=>v+1);
-    mergeGameProgress({
-      game_type: gameType,
-      puzzle_id: puzzle.puzzleId,
-      service_date: gameDate,
-      status: "won",
-      state: update.state,
-      attempt_count: update.attemptCount,
-    });
-    return true;
+    return saveGameProgress(gameType, puzzle, update);
   }
 
   const wordProgress = getCurrentGameProgress("word", wordPuzzle.puzzleId);

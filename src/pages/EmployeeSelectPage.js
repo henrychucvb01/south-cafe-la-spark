@@ -25,12 +25,7 @@ function EmployeeSelectPage({ location, onEmployeeSelected, onBack }) {
     setError("");
 
     try {
-      const { data, error: employeeError } = await supabase
-        .from("employees")
-        .select("*")
-        .eq("location_id", location.id)
-        .eq("active", true)
-        .order("employee_name");
+      const { data, error: employeeError } = await supabase.rpc("spark_employee_directory", { p_location_id: location.id });
 
       if (employeeError) {
         console.error("Employee lookup error:", employeeError);
