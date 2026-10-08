@@ -17,7 +17,8 @@ const server=createServer(async(req,res)=>{try{
 }catch{res.writeHead(404).end();}});
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const localOrigin='http://127.0.0.1:'+server.address().port;
-const origin='https://south-cafe-la-spark.vercel.app';
+const origin=process.argv[2]||'https://south-cafe-la-spark.vercel.app';
+if(!['https://south-cafe-la-spark.vercel.app','https://spark.cafelalistens.org'].includes(origin))throw new Error('Choose an approved production origin for the isolated browser test');
 const browser=await chromium.launch({channel:'chrome',headless:true});
 try{
   for(const role of ['employee','new','covering','supervisor']){

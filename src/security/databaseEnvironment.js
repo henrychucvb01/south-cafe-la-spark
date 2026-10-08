@@ -1,5 +1,7 @@
 export const PRODUCTION_DATABASE = 'https://kkrcxqhfzepifhkryodd.supabase.co';
 export const PRODUCTION_HOST = 'south-cafe-la-spark.vercel.app';
+// Exact live aliases only; previews and other subdomains remain isolated.
+export const PRODUCTION_HOSTS = [PRODUCTION_HOST, 'spark.cafelalistens.org'];
 export const DEVELOPMENT_UNAVAILABLE = 'SPARK Development needs its separate test database. Live school data is protected.';
 
 export function isolatedDatabase(url, key) {
@@ -13,7 +15,7 @@ export function isolatedDatabase(url, key) {
 }
 
 export function browserDatabase(env, hostname) {
-  if (hostname === PRODUCTION_HOST) return {
+  if (PRODUCTION_HOSTS.includes(hostname)) return {
     url: PRODUCTION_DATABASE,
     key: env.REACT_APP_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_rFcU-sguMfg5g0vBoD_cjg_qVH0RTai',
   };

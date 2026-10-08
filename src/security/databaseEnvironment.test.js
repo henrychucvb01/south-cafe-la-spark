@@ -9,3 +9,6 @@ test.each(['preview','development',undefined])('server %s rejects inherited prod
 test('server rejects live URL even in explicit development settings',()=>expect(()=>serverDatabase({DEVELOPMENT_SUPABASE_URL:PRODUCTION_DATABASE,DEVELOPMENT_SUPABASE_SERVICE_ROLE_KEY:'live'})).toThrow());
 test('main production server retains its existing key',()=>expect(serverDatabase({VERCEL_ENV:'production',VERCEL_GIT_COMMIT_REF:'main',SUPABASE_SERVICE_ROLE_KEY:'live'})).toEqual({url:PRODUCTION_DATABASE,key:'live'}));
 test('preview server uses only separate development credentials',()=>expect(serverDatabase({VERCEL_ENV:'preview',SUPABASE_SERVICE_ROLE_KEY:'live',DEVELOPMENT_SUPABASE_URL:'https://test.supabase.co',DEVELOPMENT_SUPABASE_SERVICE_ROLE_KEY:'test'})).toEqual({url:'https://test.supabase.co',key:'test'}));
+
+test('verified custom production domain uses the live database',()=>expect(browserDatabase({},'spark.cafelalistens.org').url).toBe(PRODUCTION_DATABASE));
+test.each(['preview.spark.cafelalistens.org','spark.cafelalistens.org.example.com','cafelalistens.org'])('similar host %s is not authorized for production',host=>expect(()=>browserDatabase({},host)).toThrow());
