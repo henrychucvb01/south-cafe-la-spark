@@ -1,12 +1,12 @@
 # SPARK Phase 1 security release
 
-Status: **Implemented and tested; production security deployment blocked by the Supabase write connection.**
+Status: **Deployed and verified in production on October 8, 2026.**
 
-On October 8, 2026, release 82802d0252c1b98619e2f54075660d75a6608657 was pushed to spark-development and main. Vercel successfully served its exact tested application asset. Both Supabase migration attempts returned `Invalid or expired requestState`; the separately configured Supabase connection also failed OAuth refresh. Read-only checks confirmed that neither the security schema nor its readiness function was installed. No production database changes were applied.
+Supabase OAuth authorization was renewed. Release 0dc920e1affca16e99c589a1b0a2a57b7976e6c4 restored the exact tested application to main and spark-development after the earlier connection failure. Production was confirmed serving main.3336fb75.js before the atomic spark_security_phase1 migration was successfully applied. Production readiness reports version 1, ready true.
 
-Production recovery commit 31b3bc27dcda59b9267467346e22c69faf84f380 restores the exact pre-release application tree on main. The security implementation remains on spark-development. The development preview deliberately waits for the unavailable matching database release; its complete functional tests were performed against localhost.
+Read-only live checks confirmed anonymous employee/PIN-hash access is denied, direct points/game-progress insert privileges and the legacy arbitrary-reward function are denied, legacy raw-PIN verification returns false, and protected school records are hidden from anonymous requests. Independent browser checks passed the manager and supervisor login entry screens with no application errors; live school writes and employee PIN attempts were not used for testing. Full authenticated workflows were verified against the isolated synthetic database. Existing PINs, self-service enrollment, cross-school assistance and school records are preserved. Previously open tabs should refresh and sign in again.
 
-Resume only after restoring Supabase migration access. Because main contains an explicit recovery commit, a normal merge of the existing development ancestor will not reapply the security release: revert the recovery commit after refreshing main, verify the compatible deployment, then apply the tested migration and perform live checks. Do not claim the vulnerabilities are fixed in production until that succeeds.
+The initial connection-failure recovery commit 31b3bc27dcda59b9267467346e22c69faf84f380 is superseded. After the successful database migration, do not deploy that old application or restore anonymous permissions. Use the pause/resume recovery procedure below if needed.
 
 ## Preserved workflows and accepted risk
 
