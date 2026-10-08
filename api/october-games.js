@@ -6,16 +6,17 @@ import {makePieces,maskSvg} from '../lib/octoberGeometry.js';
 export function previewEnabled(env=process.env){
  return env.VERCEL_ENV==='preview' && ['spark-development','development'].includes(env.VERCEL_GIT_COMMIT_REF);
 }
-export function createHandler(db,enabled=previewEnabled()){
+export function productionEnabled(env=process.env){return env.VERCEL_ENV==='production'&&env.VERCEL_GIT_COMMIT_REF==='main';}
+export function createHandler(db,enabled=previewEnabled(),production=false){
  return async(req,res)=>{
   res.setHeader('Cache-Control','no-store');
   if(!enabled)return res.status(404).json({error:'October Games is available only in SPARK Development.'});
-  if(req.method==='GET')return res.status(200).json({enabled:true});
+  if(req.method==='GET')return res.status(200).json({enabled:true,mode:production?'production':'preview'});
   if(req.method!=='POST')return res.status(405).json({error:'Use POST.'});
   const {action='list',token,pin,photo,payload={}}=req.body||{};
   const bucket=db.storage.from('october-games-dev');let staged;
   const rpc=async(action,content)=>{
-   const {data,error}=await db.rpc('october_games_dev',{p_action:action,p_token:token||null,p_pin:pin||null,p_payload:content||{}});
+   const {data,error}=await db.rpc(production?'october_games_live':'october_games_dev',{p_action:action,p_token:token||null,p_pin:pin||null,p_payload:content||{}});
    if(error)throw Error(error.code==='PGRST202'?'October Games development database setup is pending. Your existing SPARK features are unaffected.':error.message);return data;
   };
   try{
@@ -38,7 +39,8 @@ export function createHandler(db,enabled=previewEnabled()){
     if(action==='round')content.pieces=makePieces();
    }
    const data=await rpc(action==='badge'?'list':action,content);staged=null;
-   if(data.old_photo)await bucket.remove([data.old_photo]).catch(()=>{});
+   // Existing photo paths may be referenced by both launch and preview data. Keep replaced originals private.
+   if(data && !Array.isArray(data))data.production=production;
    delete data.old_photo;
    if(action==='authorize')return res.status(200).json(data);
    if(action==='badge')return res.status(200).json({participating:data.participating,new_challenge:data.new_challenge});
@@ -70,8 +72,9 @@ export function createHandler(db,enabled=previewEnabled()){
  };
 }
 export default async function handler(req,res){
- if(!previewEnabled())return createHandler(null,false)(req,res);
+ const production=productionEnabled();
+ if(!previewEnabled()&&!production)return createHandler(null,false)(req,res);
  const key=process.env.SUPABASE_SERVICE_ROLE_KEY;
- if(!key)return res.status(503).json({error:'Development Games storage is not configured.'});
- return createHandler(createClient(process.env.SUPABASE_URL||'https://kkrcxqhfzepifhkryodd.supabase.co',key,{auth:{persistSession:false,autoRefreshToken:false}}),true)(req,res);
+ if(!key)return res.status(503).json({error:'October Games storage is not configured.'});
+ return createHandler(createClient(process.env.SUPABASE_URL||'https://kkrcxqhfzepifhkryodd.supabase.co',key,{auth:{persistSession:false,autoRefreshToken:false}}),true,production)(req,res);
 }

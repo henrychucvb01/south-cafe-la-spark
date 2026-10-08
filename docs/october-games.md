@@ -1,13 +1,20 @@
-# October Games — development preview
+# October Games — live and development
+
+## Production launch (October 8, 2026)
+The user authorized promotion to main and real SPARK rewards for new production approvals and correct guesses. Migration `202610080007_october_games_production.sql` copies the saved setup into the private `october_live` schema once, including mystery photos/answers/pieces, quest edits/rewards, school selections, schedules, and existing progress. Imported test rewards are excluded from live scoring. Both copies keep references to immutable private images in the existing bucket; replaced images are retained to avoid deleting an image still used by the other environment.
+
+Production on main uses the service-role-only `october_games_live()` function. Development previews continue to use `october_games_dev()` and cannot award real points. New live rewards synchronize into `public.spark_points` through unique event keys; retries do not duplicate points. Voiding/restoring a live award updates its existing ledger row and any saved monthly standings, without issuing Pull tokens. The development leaderboard overlay is disabled in production to prevent counting rewards twice.
+
+Use **Daily Bites → October Games**. Supervisors manage games in **Command Center → Games & Challenges**. The existing active/paused states and dates remain in effect; deployment does not automatically activate games. Saved development changes made after launch do not automatically update the live copy.
 
 ## Start testing
 
-1. Open SPARK Development and sign in as Supervisor.
+1. Open SPARK and sign in as Supervisor (or SPARK Development for isolated testing).
 2. Open **Games & Challenges** in the Command Center, then its **Games & Challenges** tab.
 3. Expand **Participating schools**. The 28 real schools are selected from the existing directory. Test High School is available but initially excluded; select it if needed, then Apply schools.
-4. Confirm the BIC and Supper quest school lists in **Quest instructions and eligible schools**. They start empty because the directory has no reliable eligibility fields; the Breakfast rollout toggle is not a program-eligibility flag.
+4. Review quest instructions and rewards. Overall school participation is managed in Participating schools; existing per-program eligibility remains preserved.
 5. Set Door Contest submission/voting dates. Upload all five supplied mystery images and review their answers/aliases. All games start paused; activate each independently when ready.
-6. Managers open the **October Games** card on Manager Hub or the shortcut in Daily Bites. The Door gallery is also in **View All Spotlights**. Covering managers can submit photos; registered managers can also vote and guess.
+6. Managers open the **October Games** shortcut in Daily Bites. The Door gallery is also in **View All Spotlights**. Covering managers can submit photos; registered managers can also vote and guess.
 
 No images have been downloaded or generated for the mysteries. The five round answers are seeded; artwork must be supplied by the supervisor. Dates use the device time zone when entered, are stored as timestamps, and are enforced on the server.
 
@@ -28,11 +35,11 @@ No images have been downloaded or generated for the mysteries. The five round an
 
 The user explicitly approved isolated development setup in shared Supabase after automatic approval review identified the shared project. Migrations `202610080001`, `202610080002` and `202610080003` and `202610080004` add only `october_dev` records, a private `october-games-dev` photo bucket, and `october_games_dev()`.
 
-The API is enabled only when `VERCEL_ENV=preview` and the branch is `spark-development` or `development`. Existing Supabase service credentials are used on the server. The new function is executable only by the service role, and it additionally verifies the existing supervisor PIN or school-scoped manager session. Browser roles cannot read the new schema or call the function directly.
+The API uses development data on Preview deployments of `spark-development` or `development`, and live data only on production `main`. Existing Supabase service credentials are used on the server. The new function is executable only by the service role, and it additionally verifies the existing supervisor PIN or school-scoped manager session. Browser roles cannot read the new schema or call the function directly.
 
 Regular managers use permanent employee IDs. Covering managers have a typed name and shared PIN, so votes/guesses require switching to their existing registered manager login. No additional login system was added.
 
-No production points, Cup snapshots, Pull tokens, original Spotlight records, or existing functions are modified. Test rewards are in `october_dev.rewards`. Promoting games to production would need a separate, explicitly authorized deployment/scoring decision; this branch does not silently turn test rewards into real awards.
+No production points, Cup snapshots, Pull tokens, original Spotlight records, or existing functions are modified. Test rewards are in `october_dev.rewards`. The production promotion is explicitly authorized above; imported test rewards never become real awards.
 
 ## Validation
 

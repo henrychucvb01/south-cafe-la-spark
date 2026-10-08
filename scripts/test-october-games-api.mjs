@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
-import {createHandler,previewEnabled} from '../api/october-games.js';
+import {createHandler,previewEnabled,productionEnabled} from '../api/october-games.js';
 import {makePieces,maskSvg} from '../lib/octoberGeometry.js';
 let checks=0;const check=(a,b)=>{assert.deepEqual(a,b);checks++;};
 check(previewEnabled({VERCEL_ENV:'production',VERCEL_GIT_COMMIT_REF:'main'}),false);
 check(previewEnabled({VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'spark-development'}),true);
 check(previewEnabled({VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'unrelated'}),false);
+check(productionEnabled({VERCEL_ENV:'production',VERCEL_GIT_COMMIT_REF:'main'}),true);
+check(productionEnabled({VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'main'}),false);
+check(productionEnabled({VERCEL_ENV:'production',VERCEL_GIT_COMMIT_REF:'unrelated'}),false);
 const area=t=>Math.abs(t[0][0]*(t[1][1]-t[2][1])+t[1][0]*(t[2][1]-t[0][1])+t[2][0]*(t[0][1]-t[1][1]))/2;
 for(let i=0;i<30;i++){const pieces=makePieces();check(pieces.length,32);assert(Math.abs(pieces.reduce((sum,p)=>sum+area(p),0)-1000000)<.001);checks++;assert(pieces.every(t=>area(t)>0&&t.every(p=>p.every(n=>n>=0&&n<=1000))));checks++;}
 assert.notDeepEqual(makePieces(),makePieces());checks++;
@@ -33,4 +36,8 @@ const before=calls.filter(c=>c[0]==='upload').length;res=await request({action:'
 res=await request({action:'round',pin:'admin',payload:{id:1},photo:{base64:raster.toString('base64')}});check(res.status,200);
 const roundPayload=calls.find(c=>c[0]==='rpc'&&c[1].p_action==='round')[1].p_payload;check(roundPayload.pieces.length,32);
 check((await request({action:'submit',token:'manager',photo:{base64:Buffer.from('<svg/>').toString('base64')}})).status,400);
+let liveStatus,liveData;const liveDb={...db,rpc:async(name,args)=>{check(name,'october_games_live');return {data:{admin:true,entries:[],rounds:[],old_photo:'keep-shared.webp'}};}};
+const removes=calls.filter(c=>c[0]==='remove').length;
+await createHandler(liveDb,true,true)({method:'POST',body:{action:'list',pin:'admin'}},{setHeader(){},status(s){liveStatus=s;return this;},json(v){liveData=v;return this;}});
+check(liveStatus,200);check(liveData.production,true);check(calls.filter(c=>c[0]==='remove').length,removes);
 console.log(`PASS ${checks} assertions: preview-only server, authorized uploads, re-encoding, 32 randomized triangles with complete coverage, private originals, unrecoverable hidden pixels, future-image privacy, server-owned paths and geometry.`);

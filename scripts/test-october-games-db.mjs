@@ -114,6 +114,33 @@ try{
  check(d.rewards.filter(r=>r.event==='quest:first:16'&&!r.voided).length,1);check(d.rewards.find(r=>r.event==='quest:first:16').points,40);
  check(d.unlock_events.filter(u=>u.entry===added.id).length,1);check((await db.query('select sum(points) n from spark_points')).rows[0].n,500);
 
+
+ // Launch copies artwork/settings once; historical test rewards do not enter the real ledger.
+ await db.exec(`alter table spark_points add column location_id bigint,add column point_type text,add column description text,add column service_date date,add column source text,add column unique_key text unique;
+ create table spark_monthly_cup_results(month date,location_id bigint,points int,rank int,primary key(month,location_id));
+ insert into spark_monthly_cup_results values(date_trunc('month',now()),1,500,1),(date_trunc('month',now()),2,400,2);`);
+ await db.exec(await readFile('supabase/migrations/202610080007_october_games_production.sql','utf8'));
+ const live=async(action,payload={},token='school1',pin=null)=>(await db.query('select october_games_live($1,$2,$3,$4) r',[action,token,pin,payload])).rows[0].r;
+ const liveAdmin=(action,payload={})=>live(action,payload,null,'test-admin');
+ let prod=await liveAdmin('list');check(prod.rewards.length,0);check(prod.quests.length,16);check(prod.rounds.filter(r=>r.photo_path===path).length,5);check((await db.query('select sum(points) n from spark_points')).rows[0].n,500);
+ await fail(live('quest_create',{revision:prod.settings.revision,name:'bad',description:'bad'}),/Supervisor/);
+ prod=await liveAdmin('quest_create',{revision:prod.settings.revision,name:'Live quest',description:'Live task',reward_points:35});
+ await live('submit',{...photo,quest:17});let liveEntry=(await liveAdmin('list')).entries.find(e=>e.quest===17);
+ prod=await liveAdmin('review',{id:liveEntry.id,revision:liveEntry.revision,state:'approved'});
+ check((await db.query("select points from spark_points where unique_key='october-live:quest:first:17'")).rows[0].points,35);
+ check((await db.query('select points from spark_monthly_cup_results where location_id=1')).rows[0].points,535);
+ await fail(live('submit',{...photo,quest:17},'school2'),/locked/);
+ await liveAdmin('reward',{event:'quest:first:17',voided:true,reason:'Correction'});check((await db.query('select sum(points) n from spark_points')).rows[0].n,500);
+ await liveAdmin('reward',{event:'quest:first:17',voided:false,reason:'Restore'});await liveAdmin('reward',{event:'quest:first:17',voided:false,reason:'Retry'});
+ check((await db.query('select sum(points) n from spark_points')).rows[0].n,535);check((await db.query('select points from spark_monthly_cup_results where location_id=1')).rows[0].points,535);
+ // Restoring an imported test award cannot create live points.
+ await liveAdmin('reward',{event:'quest:first:1',voided:false,reason:'Old test'});check((await db.query('select sum(points) n from spark_points')).rows[0].n,535);
+ // A new live mystery winner receives 25 exactly once; development remains separate.
+ await db.exec("delete from october_live.guesses where round=1;delete from october_live.rewards where event='mystery:1';update october_live.rounds set solved_at=null,winner=null where id=1;");
+ await live('guess',{round:1,guess:'Answer 1'});check((await db.query("select points from spark_points where unique_key='october-live:mystery:1'")).rows[0].points,25);
+ await fail(live('guess',{round:1,guess:'Answer 1'}),/no longer active/);
+ const devBefore=(await admin('list')).quests.length;check(devBefore,16);check((await db.query("select count(*)::int n from october_dev.rewards where event='quest:first:17'")).rows[0].n,0);
+ await db.exec('set role anon');await fail(live('list'),/permission denied/);await fail(db.exec('select * from october_live.rounds'),/permission denied/);await db.exec('reset role');
  await db.exec('set role anon');await fail(db.exec('select * from october_dev.entries'),/permission denied/);await fail(call('list'),/permission denied/);
  await db.exec('reset role;set role service_role');check((await call('list')).location_id,1);
  console.log(`PASS ${checks} assertions: school isolation, consent, review/resubmission, idempotent rewards/unlocks, hidden answers/photos, identity restrictions, 5 rounds/125 points, vote dates/own-school/duplicate checks, champion, corrections, notifications, live points unchanged, service-only RPC.`);

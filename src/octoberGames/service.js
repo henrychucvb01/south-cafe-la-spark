@@ -4,13 +4,14 @@ export async function gamesRequest(action,auth={},payload={},photo){
  const data=await response.json();if(!response.ok)throw Error(data.error||'Could not load October Games.');return data;
 }
 let available;
-export function useOctoberAvailable(){
- const [enabled,setEnabled]=useState(false);
+export function useOctoberMode(){
+ const [mode,setMode]=useState(null);
  useEffect(()=>{let current=true;if(typeof fetch!=='function')return;
-  if(!available)available=fetch('/api/october-games').then(r=>r.ok?r.json():null).then(d=>!!d?.enabled).catch(()=>false);
-  available.then(v=>{if(current)setEnabled(v);});return()=>{current=false;};
- },[]);return enabled;
+  if(!available)available=fetch('/api/october-games').then(r=>r.ok?r.json():null).then(d=>d?.enabled?(d.mode||'preview'):null).catch(()=>null);
+  available.then(v=>{if(current)setMode(v);});return()=>{current=false;};
+ },[]);return mode;
 }
+export function useOctoberAvailable(){return !!useOctoberMode();}
 export async function prepareGamePhoto(file){
  if(!file||!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>20*1024*1024)throw Error('Choose a JPEG, PNG or WebP photo under 20 MB.');
  const url=URL.createObjectURL(file);

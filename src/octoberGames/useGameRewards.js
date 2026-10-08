@@ -1,8 +1,8 @@
 import {useEffect,useState} from 'react';
 import {openSession,closeSession} from '../supperMonitoring/service';
-import {gamesRequest,useOctoberAvailable} from './service';
+import {gamesRequest,useOctoberMode} from './service';
 export default function useGameRewards({location,employee,managerPin,supervisorPin}){
- const enabled=useOctoberAvailable(),[rewards,setRewards]=useState([]),[error,setError]=useState('');
+ const enabled=useOctoberMode()==='preview',[rewards,setRewards]=useState([]),[error,setError]=useState('');
  useEffect(()=>{
   if(!enabled||(!supervisorPin&&(!location||!employee||!managerPin)))return;
   let cancelled=false,token,timer;
