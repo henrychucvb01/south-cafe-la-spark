@@ -1,6 +1,12 @@
 # SPARK Phase 1 security release
 
-Release preparation: isolated checks passed on October 8, 2026. Production deployment is recorded separately after verification.
+Status: **Implemented and tested; production security deployment blocked by the Supabase write connection.**
+
+On October 8, 2026, release 82802d0252c1b98619e2f54075660d75a6608657 was pushed to spark-development and main. Vercel successfully served its exact tested application asset. Both Supabase migration attempts returned `Invalid or expired requestState`; the separately configured Supabase connection also failed OAuth refresh. Read-only checks confirmed that neither the security schema nor its readiness function was installed. No production database changes were applied.
+
+Production recovery commit 31b3bc27dcda59b9267467346e22c69faf84f380 restores the exact pre-release application tree on main. The security implementation remains on spark-development. The development preview deliberately waits for the unavailable matching database release; its complete functional tests were performed against localhost.
+
+Resume only after restoring Supabase migration access. Because main contains an explicit recovery commit, a normal merge of the existing development ancestor will not reapply the security release: revert the recovery commit after refreshing main, verify the compatible deployment, then apply the tested migration and perform live checks. Do not claim the vulnerabilities are fixed in production until that succeeds.
 
 ## Preserved workflows and accepted risk
 
