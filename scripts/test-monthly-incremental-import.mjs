@@ -36,8 +36,11 @@ if(process.argv[2]) {
  vm.runInNewContext(babel.transformSync(await readFile('src/monthlyScorecards/monthlyImportParser.js','utf8'),{plugins:['@babel/plugin-transform-modules-commonjs'],babelrc:false,configFile:false}).code,{exports});
  const parsed=exports.parseMonthlyReport(await readFile(process.argv[2],'utf8'),'cost');
  const seen=new Map(parsed.normalizedRows.map(r=>[`${r.source_site_id}|${r.production_date}|${r.meal_type}`,r]));const realRows=[...seen.values()];
+ const prior=(await db.query('select source_site_id,production_date::text,meal_type from monthly_production_cost_rows')).rows;
+ const expected=new Set([...prior,...realRows].map(r=>`${r.source_site_id}|${r.production_date}|${r.meal_type}`));
+ for(const site of new Set(realRows.map(r=>r.source_site_id)))await db.query('insert into monthly_site_mappings select $1,1,true where not exists(select 1 from monthly_site_mappings where source_site_id=$1)',[site]);
  for(let pass=0;pass<2;pass++)for(let i=0;i<realRows.length;i+=250)await save(realRows.slice(i,i+250));
- assert.equal((await db.query("select count(*) n from monthly_production_cost_rows where source_site_id<>'1000101'")).rows[0].n,realRows.length);
+ assert.equal((await db.query("select count(*) n from monthly_production_cost_rows")).rows[0].n,expected.size);
  console.log(`PASS: actual CSV imported twice locally: ${realRows.length} unique records, no duplicate totals.`);
 }
 }finally{await db.close();}
