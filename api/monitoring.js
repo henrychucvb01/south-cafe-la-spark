@@ -1,3 +1,4 @@
+import {serverDatabase} from '../src/security/databaseEnvironment.js';
 import { createClient } from "@supabase/supabase-js";
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
@@ -114,8 +115,10 @@ export function createHandler({ database, templateLoader = () => readFile(resolv
   };
 }
 export default async function handler(request, response) {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  let configuration;
+ try {configuration=serverDatabase(process.env);} catch(error) {return response.status(503).json({error:error.message});}
+ const key=configuration.key;
   if (!key) { response.setHeader("Cache-Control", "no-store"); return response.status(503).json({ error: "Report submission is not configured yet. Your draft is preserved; contact your SPARK administrator." }); }
-  const database = createClient(process.env.SUPABASE_URL || "https://kkrcxqhfzepifhkryodd.supabase.co", key, { auth: { persistSession: false, autoRefreshToken: false } });
+  const database = createClient(configuration.url, key, { auth: { persistSession: false, autoRefreshToken: false } });
   return createHandler({ database })(request, response);
 }

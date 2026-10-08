@@ -1,3 +1,4 @@
+import {serverDatabase} from '../src/security/databaseEnvironment.js';
 const EXPECTED_DOCUMENTS = 96;
 const EXPECTED_CHUNKS = 1415;
 const CORPUS_VERSION = "phase1-2026-08-31";
@@ -30,10 +31,10 @@ function normalizeSupabaseUrl(value) {
 }
 
 function requireEnvironment() {
-  const rawSupabaseUrl = process.env.SUPABASE_URL?.trim();
+  const configuration = serverDatabase(process.env);
   const values = {
-    supabaseUrl: rawSupabaseUrl ? normalizeSupabaseUrl(rawSupabaseUrl) : "",
-    serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY?.trim(),
+    supabaseUrl: normalizeSupabaseUrl(configuration.url),
+    serviceKey: configuration.key,
     geminiKey: process.env.GEMINI_API_KEY?.trim(),
     importToken: process.env.ASK_SPARK_IMPORT_TOKEN?.trim(),
   };
@@ -240,7 +241,9 @@ export default async function handler(request, response) {
   }
 
   try {
-    const { supabaseUrl, serviceKey, geminiKey, importToken } = requireEnvironment();
+    const configuration = serverDatabase(process.env);
+    const { geminiKey, importToken } = requireEnvironment();
+    const {url: supabaseUrl, key: serviceKey} = configuration;
     const suppliedToken = String(request.headers["x-ask-spark-import-token"] || "");
     if (!suppliedToken || suppliedToken !== importToken) {
       return send(response, 401, { error: "Import token is incorrect." });

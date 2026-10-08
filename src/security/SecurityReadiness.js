@@ -1,5 +1,5 @@
 import React, {useEffect,useState} from 'react';
-import {supabase} from '../supabaseClient';
+import {supabase,databaseConfigurationError} from '../supabaseClient';
 
 export function useSecurityReady() {
   const [ready,setReady]=useState(false);
@@ -21,5 +21,5 @@ export function useSecurityReady() {
   return ready;
 }
 export default function SecurityReadiness(){
-  return <main className="login-main"><section className="login-card" role="status"><h1>SPARK</h1><p>Connecting to SPARK…</p><p>If SPARK is updating, this page will reopen automatically when it is ready.</p></section></main>;
+  return <main className="login-main"><section className="login-card" role="status"><h1>SPARK</h1><p>{databaseConfigurationError || 'Connecting to SPARK…'}</p><p>If SPARK is updating, this page will reopen automatically when it is ready.</p></section></main>;
 }

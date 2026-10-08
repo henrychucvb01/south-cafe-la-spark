@@ -4,8 +4,8 @@ import {TRAINING_URL,TIPS_URL} from './resources';
 import './breakfast.css';
 import WorkerReturns from './WorkerReturns';
 import TeacherPreorder from './TeacherPreorder';
-// Printed classroom links must use the public production alias, never a protected preview/deployment URL.
-export function teacherLink(qr){return `https://south-cafe-la-spark.vercel.app/#breakfast/${qr}`;}
+// Keep development QR codes in development; live QR codes retain their permanent public alias.
+export function teacherLink(qr){return `${window.location.origin}/#breakfast/${qr}`;}
 export function teacherToken(hash){return /^#breakfast\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(hash)?.[1]||null;}
 const localTime=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
 export default function TeacherPage({qr}) {

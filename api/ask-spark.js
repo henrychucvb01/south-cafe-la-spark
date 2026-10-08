@@ -1,9 +1,9 @@
+import {serverDatabase} from '../src/security/databaseEnvironment.js';
 const MAX_QUESTION_LENGTH = 500;
 const NO_ANSWER =
   "I couldn't find enough approved guidance to answer that confidently. Try describing what happened or what you need to do, and I'll search again.";
 const BUSY_MESSAGE =
   "Ask SPARK is busy right now. Please try your question again in a moment.";
-const DEFAULT_SUPABASE_URL = "https://kkrcxqhfzepifhkryodd.supabase.co";
 const requestWindows = new Map();
 
 function sleep(ms) {
@@ -318,8 +318,9 @@ export default async function handler(request, response) {
   const conversational = conversationalResponse(question);
   if (conversational) return send(response, 200, { supported: true, conversational: true, answer: conversational, citations: [] });
 
-  const supabaseUrl = String(process.env.SUPABASE_URL || DEFAULT_SUPABASE_URL).trim().replace(/\/+$/, "");
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  let configuration;
+  try {configuration=serverDatabase(process.env);} catch(error) {return send(response,503,{error:error.message});}
+  const {url:supabaseUrl,key:serviceKey}=configuration;
   const geminiKey = process.env.GEMINI_API_KEY;
   if (!supabaseUrl || !serviceKey || !geminiKey) {
     const missing = [!supabaseUrl ? "SUPABASE_URL" : null, !serviceKey ? "SUPABASE_SERVICE_ROLE_KEY" : null, !geminiKey ? "GEMINI_API_KEY" : null].filter(Boolean);

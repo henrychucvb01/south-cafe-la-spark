@@ -26,5 +26,6 @@ assert.equal(records(),before,'Failed migration retains every fixture record and
 assert.ok(psql("select to_regprocedure('public.spark_login(text,text,bigint,text)') is null;").includes('t'),'Failed migration leaves no partially installed login');
 psql(migration);
 assert.equal(records(),before,'Successful migration preserves every fixture record, PIN and QR');
+for(const file of ['20261008195304_finish_line_atomic_submission.sql','20261008200140_finish_line_require_atomic_save.sql']) psql(fs.readFileSync('supabase/migrations/'+file,'utf8'));
 psql("NOTIFY pgrst,'reload schema';");
 console.log('PASS: isolated migration failure rolls back; successful migration preserves existing synthetic records, PIN hashes and QR codes. No cloud database accessed.');

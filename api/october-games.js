@@ -1,3 +1,4 @@
+import {serverDatabase} from '../src/security/databaseEnvironment.js';
 import {createClient} from '@supabase/supabase-js';
 import {randomUUID} from 'node:crypto';
 import sharp from 'sharp';
@@ -74,7 +75,9 @@ export function createHandler(db,enabled=previewEnabled(),production=false){
 export default async function handler(req,res){
  const production=productionEnabled();
  if(!previewEnabled()&&!production)return createHandler(null,false)(req,res);
- const key=process.env.SUPABASE_SERVICE_ROLE_KEY;
+ let configuration;
+ try {configuration=serverDatabase(process.env);} catch(error) {return res.status(503).json({error:error.message});}
+ const key=configuration.key;
  if(!key)return res.status(503).json({error:'October Games storage is not configured.'});
- return createHandler(createClient(process.env.SUPABASE_URL||'https://kkrcxqhfzepifhkryodd.supabase.co',key,{auth:{persistSession:false,autoRefreshToken:false}}),true,production)(req,res);
+ return createHandler(createClient(configuration.url,key,{auth:{persistSession:false,autoRefreshToken:false}}),true,production)(req,res);
 }

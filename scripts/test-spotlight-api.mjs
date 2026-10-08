@@ -1,6 +1,7 @@
 import {readFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 let source=await readFile('api/spotlight.js','utf8');source=source.replace("'@supabase/supabase-js'",JSON.stringify(import.meta.resolve('@supabase/supabase-js')));
+source=source.replace("'../src/security/databaseEnvironment.js'",JSON.stringify(new URL('../src/security/databaseEnvironment.js',import.meta.url).href));
 const {createHandler,imageBytes}=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==','base64');
 assert.equal(imageBytes({base64:png.toString('base64')}).type,'image/png');assert.throws(()=>imageBytes({base64:Buffer.from('<svg>bad</svg>').toString('base64')}));

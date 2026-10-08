@@ -16,7 +16,8 @@ const server=createServer(async(req,res)=>{try{
   res.setHeader('Content-Type',({'.html':'text/html','.js':'application/javascript','.css':'text/css','.png':'image/png','.svg':'image/svg+xml','.json':'application/json'})[extname(file)]||'application/octet-stream');res.end(await readFile(file));
 }catch{res.writeHead(404).end();}});
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
-const origin='http://127.0.0.1:'+server.address().port;
+const localOrigin='http://127.0.0.1:'+server.address().port;
+const origin='https://south-cafe-la-spark.vercel.app';
 const browser=await chromium.launch({channel:'chrome',headless:true});
 try{
   for(const role of ['employee','new','covering','supervisor']){
@@ -25,7 +26,7 @@ try{
     const requestErrors=[];
     await context.route('**/*',async route=>{
       const req=route.request();const url=new URL(req.url());
-      if(url.origin===origin)return route.continue();
+      if(url.origin===origin){const response=await fetch(localOrigin+url.pathname+url.search);return route.fulfill({status:response.status,contentType:response.headers.get('content-type')||'text/html',body:Buffer.from(await response.arrayBuffer())});}
       if(url.origin==='https://kkrcxqhfzepifhkryodd.supabase.co'&&url.pathname.startsWith('/rest/v1/')){
         if(!releaseReady&&url.pathname.endsWith('/spark_security_ready'))return route.fulfill({status:404,contentType:'application/json',body:'{"code":"PGRST202"}'});
         const headers={};for(const [k,v]of Object.entries(req.headers()))if(['accept','content-type','prefer','range','range-unit','x-spark-session'].includes(k))headers[k]=v;

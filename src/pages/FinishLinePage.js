@@ -1,14 +1,12 @@
 import {breakfastToday} from '../breakfast/BreakfastDispatch';
 import FinishLineBreakfast from '../breakfast/FinishLineBreakfast';
 import {loadSchoolBenefits} from '../mysteryPull/benefits';
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
-import { awardSparkPoints } from "../sparkPoints";
 import {
   REWARD_LAUNCH_DATE,
   getFinishLinePointAward,
   isStreakEligibleCheck,
-  isWeekday,
 } from "../sparkPolicy";
 import { calculateDisplayedFinishLineStreak } from "../finishLineStreaks";
 /* =========================================================
@@ -162,6 +160,10 @@ function FinishLinePage({
   // Snapshot of the Finish Line as it existed when this page loaded.
   // Used only to create an audit trail when an existing submission is edited.
   const [originalCheck, setOriginalCheck] = useState(null);
+  const [mealVersion, setMealVersion] = useState(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const pendingSubmission = useRef(null);
+  const submitting = useRef(false);
 
   /* =========================================================
 SUPERVISOR PREVIEW MODE
@@ -277,6 +279,7 @@ touch Supabase.
       return;
     }
     setPageLoading(true);
+    setLoadFailed(false);
     try {
       const serviceDate = activeServiceDate;
       /* =====================================
@@ -373,6 +376,7 @@ LOAD TODAY'S MEAL COUNTS
       if (mealError) {
         throw mealError;
       }
+      setMealVersion(mealData?.updated_at || null);
       if (mealData) {
         setMealCounts({
           breakfast: mealData.breakfast_count ?? "",
@@ -383,6 +387,7 @@ LOAD TODAY'S MEAL COUNTS
         setMealCounts(emptyMealCounts);
       }
     } catch (error) {
+      setLoadFailed(true);
       console.error("Finish Line load error:", error);
       setMessage(`Could not load today's Finish Line: ${error.message}`);
     } finally {
@@ -429,23 +434,6 @@ Numbers only.
   /* =========================================================
 ATTENTION STATUS
 ========================================================= */
-  function determineAttention() {
-    return [
-      checklist.previousMealCounts === "no",
-      checklist.dairyOrderCreated === "no",
-      checklist.receiversCompleted === "no",
-      checklist.productionWorksheet === "no",
-      checklist.productionRecord === "no",
-      checklist.mealCountEntered === "no",
-      checklist.reportsReviewed === "no",
-      isMonday && checklist.mondayMissingMealReport === "no",
-      isMonday && checklist.mondayAllMealCountsEntered === "no",
-      isTuesday && checklist.tuesdayMealPlan === "no",
-      isWednesday && checklist.wednesdayOrderStatus === "no",
-      isThursday && checklist.thursdayOrdersComplete === "no",
-      showMonthEnd && checklist.monthEndInventory === "no",
-    ].some(Boolean);
-  }
   /* =========================================================
 FORM COMPLETE CHECK
 ========================================================= */
@@ -652,67 +640,6 @@ BUILD FINISH LINE DATABASE ITEMS
   /* =========================================================
 AUDIT HELPERS
 ========================================================= */
-  function buildAuditRows(
-    checkId,
-    serviceDate,
-    newItems,
-    newComments,
-    newStatus
-  ) {
-    if (!isEditing || !originalCheck) {
-      return [];
-    }
-    const changedBy = employee?.employee_name || "Covering Employee";
-    const oldItems = originalCheck.finish_line_items || [];
-    const oldByKey = new Map(oldItems.map((item) => [item.item_key, item]));
-    const auditRows = [];
-    // Record checklist-answer changes.
-    newItems.forEach((newItem) => {
-      const oldItem = oldByKey.get(newItem.item_key);
-      const oldValue = oldItem?.answer ?? "";
-      const newValue = newItem.answer ?? "";
-      if (String(oldValue) !== String(newValue)) {
-        auditRows.push({
-          finish_line_check_id: checkId,
-          location_id: location.id,
-          service_date: serviceDate,
-          employee_name: changedBy,
-          field_name: newItem.item_label || newItem.item_key,
-          old_value: String(oldValue),
-          new_value: String(newValue),
-        });
-      }
-    });
-    // Record comments only when they actually changed.
-    const oldComments = originalCheck.comments ?? "";
-    const nextComments = newComments ?? "";
-    if (String(oldComments) !== String(nextComments)) {
-      auditRows.push({
-        finish_line_check_id: checkId,
-        location_id: location.id,
-        service_date: serviceDate,
-        employee_name: changedBy,
-        field_name: "Comments",
-        old_value: String(oldComments),
-        new_value: String(nextComments),
-      });
-    }
-    // Record status changes, such as Complete -> Attention.
-    const oldStatus = originalCheck.status ?? "";
-    if (String(oldStatus) !== String(newStatus)) {
-      auditRows.push({
-        finish_line_check_id: checkId,
-        location_id: location.id,
-        service_date: serviceDate,
-        employee_name: changedBy,
-        field_name: "Finish Line Status",
-        old_value: String(oldStatus),
-        new_value: String(newStatus),
-      });
-    }
-    return auditRows;
-  }
-
   /* =========================================================
   FINISH LINE STREAK HELPERS
   ========================================================= */
@@ -762,6 +689,7 @@ Supervisor Preview does not save.
       setMessage("Preview mode only — nothing will be saved.");
       return;
     }
+    if (submitting.current || loadFailed) return;
     if (!validateChecklist()) {
       return;
     }
@@ -769,202 +697,33 @@ Supervisor Preview does not save.
       setMessage("Location or employee information is missing.");
       return;
     }
+    submitting.current = true;
     setLoading(true);
     setMessage("");
     try {
       const serviceDate = activeServiceDate;
-      const status = determineAttention() ? "attention" : "complete";
-      const now = new Date().toISOString();
-      /* =====================================
-SAVE MAIN FINISH LINE
-submitted_at is intentionally NOT
-changed here. On an edit, updated_at
-records when the correction happened.
-===================================== */
-      const checkPayload = {
-        location_id: location.id,
-        employee_id: employee.id || null,
-        employee_name: employee.employee_name || "Covering Employee",
-        service_date: serviceDate,
-        comments: checklist.comments || null,
-        status,
+      const payload = {
+        location_id: location.id, service_date: serviceDate,
+        expected_check_version: originalCheck?.updated_at || originalCheck?.submitted_at || null,
+        expected_meal_version: mealVersion,
+        comments: checklist.comments || '', closing,
+        meals: {breakfast: Number(mealCounts.breakfast), lunch: Number(mealCounts.lunch),
+          supper: mealCounts.supper === '' ? null : Number(mealCounts.supper)},
+        items: Object.fromEntries(buildItems(null).map(item => {
+          const field = item.item_key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+          return [item.item_key, {answer: item.answer, label: item.item_label, comment: responseComments[field] || ''}];
+        })),
       };
-      if (isEditing) {
-        checkPayload.updated_at = now;
+      const serialized = JSON.stringify(payload);
+      if (pendingSubmission.current?.serialized !== serialized) {
+        pendingSubmission.current = {serialized, id: window.crypto.randomUUID()};
       }
-      const { data: checkData, error: checkError } = await supabase
-        .from("finish_line_checks")
-        .upsert(checkPayload, {
-          onConflict: "location_id,service_date",
-        })
-        .select()
-        .single();
-      if (checkError) {
-        console.error("Finish Line save error:", checkError);
-        setMessage(`Could not save Finish Line Checklist: ${checkError.message}`);
-        return;
-      }
-      /* =====================================
-BUILD NEW ITEMS + AUDIT CHANGES
-IMPORTANT:
-We create the audit rows BEFORE
-deleting the old checklist items.
-===================================== */
-      const items = buildItems(checkData.id);
-      const auditRows = buildAuditRows(
-        checkData.id,
-        serviceDate,
-        items,
-        checklist.comments || "",
-        status
-      );
-      if (auditRows.length > 0) {
-        const { error: auditError } = await supabase
-          .from("finish_line_audit_log")
-          .insert(auditRows);
-        if (auditError) {
-          console.error("Finish Line audit save error:", auditError);
-          setMessage(
-            `Your Finish Line was not fully updated because the audit history could not be saved: ${auditError.message}`
-          );
-          return;
-        }
-      }
-      /* =====================================
-REMOVE OLD FINISH LINE ITEMS
-===================================== */
-      const { error: deleteError } = await supabase
-        .from("finish_line_items")
-        .delete()
-        .eq("finish_line_check_id", checkData.id);
-      if (deleteError) {
-        console.error("Finish Line item cleanup error:", deleteError);
-        setMessage(
-          `Could not update Finish Line items: ${deleteError.message}`
-        );
-        return;
-      }
-      /* =====================================
-SAVE CURRENT FINISH LINE ITEMS
-===================================== */
-      const { error: itemError } = await supabase
-        .from("finish_line_items")
-        .insert(items);
-      if (itemError) {
-        console.error("Finish Line item save error:", itemError);
-        setMessage(
-          `Finish Line saved, but checklist answers failed: ${itemError.message}`
-        );
-        return;
-      }
-      /* =====================================
-SAVE MEAL COUNTS
-Meal-count audit history will be
-added separately after Finish Line
-audit editing is confirmed working.
-===================================== */
-      const breakfast = Number(mealCounts.breakfast);
-      const lunch = Number(mealCounts.lunch);
-      const supper =
-        mealCounts.supper === "" ? null : Number(mealCounts.supper);
-      const supperStatus = supper === null ? "pending" : "complete";
-      const { error: mealError } = await supabase.from("meal_counts").upsert(
-        {
-          location_id: location.id,
-          service_date: serviceDate,
-          breakfast_count: breakfast,
-          lunch_count: lunch,
-          supper_count: supper,
-          supper_status: supperStatus,
-          entered_by: employee.employee_name || "Covering Employee",
-          updated_at: now,
-        },
-        {
-          onConflict: "location_id,service_date",
-        }
-      );
-      if (mealError) {
-        console.error("Meal count save error:", mealError);
-        setMessage(
-          `Finish Line saved, but meal counts failed: ${mealError.message}`
-        );
-        return;
-      }
-    /* =====================================
-      AWARD SPARK POINTS
-      ===================================== */
-
-      const employeeName =
-        employee.employee_name || "Covering Employee";
-
-      const employeeId = employee.id || null;
-
-      if (serviceDate >= REWARD_LAUNCH_DATE) {
-        const { data: excluded, error: calendarError } = await supabase
-          .from("spark_excluded_days").select("service_date")
-          .eq("location_id", location.id).eq("service_date", serviceDate).limit(1);
-        if (calendarError) {
-          setMessage("Checklist saved. Could not verify the school calendar for points; please reopen and save again.");
-          return;
-        }
-        if (!isWeekday(serviceDate) || excluded?.length) {
-          onComplete();
-          return;
-        }
-      }
-
-      await awardSparkPoints({
-        locationId: location.id,
-        points: 5,
-        pointType: "breakfast_meal_count",
-        description: "Breakfast meal count entered",
-        serviceDate,
-        employeeId,
-        employeeName,
-        uniqueKey: `breakfast-${location.id}-${serviceDate}`,
+      const {data, error} = await supabase.rpc('spark_submit_finish_line', {
+        p_request_id: pendingSubmission.current.id, p_payload: payload,
       });
-
-      await awardSparkPoints({
-        locationId: location.id,
-        points: 5,
-        pointType: "lunch_meal_count",
-        description: "Lunch meal count entered",
-        serviceDate,
-        employeeId,
-        employeeName,
-        uniqueKey: `lunch-${location.id}-${serviceDate}`,
-      });
-
-      if (supper !== null) {
-        await awardSparkPoints({
-          locationId: location.id,
-          points: 5,
-          pointType: "supper_meal_count",
-          description: "Supper meal count entered",
-          serviceDate,
-          employeeId,
-          employeeName,
-          uniqueKey: `supper-${location.id}-${serviceDate}`,
-        });
-      }
-
+      if (error) throw error;
+      const checkData = data.check;
       const finishLineReward = getFinishLinePointAward(serviceDate, checkData.submitted_at);
-
-      await awardSparkPoints({
-        locationId: location.id,
-        points: finishLineReward.points,
-        pointType: finishLineReward.late ? "finish_line_late" : "finish_line",
-        description: finishLineReward.gracePeriod
-          ? "Finish Line Checklist completed — rollout grace period"
-          : finishLineReward.late
-          ? "Finish Line Checklist completed late — partial credit"
-          : "Finish Line Checklist completed on time",
-        serviceDate,
-        employeeId,
-        employeeName,
-        uniqueKey: `finish-line-${location.id}-${serviceDate}`,
-      });
-
       // Edits should return normally. Only a brand-new Finish Line
       // submission earns the completion celebration.
       if (isEditing || !finishLineReward.streakEligible) {
@@ -987,6 +746,7 @@ audit editing is confirmed working.
       console.error("Unexpected Finish Line save error:", error);
       setMessage(`Could not save Finish Line Checklist: ${error.message}`);
     } finally {
+      submitting.current = false;
       setLoading(false);
     }
   }
@@ -1669,7 +1429,7 @@ SUBMIT
                 className={`finish-line-submit ${
                   formComplete ? "finish-line-ready" : "finish-line-not-ready"
                 }`}
-                disabled={loading || !formComplete}
+                disabled={loading || loadFailed || !formComplete}
               >
                 {loading
                   ? "Saving..."

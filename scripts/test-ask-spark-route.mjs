@@ -8,9 +8,9 @@ const tempDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "ask-spark-route-"
 const modulePath = path.join(tempDirectory, "ask-spark.mjs");
 
 try {
-  await fs.copyFile(sourcePath, modulePath);
-  process.env.SUPABASE_URL = "https://example.supabase.co";
-  process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role";
+  await fs.writeFile(modulePath,(await fs.readFile(sourcePath,'utf8')).replace("'../src/security/databaseEnvironment.js'",JSON.stringify(new URL('../src/security/databaseEnvironment.js',import.meta.url).href)));
+  process.env.DEVELOPMENT_SUPABASE_URL = "https://example.supabase.co";
+  process.env.DEVELOPMENT_SUPABASE_SERVICE_ROLE_KEY = "test-service-role";
   process.env.GEMINI_API_KEY = "test-gemini-key";
 
   const cases = [
@@ -52,6 +52,7 @@ try {
   let currentCase;
 
   globalThis.fetch = async (url, options = {}) => {
+    if (url.includes('/v1beta/models?')) return new Response(JSON.stringify({models:[{name:'models/text-embedding-004',supportedGenerationMethods:['embedContent']}]}),{status:200});
     if (url.includes(":embedContent")) {
       return new Response(JSON.stringify({ embedding: { values: [0.1, 0.2, 0.3] } }), {
         status: 200,
