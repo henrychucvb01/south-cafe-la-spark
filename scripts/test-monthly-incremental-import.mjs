@@ -7,9 +7,15 @@ await db.exec(await readFile('supabase/migrations/202610020002_monthly_increment
 // The legacy entry point must be revoked by the scoped migration.
 await db.exec("create function import_monthly_scorecard_report(text,text,text,date,text,text,text,text,integer,integer,integer,integer,jsonb,jsonb,jsonb) returns void language sql as $$select$$;");
 await db.exec(await readFile('supabase/migrations/20261008201844_monthly_scoped_imports.sql','utf8'));
+await db.exec(await readFile('supabase/migrations/20261008205631_monthly_import_write_efficiency.sql','utf8'));
 const save=async(rows,type='cost',pin='test')=>db.query('select merge_monthly_scorecard_rows($1,$2,$3,$4,$5,$6,$7)',[pin,type,'test.csv','checksum',100,0,rows]);
 const row=(date,cost=100)=>({source_site_id:'1000101',production_date:date,meal_type:'lunch',food_cost:cost,source_row_number:1});
-const rows=[row('2026-08-12'),row('2026-09-01'),row('2026-10-01')];await save(rows);await save(rows);
+const rows=[row('2026-08-12'),row('2026-09-01'),row('2026-10-01')];await save(rows);
+const originalIds=(await db.query('select id from monthly_production_cost_rows order by id')).rows;
+const rawSequence=(await db.query('select last_value from monthly_import_raw_rows_id_seq')).rows;
+await save(rows);
+assert.deepEqual((await db.query('select id from monthly_production_cost_rows order by id')).rows,originalIds);
+assert.deepEqual((await db.query('select last_value from monthly_import_raw_rows_id_seq')).rows,rawSequence);
 assert.equal((await db.query('select count(*) n from monthly_import_raw_rows')).rows[0].n,3);
 assert.equal((await db.query('select count(*) n from monthly_production_cost_rows')).rows[0].n,3);
 await save([row('2026-09-01',125),row('2026-09-02',80)]);
@@ -17,6 +23,9 @@ assert.equal((await db.query('select count(*) n from monthly_production_cost_row
 assert.equal((await db.query("select food_cost from monthly_production_cost_rows where production_date='2026-09-01'")).rows[0].food_cost,'125');
 await save([row('2026-06-01')]);assert.equal((await db.query("select school_year from monthly_import_batches where reporting_month='2026-06-01'")).rows[0].school_year,'2025-26');
 const prod=(code,n)=>({...row('2026-09-01'),item_name:code,item_code:code,served:n,meals_served:100,wasted:2});await save([prod('A',30),prod('B',40)],'production');await save([prod('A',35)],'production');
+const productionIds=(await db.query('select id from monthly_production_rows order by id')).rows;
+await save([prod('A',35),prod('B',40)],'production');
+assert.deepEqual((await db.query('select id from monthly_production_rows order by id')).rows,productionIds);
 assert.equal((await db.query('select count(*) n from monthly_production_rows')).rows[0].n,2);assert.equal((await db.query("select served from monthly_production_rows where item_code='A'")).rows[0].served,'35');
 await assert.rejects(save(rows,'cost','wrong'),/authorization/);
 await assert.rejects(save([row('bad')]),/date/);assert.equal((await db.query('select count(*) n from monthly_production_cost_rows')).rows[0].n,5);
@@ -30,6 +39,10 @@ await save([row('2026-09-01',100)]);await save([row('2026-09-01',125)]);
 assert.equal((await db.query('select count(*) n from monthly_import_raw_rows')).rows[0].n,before);
 await assert.rejects(db.query("select get_monthly_import_scope('wrong')"),/authorization/);
 assert.equal((await db.query("select has_function_privilege('anon','import_monthly_scorecard_report(text,text,text,date,text,text,text,text,integer,integer,integer,integer,jsonb,jsonb,jsonb)','execute') permitted")).rows[0].permitted,false);
+// A repair outside the importer must not prevent a later file from updating values.
+await db.exec("update monthly_production_cost_rows set food_cost=999 where source_site_id='1000101' and production_date='2026-09-01';update monthly_site_mappings set main_location_id=2 where source_site_id='1000101';");
+await save([row('2026-09-01',125)]);
+assert.deepEqual((await db.query("select food_cost::text,location_id from monthly_production_cost_rows where source_site_id='1000101' and production_date='2026-09-01'")).rows[0],{food_cost:'125',location_id:2});
 console.log('PASS: cross-month and school-year routing, gap filling, repeat uploads, newer costs, preserving absent dates and production items, authorization and rollback.');
 if(process.argv[2]) {
  const {createRequire}=await import('node:module');const require=createRequire(import.meta.url);const {default:vm}=await import('node:vm');const babel=require('@babel/core');const exports={};
