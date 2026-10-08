@@ -1,11 +1,10 @@
-export const MONTHLY_PARSER_VERSION = "1.0.0";
+export const MONTHLY_PARSER_VERSION = "3.0.0";
 export const REPORT_TYPES = {
   production: "LAUSD Production Report",
   cost: "Daily Production Cost",
 };
 
 const normalize = (value) => String(value ?? "").replace(/^\uFEFF/, "").trim();
-const OUT_OF_AREA_SITE_IDS = new Set(["1913101"]);
 const key = (value) => normalize(value).toLowerCase().replace(/[^a-z0-9]/g, "");
 const numberValue = (value) => {
   const cleaned = normalize(value).replace(/[$,%()]/g, (mark) => (mark === "(" ? "-" : ""));
@@ -77,10 +76,6 @@ export function detectReportType(rows) {
   return null;
 }
 
-function rawRows(rows) {
-  return rows.map((row, index) => ({ source_row_number: index + 1, row_data: row }));
-}
-
 function labeledValue(row, label) {
   const index = row.findIndex((cell) => key(cell) === key(label));
   if (index < 0) return "";
@@ -104,8 +99,7 @@ function parseCost(rows, reportingMonth) {
     if (foodCostIndex < 0 || !context) return;
     const cost = row.slice(foodCostIndex + 1).map(numberValue).find((value) => value !== null);
     const item = { ...context,food_cost:cost,source_row_number:index+1 };
-    if (OUT_OF_AREA_SITE_IDS.has(item.source_site_id)) ignoredOutOfArea.push(index+1);
-    else if (!item.source_site_id || !item.production_date || !item.meal_type || item.food_cost === null) rejected.push(index+1);
+    if (!item.source_site_id || !item.production_date || !item.meal_type || item.food_cost === null) rejected.push(index+1);
     else if (!monthMatches(item.production_date,reportingMonth)) ignored.push(index+1);
     else normalized.push(item);
   });
@@ -136,8 +130,7 @@ function parseProduction(rows, reportingMonth) {
     if (!itemName) return;
     if (/^total$/i.test(itemName)) return;
     const item = { ...context, menu_name:context.menu_name || "", meals_served:context.meals_served ?? null, item_name:itemName, item_code:valueAt(row,map,["ItemID / Recipe Number","Item Code","Recipe Number","Recipe No"]), planned:numberValue(valueAt(row,map,["Servings Planned"])), prepared:numberValue(valueAt(row,map,["Number of Portions Prepared"])), served:numberValue(valueAt(row,map,["Portions Served"])), leftover:numberValue(valueAt(row,map,["Number of Portions Leftover"])), wasted:numberValue(valueAt(row,map,["Overall Number of Portions Wasted"])), mma_oz_eq:numberValue(valueAt(row,map,["M/M A oz. eq."])), grain_oz_eq:numberValue(valueAt(row,map,["Grain oz eq"])), fruit_cups:numberValue(valueAt(row,map,["Fruit cup"])), veg_cups:numberValue(valueAt(row,map,["Veg cup DG,RO, LG,ST, OT"])), milk_cups:numberValue(valueAt(row,map,["Milk Cup"])), source_row_number:index+1 };
-    if (OUT_OF_AREA_SITE_IDS.has(item.source_site_id)) ignoredOutOfArea.push(index+1);
-    else if (!item.source_site_id || !item.production_date || !item.meal_type) rejected.push(index+1);
+    if (!item.source_site_id || !item.production_date || !item.meal_type) rejected.push(index+1);
     else if (!monthMatches(item.production_date, reportingMonth)) ignored.push(index+1);
     else normalized.push(item);
   });
@@ -151,6 +144,6 @@ export function parseMonthlyReport(csvText, expectedType, reportingMonth) {
   if (!detectedType || detectedType !== expectedType) throw new Error("The selected file does not match the expected report type. Import stopped before data was written.");
   const parsed = expectedType === "production" ? parseProduction(rows, reportingMonth) : parseCost(rows, reportingMonth);
   if (!parsed.normalized.length) throw new Error("No valid Breakfast, Lunch, or Supper rows were found in the file. Import stopped before data was written.");
-  return { reportType:detectedType, sourceRowCount:rows.length, rawRows:rawRows(rows), normalizedRows:parsed.normalized, rejectedRows:parsed.rejected, ignoredRows:parsed.ignored || [], ignoredOutOfAreaRows:parsed.ignoredOutOfArea || [],
+  return { reportType:detectedType, sourceRowCount:rows.length, normalizedRows:parsed.normalized, rejectedRows:parsed.rejected, ignoredRows:parsed.ignored || [], ignoredOutOfAreaRows:parsed.ignoredOutOfArea || [],
     warnings:parsed.rejected.length ? [`${parsed.rejected.length} rows were rejected because required values were missing or outside the selected month.`] : [] };
 }

@@ -1,3 +1,4 @@
+import { downloadMonthlyCopy } from "./monthlyImportScope";
 import React, { Component, useCallback, useEffect, useMemo, useState } from "react";
 import { parseMonthlyReport, REPORT_TYPES } from "./monthlyImportParser";
 import {
@@ -92,6 +93,7 @@ function MonthlyScorecardsPageContent({ supervisorPin }) {
   const [exportStatus, setExportStatus] = useState("");
   const [exportingAll, setExportingAll] = useState(false);
   const [exportingSingleId, setExportingSingleId] = useState(null);
+  const [copies, setCopies] = useState({});
   const [dragging, setDragging] = useState("");
 
   const refresh = useCallback(async () => {
@@ -177,6 +179,7 @@ function MonthlyScorecardsPageContent({ supervisorPin }) {
 
   async function upload(reportType, file) {
     if (!file) return;
+    setCopies(previous => ({...previous, [reportType]: null}));
     setBusy(reportType);
     setError("");
     setMessage("");
@@ -193,8 +196,9 @@ function MonthlyScorecardsPageContent({ supervisorPin }) {
         checksum,
         onProgress: (saved, total) => setMessage(`Uploading: ${saved} of ${total} records saved...`),
       });
+      setCopies(previous => ({...previous, [reportType]: {rows: result.rows, filename: file.name, checksum}}));
       setMessage(
-        `${REPORT_TYPES[reportType]} imported: ${result.saved} records saved for ${result.months.join(", ")}. View/export dates do not limit uploads.`
+        `${REPORT_TYPES[reportType]} imported: ${result.saved} records saved for ${result.months.join(", ")}. ${result.excluded} unrelated records skipped.`
       );
       await refresh();
     } catch (err) {
@@ -454,7 +458,7 @@ function MonthlyScorecardsPageContent({ supervisorPin }) {
       <div className="monthly-upload-guidance">
         <strong>Report Imports</strong>
         <span>
-          Upload the original production and food-cost files. All dates in the file are imported; dates above control viewing and export only. Missing dates are filled and matching records are updated without removing other records.
+          Upload the original production and food-cost files. Only mapped SPARK schools and their offsite/EEC programs are saved, for all dates in the file; dates above control viewing and export only. Missing dates are filled and matching records are updated without removing other records.
         </span>
       </div>
 
@@ -500,6 +504,7 @@ function MonthlyScorecardsPageContent({ supervisorPin }) {
                   }}
                 />
               </label>
+              {copies[type] && <button type="button" className="command-small-button" onClick={() => downloadMonthlyCopy(copies[type])}>Download SPARK-only CSV</button>}
             </article>
           );
         })}

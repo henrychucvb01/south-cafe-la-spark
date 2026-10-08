@@ -1,3 +1,4 @@
+import { scopeMonthlyRows } from "./monthlyImportScope";
 import { supabase } from "../supabaseClient";
 
 export async function checksumText(text) {
@@ -27,23 +28,30 @@ export function dedupeMonthlyRows(reportType,rows) {
 }
 
 export async function saveMonthlyImport({ supervisorPin, reportType, filename, parsed, checksum, onProgress }) {
-  const rows = dedupeMonthlyRows(reportType, parsed.normalizedRows);
+  const {data: mappings, error: scopeError} = await supabase.rpc("get_monthly_import_scope", {p_supervisor_pin: supervisorPin});
+  if (scopeError) throw scopeError;
+  const selected = scopeMonthlyRows(parsed.normalizedRows, mappings);
+  const rows = dedupeMonthlyRows(reportType, selected);
+  if (!rows.length) throw new Error("This report contains no rows for SPARK's mapped schools. Nothing was imported.");
   let saved = 0;
   const months = new Set();
   for (let offset = 0; offset < rows.length; offset += 250) {
     const chunk = rows.slice(offset, offset + 250);
-    const { error } = await supabase.rpc("merge_monthly_scorecard_rows", {
+    const { data, error } = await supabase.rpc("merge_monthly_scorecard_rows", {
       p_supervisor_pin: supervisorPin, p_report_type: reportType,
       p_filename: filename, p_checksum: checksum,
       p_source_count: parsed.sourceRowCount, p_rejected_count: parsed.rejectedRows.length,
       p_rows: chunk,
     });
     if (error) throw new Error(`${error.message || "Upload connection failed"}. ${saved} records confirmed saved. Retry the same file safely; existing records will not be duplicated.`);
-    saved += chunk.length;
+    if (!Number.isInteger(data?.saved) || data.saved !== chunk.length) {
+      throw new Error("School mappings changed during upload. Refresh and retry the original file safely.");
+    }
+    saved += data.saved;
     chunk.forEach(row => months.add(row.production_date.slice(0, 7)));
     onProgress?.(saved, rows.length);
   }
-  return { saved, months: [...months].sort() };
+  return { saved, months: [...months].sort(), rows, excluded: parsed.normalizedRows.length - selected.length };
 }
 
 export async function loadMonthlyScorecardDataset(supervisorPin,schoolYear,reportingMonth) {
