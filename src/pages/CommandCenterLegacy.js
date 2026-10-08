@@ -1124,7 +1124,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
             Location Directory
           </button>
 
-          {octoberEnabled&&<button className={`command-nav-button ${view === "games" ? "active" : ""}`} onClick={() => setView("games")}>🎃 Games & Challenges</button>}
+          {octoberEnabled&&<button className={`command-nav-button ${view === "games" ? "active" : ""}`} onClick={() => setView("games")}><span aria-hidden="true">🎃</span>Games &amp; Challenges</button>}
           <button className={`command-nav-button ${view === "spotlight" ? "active" : ""}`} onClick={() => setView("spotlight")}><span aria-hidden="true">✦</span>SPARK Spotlight</button>
           <button className={`command-nav-button ${view === "breakfast" ? "active" : ""}`} onClick={() => setView("breakfast")}><span aria-hidden="true">🥣</span>Breakfast</button>
           <button className="command-nav-button" onClick={onMonitoring}><span aria-hidden="true">📋</span>Monitorings</button>
