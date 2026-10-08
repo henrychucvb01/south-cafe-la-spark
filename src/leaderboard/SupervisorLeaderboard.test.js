@@ -1,10 +1,12 @@
+import useGameRewards from '../octoberGames/useGameRewards';
+jest.mock('../octoberGames/useGameRewards',()=>({__esModule:true,default:jest.fn(()=>({rewards:[],enabled:false,error:''}))}));
 import React,{act} from 'react';
 import {createRoot} from 'react-dom/client';
 import SupervisorLeaderboard, { monthlyBand } from './SupervisorLeaderboard';
 import {supabase} from '../supabaseClient';
 jest.mock('../supabaseClient',()=>({supabase:{from:jest.fn(),rpc:jest.fn(()=>({abortSignal:()=>Promise.resolve({data:[],error:null})}))}}));
 let host,root;
-beforeEach(()=>{supabase.rpc.mockImplementation(()=>({abortSignal:()=>Promise.resolve({data:[],error:null})}));globalThis.IS_REACT_ACT_ENVIRONMENT=true;jest.useFakeTimers().setSystemTime(new Date('2026-09-25T12:00:00'));localStorage.clear();host=document.createElement('div');document.body.appendChild(host);root=createRoot(host);supabase.from.mockImplementation(table=>{const q={};for(const method of ['select','eq','order','gte','lte','range'])q[method]=()=>q;q.abortSignal=()=>Promise.resolve({data:table==='locations'?[{id:1,school_name:'School One',location_code:'1111'},{id:2,school_name:'School Two',location_code:'2222'}]:[{location_id:1,points:30,service_date:'2026-08-25'},{location_id:2,points:10,service_date:'2026-08-25'},{location_id:1,points:5,service_date:'2026-09-25'}],error:null});return q;});});
+beforeEach(()=>{useGameRewards.mockReturnValue({rewards:[],enabled:false,error:""});supabase.rpc.mockImplementation(()=>({abortSignal:()=>Promise.resolve({data:[],error:null})}));globalThis.IS_REACT_ACT_ENVIRONMENT=true;jest.useFakeTimers().setSystemTime(new Date('2026-09-25T12:00:00'));localStorage.clear();host=document.createElement('div');document.body.appendChild(host);root=createRoot(host);supabase.from.mockImplementation(table=>{const q={};for(const method of ['select','eq','order','gte','lte','range'])q[method]=()=>q;q.abortSignal=()=>Promise.resolve({data:table==='locations'?[{id:1,school_name:'School One',location_code:'1111'},{id:2,school_name:'School Two',location_code:'2222'}]:[{location_id:1,points:30,service_date:'2026-08-25'},{location_id:2,points:10,service_date:'2026-08-25'},{location_id:1,points:5,service_date:'2026-09-25'}],error:null});return q;});});
 afterEach(()=>{act(()=>root.unmount());host.remove();jest.useRealTimers();});
 test('highlights new finished-month results, preserves standings, and never displays side-quest rewards',async()=>{
  await act(async()=>root.render(<SupervisorLeaderboard compact currentLocationId={1}/>));
@@ -40,4 +42,13 @@ test('pagination uses a unique tie-breaker when more than 1000 awards share a da
  expect(orders).toEqual(['service_date','id','service_date','id']);
  expect(result.reduce((total,r)=>total+r.points,0)).toBe(5005);
  expect(new Set(result.map(r=>r.id)).size).toBe(1001);
+});
+
+
+test('development reward overlay uses earning month without changing live rows',async()=>{
+ useGameRewards.mockReturnValue({rewards:[{location_id:1,points:25,service_date:'2026-09-25'},{location_id:1,points:10,service_date:'2026-10-01'}],enabled:true,error:''});
+ await act(async()=>root.render(<SupervisorLeaderboard compact currentLocationId={1}/>));
+ expect(host.textContent).toContain('Development preview');
+ const first=host.querySelector('tbody tr');expect(first.textContent).toContain('School One');expect(first.textContent).toContain('30');
+ expect(supabase.from.mock.calls.every(([table])=>['locations','spark_points'].includes(table))).toBe(true);
 });

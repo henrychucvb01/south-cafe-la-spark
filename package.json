@@ -13,7 +13,8 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-scripts": "^5.0.0",
-    "recharts": "^2.15.0"
+    "recharts": "^2.15.0",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",

@@ -1,3 +1,4 @@
+jest.mock('../octoberGames/service',()=>({useOctoberAvailable:()=>false}));
 import {useBreakfastAccess} from '../breakfast/BreakfastAccess';
 jest.mock('../breakfast/BreakfastAccess',()=>({useBreakfastAccess:jest.fn(()=>({enabled:false}))}));
 import React,{act} from 'react';

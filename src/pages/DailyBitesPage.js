@@ -1,3 +1,4 @@
+import OctoberGames from "../octoberGames/OctoberGames";
 import SpotlightFeed from "../spotlight/SpotlightFeed";
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
@@ -337,6 +338,7 @@ function DailyBitesPage({ location, employee, managerPin, onBack, onViewSpotligh
             </div>
           </div>
 
+          <OctoberGames location={location} employee={employee} managerPin={managerPin} />
           <SpotlightFeed location={location} employee={employee} managerPin={managerPin} onViewAll={onViewSpotlights} />
           {doubleUntil&&new Date(doubleUntil)>new Date()&&<p role="status" className="dashboard-card">🍎 Double Daily Bites is active until {new Date(doubleUntil).toLocaleString()}. Visit, Word, Connections and AR Training points are doubled automatically.</p>}
           <section className="dashboard-card">
@@ -404,38 +406,6 @@ function DailyBitesPage({ location, employee, managerPin, onBack, onViewSpotligh
             </p>
           </section>
 
-          <section className="dashboard-card">
-            <div className="school-dashboard-section-title">
-              <div>
-                <div className="dashboard-small-label">TODAY'S COMIC</div>
-                <h2>Daily Bites Comic</h2>
-                <p>A quick cafeteria comic for the day.</p>
-              </div>
-            </div>
-
-            <div
-              style={{
-                marginTop: "14px",
-                padding: "12px",
-                borderRadius: "16px",
-                background: "#ffffff",
-                border: "1px solid #e1e8dc",
-                overflow: "hidden",
-              }}
-            >
-              <img
-                src="/daily-bites-comics/regular_01.png"
-                alt="Daily Bites cafeteria comic"
-                style={{
-                  display: "block",
-                  width: "100%",
-                  height: "auto",
-                  borderRadius: "12px",
-                }}
-              />
-            </div>
-          </section>
-
           <section className="daily-games-section" aria-labelledby="daily-games-title">
             <div className="daily-games-intro">
               <div>
@@ -489,6 +459,7 @@ function DailyBitesPage({ location, employee, managerPin, onBack, onViewSpotligh
             embedded
             compact
             currentLocationId={location?.id}
+            location={location} employee={employee} managerPin={managerPin}
           />
         </div>
       </main>

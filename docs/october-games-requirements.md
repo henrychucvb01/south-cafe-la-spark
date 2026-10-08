@@ -8,7 +8,7 @@ First inspect the existing Daily Bites, SPARK Spotlight, Supervisor Command Cent
 
 Reuse the existing SPARK manager login and stable employee identity for voting and mystery guesses. Do not introduce another login. Display names are not identity keys. Report any uniqueness issue before implementing voting restrictions.
 
-Regular managers have a permanent employee ID. Covering managers currently supply a free-text name with a shared PIN and have no employee ID. Their participation policy is pending a user decision; do not use their typed name or a newly opened session as a unique person identifier.
+Regular managers have a permanent employee ID. Covering managers currently supply a free-text name with a shared PIN and have no employee ID. Voting and guesses require a registered manager identity through the existing login. Covering managers can submit photos for their school; do not use their typed name or a newly opened session as a unique person identifier.
 
 ## 1. Daily Bites Changes
 
@@ -223,7 +223,7 @@ Work in manageable stages to conserve Codex usage. Preserve existing functionali
 
 ## Stage 1 inspection — October 7, 2026
 
-Completed inspection; implementation has not started.
+Inspection completed before implementation. See `october-games.md` for the implemented behavior and setup.
 
 | Area | Existing implementation / reuse |
 | --- | --- |
@@ -237,11 +237,11 @@ Completed inspection; implementation has not started.
 | Development route gating | `api/ask-spark-import.js` already uses a Preview-only server gate. Reuse the approach alongside actual data isolation. |
 | School directory | Reuse active school records and established real-school filtering. Do not assume every active record belongs in the 28-school contest: the directory also contains a test school. |
 
-Outstanding before restricted voting/guess implementation:
+Inspection decisions carried into implementation:
 
-1. Decide how covering managers without stable employee identity participate. Recommended: registered manager identities vote and guess using the existing login; do not add a login or claim typed names are unique.
+1. Registered employee identities vote and guess using the existing login. Covering managers retain photo submissions and viewing.
 2. Validate the participating school set and BIC/Supper eligibility from existing school settings; do not infer eligibility solely from a school name or the Breakfast pilot rollout toggle.
 3. Implement development data/reward isolation before running game mutations against the shared Supabase project.
 4. Mystery artwork is supplied by the user through the supervisor upload; no character images will be generated or downloaded.
 
-All seven implementation stages and the acceptance tests above remain required. This document does not claim any game is built, deployed, or tested yet.
+Implementation and validation are recorded in `october-games.md`. No production deployment is authorized.

@@ -1,3 +1,4 @@
+import OctoberGames from "../octoberGames/OctoberGames";
 import React,{useEffect,useRef,useState} from 'react';
 import {openSession,closeSession} from '../supperMonitoring/service';
 import {spotlightRequest} from './service';
@@ -18,6 +19,7 @@ export default function SpotlightFeed({location,employee,managerPin,archive=fals
   {error&&<p role="alert">{error}</p>}{loading?<p>Loading Spotlights…</p>:!rows.length&&!error?<p>The next SPARK celebration is coming soon.</p>:null}
   <div className={archive?'spotlight-archive-grid':'spotlight-feed-grid'}>{rows.map(post=><SpotlightCard key={post.id} post={post} onReact={react} busy={!!busy}/>)}</div>
   {archive&&more&&<button className="spotlight-secondary" disabled={!!busy} onClick={loadMore}>Load older Spotlights</button>}
+  {archive&&<OctoberGames location={location} employee={employee} managerPin={managerPin} galleryOnly/>}
   {!!rows.length&&<small>One reaction per school. Change your reaction anytime. Reactions do not earn points.</small>}
  </section>;
 }

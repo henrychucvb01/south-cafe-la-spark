@@ -1,3 +1,4 @@
+import {OctoberBadge} from "../octoberGames/OctoberGames";
 import React from "react";
 import {useBreakfastAccess} from "../breakfast/BreakfastAccess";
 import useMonitoringCorrections from "../monitoring/useMonitoringCorrections";
@@ -80,16 +81,16 @@ function HomeBase({
 
             <button
               type="button"
-              className="homebase-card"
+              className="homebase-card homebase-card-og"
               onClick={onDailyBites}
             >
               <div className="homebase-card-icon">🍎</div>
 
               <div className="homebase-card-body">
-                <strong>Daily Bites</strong>
+                <strong>Daily Bites <OctoberBadge location={location} employee={employee} managerPin={managerPin}/></strong>
 
                 <span>
-                  Quick tips, comics, SPARK Bingo, and school engagement.
+                  Quick tips, challenges, SPARK Bingo, and school engagement.
                 </span>
               </div>
 

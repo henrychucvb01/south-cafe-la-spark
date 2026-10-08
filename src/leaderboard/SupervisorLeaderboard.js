@@ -1,3 +1,4 @@
+import useGameRewards from "../octoberGames/useGameRewards";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 import "./supervisorLeaderboard.css";
@@ -137,7 +138,8 @@ function isDemoSchool(school) {
   return String(school?.school_name || "").trim().toLowerCase() === "test high school";
 }
 
-export default function SupervisorLeaderboard({ onClose, embedded = false, compact = false, currentLocationId = null }) {
+export default function SupervisorLeaderboard({ onClose, embedded = false, compact = false, currentLocationId = null, location, employee, managerPin, supervisorPin }) {
+  const gamePreview=useGameRewards({location,employee,managerPin,supervisorPin});
   const season = useMemo(() => getSeason(), []);
   const seasonMonths = useMemo(() => getSeasonMonths(season), [season]);
   const today = toDateKey(new Date());
@@ -229,12 +231,13 @@ export default function SupervisorLeaderboard({ onClose, embedded = false, compa
 
     const month = selectedMonth;
     const bounds = monthBounds(month.year, month.month, season);
-    const monthScores = sumPoints(points, bounds.start, bounds.end);
+    const previewPoints=[...points,...gamePreview.rewards];
+    const monthScores = sumPoints(previewPoints, bounds.start, bounds.end);
     const seasonToDateEnd = today < season.end ? today : season.end;
-    const seasonScores = sumPoints(points, season.start, seasonToDateEnd);
+    const seasonScores = sumPoints(previewPoints, season.start, seasonToDateEnd);
 
     const currentMonthEnd = bounds.end < seasonToDateEnd ? bounds.end : seasonToDateEnd;
-    const currentMonthSeasonScores = sumPoints(points, season.start, currentMonthEnd);
+    const currentMonthSeasonScores = sumPoints(previewPoints, season.start, currentMonthEnd);
     const currentMonthSeasonRanks = rankScores(schools, currentMonthSeasonScores);
     const currentRankMap = new Map(currentMonthSeasonRanks.map((row) => [row.id, row.rank]));
 
@@ -245,7 +248,7 @@ export default function SupervisorLeaderboard({ onClose, embedded = false, compa
     if (selectedIndex > 0) {
       const previous = seasonMonths[selectedIndex - 1];
       const previousBounds = monthBounds(previous.year, previous.month, season);
-      const previousScores = sumPoints(points, season.start, previousBounds.end);
+      const previousScores = sumPoints(previewPoints, season.start, previousBounds.end);
       previousRankMap = new Map(rankScores(schools, previousScores).map((row) => [row.id, row.rank]));
     }
 
@@ -263,7 +266,8 @@ export default function SupervisorLeaderboard({ onClose, embedded = false, compa
     });
 
     const finalRows = finalMonths.filter(row => row.month === `${selectedMonthKey}-01`).map(row => ({ id: String(row.location_id), schoolName: row.school_name, locationCode: row.location_code, points: Number(row.points), rank: Number(row.rank) }));
-    const monthRows = (finalRows.length ? finalRows : rankScores(schools, monthScores)).map((row) => ({
+    const previewFinal = finalRows.length && gamePreview.rewards.length ? rankScores(schools, new Map(finalRows.map(row=>[row.id,row.points+gamePreview.rewards.filter(r=>String(r.location_id)===row.id && r.service_date>=bounds.start && r.service_date<=bounds.end).reduce((n,r)=>n+Number(r.points),0)]))) : finalRows;
+    const monthRows = (previewFinal.length ? previewFinal : rankScores(schools, monthScores)).map((row) => ({
       ...row,
       seasonRank: currentRankMap.get(row.id) || "—",
     }));
@@ -274,7 +278,7 @@ export default function SupervisorLeaderboard({ onClose, embedded = false, compa
     const seasonLeaders = seasonRows.filter((row) => row.points === bestSeason && bestSeason > 0);
 
     return { seasonRows, monthRows, monthlyWinners, seasonLeaders };
-  }, [schools, points, finalMonths, selectedMonth, selectedMonthKey, season, seasonMonths, today]);
+  }, [schools, points, gamePreview.rewards, finalMonths, selectedMonth, selectedMonthKey, season, seasonMonths, today]);
 
   const selectedBounds = monthBounds(selectedMonth.year, selectedMonth.month, season);
   const monthComplete = today > selectedBounds.end;
@@ -319,12 +323,12 @@ export default function SupervisorLeaderboard({ onClose, embedded = false, compa
           <div>
             <div className="dashboard-small-label">{monthComplete ? "MONTHLY RESULTS" : "CURRENT MONTH · IN PROGRESS"}</div>
             <h2>🏆 SPARK Leaderboard — {selectedMonthLabel}</h2>
-            <p>Monthly SPARK points across all area schools.</p>
+            <p>Monthly SPARK points across all area schools.</p>{gamePreview.enabled&&<p>Development preview: includes October Games test rewards. Live Cup totals are unchanged.</p>}{gamePreview.error&&<p role="alert">Game test points could not refresh: {gamePreview.error}</p>}
           </div>
           <button type="button" className="spark-leaderboard-refresh" onClick={loadLeaderboard} disabled={loading}>↻ Refresh</button>
         </div>
 
-        {monthlyHighlight}
+        {gamePreview.enabled&&<p>Development preview includes October Games test rewards; live Cup totals are unchanged.</p>}{gamePreview.error&&<p role="alert">Game test points could not refresh: {gamePreview.error}</p>}{monthlyHighlight}
         <label className="spark-leaderboard-month-picker"><span>Standings month</span><select value={selectedMonthKey} onChange={event => setSelectedMonthKey(event.target.value)}>{seasonMonths.filter(item => monthBounds(item.year,item.month,season).start <= today).map(item => <option key={monthKey(item.year,item.month)} value={monthKey(item.year,item.month)}>{MONTH_NAMES[item.month]} {item.year}{monthBounds(item.year,item.month,season).end >= today ? " · In progress" : ""}</option>)}</select></label>
 
         {error ? (
@@ -387,7 +391,7 @@ export default function SupervisorLeaderboard({ onClose, embedded = false, compa
       </header>
 
       <main className="spark-leaderboard-main">
-        {monthlyHighlight}
+        {gamePreview.enabled&&<p>Development preview includes October Games test rewards; live Cup totals are unchanged.</p>}{gamePreview.error&&<p role="alert">Game test points could not refresh: {gamePreview.error}</p>}{monthlyHighlight}
         <section className="spark-leaderboard-trophies">
           <div className="spark-leaderboard-trophy-card monthly">
             <div className="spark-leaderboard-trophy-icon">🏆</div>
