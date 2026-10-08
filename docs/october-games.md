@@ -53,3 +53,8 @@ Physical phone-camera hardware has not been tested; capture/file controls and mo
 - First-school claims are permanent and serialized. Pending submissions from other schools close when the first school is approved. Completed quests reject further uploads and competing approvals. Existing development quest awards are reconciled to the first-school rule; live points are untouched.
 
 With 15 one-time quest completions, at most 75 pieces can be unlocked across five 32-piece photos. Guesses are allowed before full reveal; the five-piece reward has not been increased.
+
+### Additional quests and completed cards
+Supervisors can use **Add quest** to create more quests beyond the initial 15. New quests are available to participating schools when enabled and Side Quests is active. Each keeps the single-school lock, 10-point reward, and five-piece reveal. Creation checks the settings revision to prevent accidental duplicate retries. Apply migration `202610080005_october_custom_quests.sql` for this option.
+
+Completed cards are gray with a diagonal COMPLETED stamp and the winning school's name. Click or press Enter/Space to flip between the task and its approved photo. Photos fit without cropping; reduced-motion preferences disable the animation. Nonparticipating manager preview includes a local happy-face example without creating a completion, award, or upload.

@@ -17,6 +17,7 @@ await db.exec(await readFile('supabase/migrations/202610080001_october_games_dev
  await db.exec(await readFile('supabase/migrations/202610080002_october_games_display.sql','utf8'));
  await db.exec(await readFile('supabase/migrations/202610080003_october_first_school_quests.sql','utf8'));
  await db.exec(await readFile('supabase/migrations/202610080004_october_quest_completion_lock.sql','utf8'));
+ await db.exec(await readFile('supabase/migrations/202610080005_october_custom_quests.sql','utf8'));
 const rpc=async(action,payload={},admin=true)=>(await db.query('select october_games_dev($1,$2,$3,$4) r',[action,admin?null:'school1',admin?'test-admin':null,payload])).rows[0].r;
 const example=await sharp({create:{width:2400,height:1800,channels:3,background:'#ce7138'}}).jpeg().toBuffer();
 const webp=await sharp(example).resize(900).webp().toBuffer();const path='00000000-0000-0000-0000-000000000001/00000000-0000-0000-0000-000000000002.webp';photos.set(path,webp);
@@ -55,7 +56,7 @@ try{
  await games.locator('input[type=file]').first().setInputFiles({name:'test.jpg',mimeType:'image/jpeg',buffer:example});
  await expect(games.locator('.og-photo-picker img')).toBeVisible();const compressed=await games.locator('.og-photo-picker img').getAttribute('src');const meta=await sharp(Buffer.from(compressed.split(',')[1],'base64')).metadata();assert.equal(meta.format,'webp');assert(Math.max(meta.width,meta.height)<=1200);
  await games.getByLabel(/I have permission/).check();await games.getByRole('button',{name:'Submit for approval'}).click();await expect(games.getByText('Submitted — Pending Approval',{exact:true})).toBeVisible();
- const entry=(await rpc('list')).entries[0];await rpc('review',{id:entry.id,revision:entry.revision,state:'approved'});await games.getByRole('button',{name:'Refresh',exact:true}).click();await expect(games.locator('.og-trading')).toHaveCount(1);await expect(games.locator('.og-card').first()).toContainText('Completed · Locked');
+ const entry=(await rpc('list')).entries[0];await rpc('review',{id:entry.id,revision:entry.revision,state:'approved'});await games.getByRole('button',{name:'Refresh',exact:true}).click();await expect(games.locator('.og-trading')).toHaveCount(1);await expect(games.locator('.og-completed').first()).toContainText('COMPLETED');await games.locator('.og-completed').first().click();await expect(games.locator('.og-completed').first()).toHaveAttribute('aria-pressed','true');
  await games.getByRole('button',{name:'Mystery Photos',exact:true}).click();await expect(games.getByText(/5 \/ 32 pieces/)).toBeVisible();await games.getByLabel('Your one guess').fill('incorrect');await games.getByRole('button',{name:'Submit guess'}).click();await expect(games.getByText(/Your guess is saved/)).toBeVisible();
  await games.getByRole('button',{name:'Halloween Doors',exact:true}).click();await expect(games.locator('.og-door')).toHaveCount(28);assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Mobile layout must fit');
  await mkdir('test-results/october-games',{recursive:true});await games.screenshot({path:'test-results/october-games/mobile-gallery.png'});
@@ -65,6 +66,7 @@ try{
  // Nonparticipating-school preview stays local even when choosing a real file.
  await db.exec('update october_dev.schools set participating=false where location_id=1');
  await games.getByRole('button',{name:'Refresh',exact:true}).click();await games.getByRole('button',{name:'Preview manager experience'}).click();
+ await page.setViewportSize({width:390,height:844});const sample=games.locator('.og-example .og-completed');await expect(sample).toBeVisible();await sample.screenshot({path:'test-results/october-games/completed-front.png'});await sample.click();await expect(sample).toHaveAttribute('aria-pressed','true');await page.waitForTimeout(950);await sample.screenshot({path:'test-results/october-games/completed-back.png'});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await sample.press('Enter');await expect(sample).toHaveAttribute('aria-pressed','false');
  const before=(await db.query('select (select count(*) from october_dev.entries) entries,(select count(*) from october_dev.guesses) guesses')).rows[0];
  await games.getByRole('button',{name:'Upload photo',exact:true}).first().click();await games.locator('input[type=file]').first().setInputFiles({name:'preview.jpg',mimeType:'image/jpeg',buffer:example});
  await games.getByLabel(/I have permission/).check();await games.getByRole('button',{name:'Submit for approval'}).click();await expect(games.getByText(/Nothing was uploaded or saved/)).toBeVisible();

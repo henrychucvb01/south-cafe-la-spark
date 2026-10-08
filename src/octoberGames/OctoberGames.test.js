@@ -44,5 +44,18 @@ test('supervisor mystery uses drag and drop with no camera; quest eligibility ha
 });
 
 test('a completed quest locks upload controls for every other school',async()=>{
- data.quests[0].first_school=2;await render();expect(host.textContent).toContain('Completed by School B');expect(host.textContent).toContain('This quest is locked');expect(button('Upload photo')).toBeUndefined();
+ data.quests[0].first_school=2;await render();expect(host.textContent).toContain('Completed by: School B');expect(host.textContent).toContain('COMPLETED');expect(button('Upload photo')).toBeUndefined();
+});
+
+test('completed quest flips only to the winning approved photo',async()=>{
+ data.quests[0].first_school=2;data.entries=[{id:'pending',quest:1,location_id:1,state:'pending',photo_url:'private.webp'},{id:'winner',quest:1,location_id:2,state:'approved',photo_url:'winner.webp'}];
+ await render();const card=host.querySelector('.og-completed');expect(card.getAttribute('aria-pressed')).toBe('false');expect(card.querySelector('img').getAttribute('src')).toBe('winner.webp');
+ await act(async()=>card.click());expect(card.classList.contains('is-flipped')).toBe(true);await act(async()=>card.click());expect(card.getAttribute('aria-pressed')).toBe('false');
+});
+test('manager preview shows a reversible happy-face example without saving',async()=>{
+ data.participating=false;await render();await click('Preview manager experience');const card=host.querySelector('.og-example .og-completed');expect(card.querySelector('[aria-label="Happy face preview"]')).not.toBeNull();await act(async()=>card.click());expect(card.getAttribute('aria-pressed')).toBe('true');expect(api.gamesRequest.mock.calls.every(([action])=>['seen','list'].includes(action))).toBe(true);
+});
+
+test('only supervisor sees the new quest form',async()=>{
+ await render();expect(button('+ Add quest')).toBeUndefined();data.admin=true;await render({supervisorPin:'admin-test'});await click('Games & Challenges');await click('+ Add quest');expect(button('Create quest').disabled).toBe(true);expect(host.textContent).toContain('New Side Quest');await click('Cancel new quest');expect(button('Create quest')).toBeUndefined();
 });

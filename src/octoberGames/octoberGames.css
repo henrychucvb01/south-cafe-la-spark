@@ -3,3 +3,19 @@
 .og-tabs button[aria-pressed=true]:hover:not(:disabled){background:#8b3908;color:white}
 
 .og-page{max-width:1400px;margin:auto;padding:18px}.og-dropzone{border:2px dashed #c5752b;border-radius:12px;padding:16px;background:#fff5e7}.og-dropzone.is-dragging{background:#ffe1b5;border-color:#161616}.og-preview-note{background:#fff0d9;padding:16px;border:1px solid #e2a151;border-radius:12px;margin:15px 0}.og-shortcut{display:flex;gap:14px;align-items:center;flex-wrap:wrap;text-align:left;padding:20px;width:100%;border:2px solid #ef942f;border-radius:16px;background:linear-gradient(110deg,#ff941f,#ffc06a);color:#171717;font:inherit;cursor:pointer;margin-bottom:20px}.og-shortcut strong{color:#171717;font-size:21px}.og-shortcut span:last-child{flex-basis:100%}.og-points{float:none;display:inline-block;margin-bottom:8px}.og-header{background:linear-gradient(120deg,#ff8c1a,#ffb44c);color:#171717}.og-header small{color:#542700}.og-tabs button[aria-pressed=true]:hover:not(:disabled){background:#ffad4d;color:#171717}
+
+/* A completed quest turns like a door to show its approved submission. */
+.og button.og-completed{display:block;width:100%;min-width:0;padding:0;border:0;background:transparent;text-align:left;perspective:1100px;font-weight:400;border-radius:16px}
+.og button.og-completed:hover{background:transparent}
+.og-flip-inner{display:grid;position:relative;transform-style:preserve-3d;transition:transform 850ms cubic-bezier(.4,0,.2,1)}
+.og-completed.is-flipped .og-flip-inner{transform:rotateY(180deg)}
+.og-flip-face{grid-area:1/1;display:flex;flex-direction:column;gap:12px;min-width:0;min-height:310px;padding:20px;border:1px solid #b9bec3;border-radius:16px;backface-visibility:hidden;-webkit-backface-visibility:hidden;background:#e7e9eb;color:#434a50;overflow:hidden}
+.og-flip-front{background:linear-gradient(140deg,#f0f1f2 0%,#e7e9eb 48%,#d4d8dc 49%,#e7e9eb 100%)}
+.og-completed-task{position:relative;display:flex;flex:1;flex-direction:column;gap:12px;min-height:170px;padding:8px 0 25px}
+.og-completed-task>strong{font-size:18px}.og-completed-task>span:not(.og-completed-stamp){line-height:1.5;color:#606970}
+.og-completed-stamp{position:absolute;top:45%;left:50%;transform:translate(-50%,-50%) rotate(-19deg);font-size:clamp(20px,2vw,25px);font-weight:900;letter-spacing:.08em;border-block:3px solid #616971;color:#434b53;background:#e7e9ebeb;padding:5px 9px;white-space:nowrap}
+.og-completed-school{display:block;font-weight:700;line-height:1.4;overflow-wrap:anywhere}.og-flip-face small{font-weight:400;color:#515a63}
+.og-flip-back{transform:rotateY(180deg);background:#fff5e7;border-color:#ed9b43}
+.og-flip-back img{display:block;width:100%;height:210px;object-fit:contain;border-radius:10px;background:#fff}
+.og-happy{display:grid;place-items:center;height:210px;font-size:140px;line-height:1}.og-photo-unavailable{display:grid;place-items:center;min-height:210px}.og-example{max-width:340px;margin-bottom:24px}
+@media(prefers-reduced-motion:reduce){.og-flip-inner{transition:none}}
