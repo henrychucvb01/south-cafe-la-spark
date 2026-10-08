@@ -30,3 +30,5 @@
   font-family: inherit;
   font-size: 14px;
 }
+
+.ma-metrics{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}.ma-table-scroll{max-width:100%}.ma-metrics strong{font-variant-numeric:tabular-nums}

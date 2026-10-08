@@ -96,3 +96,27 @@ export async function loadMonthlyScorecardDatasetWithRetry(...args) {
   try{return await loadMonthlyScorecardDataset(...args);}
   catch(error){if(!/timeout|canceling statement/i.test(error?.message||""))throw error;return loadMonthlyScorecardDataset(...args);}
 }
+
+// The monthly RPC includes the requested month and its previous month.
+// Fetch every selected month, retaining that comparison data without counting overlaps twice.
+export async function loadScorecardRange(supervisorPin, startDate, endDate) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate) || startDate > endDate) throw new Error("Choose a valid reporting date range.");
+  const merged = {}, tables = new Map();
+  let month = startDate.slice(0, 7);
+  while (month <= endDate.slice(0, 7)) {
+    const [year, number] = month.split('-').map(Number);
+    const firstYear = number >= 7 ? year : year - 1;
+    const dataset = await loadMonthlyScorecardDatasetWithRetry(supervisorPin, `${firstYear}-${String(firstYear + 1).slice(-2)}`, `${month}-01`);
+    for (const [key, value] of Object.entries(dataset)) {
+      if (!Array.isArray(value)) { merged[key] = value; continue; }
+      if (!tables.has(key)) tables.set(key, new Map());
+      for (const row of value) {
+        const identity = row?.id ?? row?.directory_id ?? JSON.stringify(row);
+        tables.get(key).set(String(identity), row);
+      }
+    }
+    month = number === 12 ? `${year + 1}-01` : `${year}-${String(number + 1).padStart(2, '0')}`;
+  }
+  for (const [key, rows] of tables) merged[key] = [...rows.values()];
+  return merged;
+}

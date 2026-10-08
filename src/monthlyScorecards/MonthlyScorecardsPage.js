@@ -3,7 +3,7 @@ import { parseMonthlyReport, REPORT_TYPES } from "./monthlyImportParser";
 import {
   checksumText,
   loadMonthlyImports,
-  loadMonthlyScorecardDataset,
+  loadScorecardRange,
   saveMonthlyImport,
 } from "./monthlyScorecardService";
 import { buildSchoolScorecard } from "./monthlyScorecardCalculations";
@@ -103,7 +103,7 @@ function MonthlyScorecardsPageContent({ supervisorPin }) {
       const reportingMonth = `${appliedRange.startDate.slice(0, 7)}-01`;
       const [nextImports, nextDataset] = await Promise.all([
         loadMonthlyImports(supervisorPin, schoolYear, reportingMonth),
-        loadMonthlyScorecardDataset(supervisorPin, schoolYear, reportingMonth),
+        loadScorecardRange(supervisorPin, appliedRange.startDate, appliedRange.endDate),
       ]);
       setImports(nextImports || []);
       setDataset(nextDataset || {});
