@@ -1,4 +1,3 @@
-import {useOctoberAvailable} from "../octoberGames/service";
 import {OctoberBadge} from "../octoberGames/OctoberGames";
 import React from "react";
 import {useBreakfastAccess} from "../breakfast/BreakfastAccess";
@@ -12,13 +11,11 @@ function HomeBase({
   onMonthlyScorecard,
   onIncidentHelper,
   onDailyBites,
-  onOctoberGames,
   onManagerResources,
   onMonitoring,
   onBreakfast,
   onExit,
 }) {
-  const octoberAvailable=useOctoberAvailable();
   const {enabled:breakfastEnabled}=useBreakfastAccess({location,employee,managerPin});
   const { count, error } = useMonitoringCorrections(location, employee, managerPin);
   return (
@@ -100,7 +97,6 @@ function HomeBase({
               <div className="homebase-card-arrow">›</div>
             </button>
 
-            {octoberAvailable&&<button type="button" className="homebase-card homebase-card-og" onClick={onOctoberGames}><div className="homebase-card-icon">🎃</div><div className="homebase-card-body"><strong>October Games <OctoberBadge location={location} employee={employee} managerPin={managerPin}/></strong><span>Side Quests, Halloween Doors, and Mystery Photos.</span></div><div className="homebase-card-arrow">›</div></button>}
             {breakfastEnabled&&<button type="button" className="homebase-card" onClick={onBreakfast}>
               <div className="homebase-card-icon">🥣</div>
               <div className="homebase-card-body"><strong>Breakfast</strong><span>Manage your classroom roster and breakfast accountability history.</span></div>
