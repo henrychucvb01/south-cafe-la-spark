@@ -1,3 +1,4 @@
+import {notificationsChanged} from '../notifications/service';
 import { supabase } from "../supabaseClient";
 
 export const FEEDBACK_CATEGORIES = ["Bug", "Suggestion", "Question"];
@@ -27,4 +28,9 @@ export async function loadSupervisorFeedback(supervisorPin, status = "All") {
 export async function changeFeedbackStatus(supervisorPin, feedbackId, status) {
   const { error } = await supabase.rpc("update_spark_feedback_status", { p_supervisor_pin: supervisorPin, p_feedback_id: feedbackId, p_status: status });
   if (error) throw error;
+}
+
+export async function markFeedbackRead(pin,id,read) {
+ const {error}=await supabase.rpc("mark_spark_feedback_read",{p_pin:pin,p_id:id,p_read:read});
+ if(error)throw error; notificationsChanged();
 }

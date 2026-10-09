@@ -59,8 +59,8 @@ function CompletedQuest({quest,school,photo,example=false}){
   </span>
  </button>;
 }
-function Games({location,employee,managerPin,supervisorPin,galleryOnly=false}){
- const [data,setData]=useState(null),[tab,setTab]=useState(galleryOnly?'door':'quests'),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[submission,setSubmission]=useState(null),[guess,setGuess]=useState(''),[preview,setPreview]=useState(false),[extraGuess,setExtraGuess]=useState(null);
+function Games({location,employee,managerPin,supervisorPin,galleryOnly=false,initialTab="quests"}){
+ const [data,setData]=useState(null),[tab,setTab]=useState(galleryOnly?'door':initialTab),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[submission,setSubmission]=useState(null),[guess,setGuess]=useState(''),[preview,setPreview]=useState(false),[extraGuess,setExtraGuess]=useState(null);
  const auth=useRef(null);const mounted=useRef(true);const admin=Boolean(supervisorPin);
  useEffect(()=>{mounted.current=true;let cancelled=false,token,timer;
   (async()=>{try{const credentials=supervisorPin?{pin:supervisorPin}:{token:token=await openSession(location,employee,managerPin)};if(cancelled)return;auth.current=credentials;

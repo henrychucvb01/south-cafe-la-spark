@@ -1,3 +1,4 @@
+import {disablePush} from './notifications/service';
 import OctoberGames from "./octoberGames/OctoberGames";
 import BreakfastAccess from "./breakfast/BreakfastAccess";
 import React, { useEffect, useState } from "react";
@@ -93,6 +94,7 @@ function App() {
   }
 
   function resetToLogin() {
+    if(supervisorSessionPin)disablePush().catch(()=>{});
     const token = clearSparkSession();
     if (token) supabase.rpc("spark_logout", { p_token: token }).then(({ error }) => { if (error) console.error("Session sign-out could not reach SPARK."); });
     setSelectedLocation(null); setSelectedEmployee(null); setManagerSessionPin(""); setSupervisorSessionPin(""); setEditingCheck(null); setScreen("login");
@@ -102,7 +104,7 @@ function App() {
   if (screen === "mysteryPull") return <MysteryPullPage onBack={() => { window.history.replaceState(null, "", window.location.pathname + window.location.search); resetToLogin(); }} />;
   if (qrToken) return <BreakfastAccess key={qrToken} qr={qrToken}><TeacherPage qr={qrToken}/></BreakfastAccess>;
   if (!securityReady) return <SecurityReadiness/>;
-  if (screen === "login") return <LoginPage onMysteryPull={async (code) => { const session = await mysteryRpc("open", { p_code: code }); saveSession(session); window.location.hash = "mystery-pull"; setScreen("mysteryPull"); }} canInstall={canInstall} onInstall={handleInstallApp} onLocationSelected={(location) => { setSelectedLocation(location); setSelectedEmployee(null); setEditingCheck(null); setScreen("employeeSelect"); }} onSupervisor={() => { setEditingCheck(null); setScreen("supervisorPin"); }} />;
+  if (screen === "login") return <LoginPage onMysteryPull={async (code) => { const session = await mysteryRpc("open", { p_code: code }); saveSession(session); window.location.hash = "mystery-pull"; setScreen("mysteryPull"); }} canInstall={canInstall} onInstall={handleInstallApp} onLocationSelected={(location) => { disablePush().catch(()=>{}); setSelectedLocation(location); setSelectedEmployee(null); setEditingCheck(null); setScreen("employeeSelect"); }} onSupervisor={() => { setEditingCheck(null); setScreen("supervisorPin"); }} />;
   if (screen === "supervisorPin") return <SupervisorPinPage onSuccess={(verifiedPin) => { setSupervisorSessionPin(verifiedPin); setScreen("commandCenter"); }} onBack={() => { setSupervisorSessionPin(""); setScreen("login"); }} />;
   if (screen === "employeeSelect") return <EmployeeSelectPage location={selectedLocation} onEmployeeSelected={(employee) => { setSelectedEmployee(employee); setEditingCheck(null); setScreen("managerPin"); }} onBack={resetToLogin} />;
   if (screen === "managerPin") return <ManagerPinPage location={selectedLocation} employee={selectedEmployee} onSuccess={(verifiedPin) => { setManagerSessionPin(verifiedPin); setScreen("homeBase"); }} onBack={() => { setSelectedEmployee(null); setManagerSessionPin(""); setScreen("employeeSelect"); }} />;

@@ -1,3 +1,4 @@
+import SupervisorNotifications, {NotificationSettings} from '../notifications/SupervisorNotifications';
 import OctoberGames from "../octoberGames/OctoberGames";
 import {useOctoberAvailable} from "../octoberGames/service";
 import BreakfastRollout from "../breakfast/BreakfastRollout";
@@ -72,8 +73,9 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("all");
   const [view, setView] = useState("dashboard");
+  const [reviewQuests,setReviewQuests]=useState(0);
   const octoberEnabled=useOctoberAvailable();
-  const viewTitles = { games: "Games & Challenges", breakfast: "Breakfast", spotlight: 'SPARK Spotlight', dashboard: 'Command Center', 'finish-line': 'Finish Line', 'recent-changes': 'Recent Changes', 'meal-trends': 'Meal Analytics', 'mplh-report': 'MPLH Report', 'monthly-scorecards': 'Monthly Scorecards', 'meal-audit': 'Meal Audit', 'labor-optimization': 'Labor Optimization', 'staff-management': 'Staffing', 'spark-points': 'SPARK Points', leaderboard: 'Leaderboard', 'location-directory': 'Location Directory', feedback: 'Feedback', 'pin-reset': 'Manager PIN Reset' };
+  const viewTitles = { settings: 'Supervisor Settings', games: "Games & Challenges", breakfast: "Breakfast", spotlight: 'SPARK Spotlight', dashboard: 'Command Center', 'finish-line': 'Finish Line', 'recent-changes': 'Recent Changes', 'meal-trends': 'Meal Analytics', 'mplh-report': 'MPLH Report', 'monthly-scorecards': 'Monthly Scorecards', 'meal-audit': 'Meal Audit', 'labor-optimization': 'Labor Optimization', 'staff-management': 'Staffing', 'spark-points': 'SPARK Points', leaderboard: 'Leaderboard', 'location-directory': 'Location Directory', feedback: 'Feedback', 'pin-reset': 'Manager PIN Reset' };
   usePageNavigation({ title: viewTitles[view] || 'Command Center', destination: view === 'dashboard' ? undefined : 'Command Center', onNavigate: () => { openDashboard(); setNavigationOpen(false); }, level: 1 });
   const [mobileNavigation, setMobileNavigation] = useState(() => window.matchMedia('(max-width: 760px)').matches);
   const [navigationOpen, setNavigationOpen] = useState(false);
@@ -616,7 +618,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
       setPointsSaving(false);
     }
   }
-  
+
 
   async function saveExcludedDay() {
     if (!pointsSchoolId) {
@@ -1115,6 +1117,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
           <button className={`command-nav-button ${view === "spotlight" ? "active" : ""}`} onClick={() => setView("spotlight")}><span aria-hidden="true">✦</span>SPARK Spotlight</button>
           <button className={`command-nav-button ${view === "breakfast" ? "active" : ""}`} onClick={() => setView("breakfast")}><span aria-hidden="true">🥣</span>Breakfast</button>
           <button className="command-nav-button" onClick={onMonitoring}><span aria-hidden="true">📋</span>Monitorings</button>
+          <button className={`command-nav-button ${view === "settings" ? "active" : ""}`} onClick={()=>setView("settings")}><span aria-hidden="true">⚙</span>Supervisor Settings</button>
           <button className={`command-nav-button ${view === "feedback" ? "active" : ""}`} onClick={() => setView("feedback")}>
             <span>💬</span>
             Feedback
@@ -1158,7 +1161,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
             onClick={() => setNavigationOpen(true)}><span aria-hidden="true">☰</span> Menu</button>}
           <div>
             <h2>
-              {view === "games" ? "Games & Challenges" : view === "breakfast" ? "Breakfast" : view === "spotlight" ? "SPARK Spotlight" : view === "meal-trends"
+              {view === "settings" ? "Supervisor Settings" : view === "games" ? "Games & Challenges" : view === "breakfast" ? "Breakfast" : view === "spotlight" ? "SPARK Spotlight" : view === "meal-trends"
                 ? "South Café LA Meal Analytics"
                 : view === "mplh-report"
                 ? "South Café LA MPLH Report"
@@ -1315,16 +1318,17 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
               </div>
             ) : null}
           </div>
+          <SupervisorNotifications supervisorPin={supervisorPin} onCategory={key=>{if(key==='monitoring')onMonitoring();else{if(key==='quests')setReviewQuests(n=>n+1);setView(key==='quests'?'games':'feedback');}}} onSettings={()=>setView('settings')}/>
         </header>
 
         <div className="command-content">
-          {view === "games" ? (<OctoberGames supervisorPin={supervisorPin}/>) : view === "breakfast" ? (<BreakfastRollout supervisorPin={supervisorPin}/>) : view === "spotlight" ? (
+          {view === "settings" ? (<NotificationSettings supervisorPin={supervisorPin}/>) : view === "games" ? (<OctoberGames key={reviewQuests} initialTab={reviewQuests?"manage":"quests"} supervisorPin={supervisorPin}/>) : view === "breakfast" ? (<BreakfastRollout supervisorPin={supervisorPin}/>) : view === "spotlight" ? (
             <SpotlightManager supervisorPin={supervisorPin} />
           ) : view === "feedback" ? (
             <SupervisorFeedbackPanel supervisorPin={supervisorPin} />
           ) : view === "leaderboard" ? (
             <SupervisorLeaderboard embedded supervisorPin={supervisorPin} />
-        
+
            ) : view === "monthly-scorecards" ? (
   <MonthlyScorecardsPage supervisorPin={supervisorPin} />
 ) : view === "meal-audit" ? (

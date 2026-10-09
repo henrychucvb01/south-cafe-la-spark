@@ -1,6 +1,10 @@
 // Only the disposable synthetic fixture. Never reads cloud connection settings.
 const http=require('node:http');
 const {spawn}=require('node:child_process');
+const {sql}=require('./test-security-auth-local.cjs');
+const fs=require('node:fs');
+if(sql("select to_regprocedure('public.supervisor_notification_counts(text)') is not null")==='t')
+ sql(fs.readFileSync('supabase/local/supervisor-notification-preview-counts.sql','utf8'));
 const gateway=http.createServer((req,res)=>{
  const origin=req.headers.origin;
  if(origin&&!/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)){res.writeHead(403).end();return;}

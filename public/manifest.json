@@ -11,13 +11,13 @@
   "orientation": "any",
   "icons": [
     {
-      "src": "/spark-clear-transparent.png",
+      "src": "/spark-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/spark-clear-transparent.png",
+      "src": "/spark-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
