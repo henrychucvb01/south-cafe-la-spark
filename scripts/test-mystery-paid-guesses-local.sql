@@ -1,0 +1,95 @@
+BEGIN;
+CREATE FUNCTION pg_temp.check_it(ok boolean,message text) RETURNS void LANGUAGE plpgsql AS $$BEGIN IF ok IS DISTINCT FROM true THEN RAISE EXCEPTION 'FAIL: %',message; END IF; END$$;
+DO $$
+DECLARE login text; token text; other_token text; second_token text; admin_token text; result jsonb; payload jsonb; request uuid; guess_id uuid;
+ prices int[]:=ARRAY[10,25,50,100,200,400,800]; i int; balance bigint; today date:=(now() AT TIME ZONE 'America/Los_Angeles')::date; prize_id bigint;
+BEGIN
+ PERFORM pg_temp.check_it(current_database()='spark_security' AND inet_server_port()=55432,'isolated local database');
+ UPDATE employees SET active=true WHERE id=900001;
+ DELETE FROM spark_private.login_limits;
+ login:=spark_login(p_role=>'employee',p_employee_id=>900001,p_pin=>'3141');
+ token:=open_supper_monitoring_session(900001,900001,login,null);
+ INSERT INTO employees(id,location_id,employee_name,active,manager_pin_hash) VALUES(900003,900002,'Second synthetic manager',true,extensions.crypt('3141',extensions.gen_salt('bf'))) ON CONFLICT(id) DO UPDATE SET active=true,manager_pin_hash=excluded.manager_pin_hash;
+ second_token:=open_supper_monitoring_session(900001,900003,spark_login(p_role=>'employee',p_employee_id=>900003,p_pin=>'3141'),null);
+ other_token:=open_supper_monitoring_session(900002,900001,login,null);
+ admin_token:=spark_login(p_role=>'supervisor',p_pin=>'1618');
+ DELETE FROM october_live.school_guesses;DELETE FROM october_live.guess_purchases;DELETE FROM october_live.guess_overrides;
+ DELETE FROM october_live.guesses;DELETE FROM october_live.extra_guesses;
+ DELETE FROM october_live.unlocks;
+ DELETE FROM october_live.rewards WHERE event LIKE 'mystery:%';
+ DELETE FROM spark_points WHERE location_id IN(900001,900002);
+ INSERT INTO spark_points(location_id,points,point_type,service_date) VALUES(900001,10000,'manual',make_date(extract(year FROM today)::int,8,1)),(900002,100,'manual',today);
+ INSERT INTO october_live.rounds(id) SELECT generate_series(1,5) ON CONFLICT DO NOTHING;
+ UPDATE october_live.rounds SET solved_at=null,winner=null,answer='synthetic answer',aliases='{}',photo_path='synthetic.webp',reward_points=85,unlocked=0,unlock_credits=0,piece_costs=ARRAY[1],pieces='[[[0,0],[1000,0],[0,1000]]]';
+ UPDATE october_live.settings SET mystery_state='active';
+ INSERT INTO october_live.schools VALUES(900001,true),(900002,true) ON CONFLICT(location_id) DO UPDATE SET participating=true;
+ result:=october_games_live('list',token);
+ PERFORM pg_temp.check_it((result#>>'{guess_shop,balance}')::int=10000,'prior month season points available');
+ FOR i IN 1..7 LOOP
+  request:=gen_random_uuid();payload:=jsonb_build_object('request_id',request,'round',1,'confirmed',true,'expected_price',prices[i]);
+  result:=october_games_live('buy_guess',token,null,payload);
+  PERFORM pg_temp.check_it((SELECT price=prices[i] AND available_on=today+1 FROM october_live.guess_purchases WHERE id=request),'price schedule and next-day availability');
+  PERFORM october_games_live('buy_guess',second_token,null,payload);
+  PERFORM pg_temp.check_it((SELECT count(*)=1 FROM spark_points WHERE unique_key='mystery-guess-purchase:'||request),'purchase retry charges once');
+ END LOOP;
+ PERFORM pg_temp.check_it((result#>>'{guess_shop,next_price}')::int=1600 AND (result#>>'{guess_shop,tomorrow}')::int=7,'school shared increasing prices');
+ payload:=jsonb_build_object('request_id',gen_random_uuid(),'round',1,'confirmed',false,'expected_price',1600);
+ BEGIN PERFORM october_games_live('buy_guess',token,null,payload);RAISE EXCEPTION 'unconfirmed spent';EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE '%Confirm the current%' THEN RAISE; END IF;END;
+ BEGIN PERFORM october_games_live('buy_guess',token,null,payload||'{"confirmed":true,"expected_price":10}');RAISE EXCEPTION 'stale price spent';EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE '%Confirm the current%' THEN RAISE; END IF;END;
+ UPDATE spark_points SET points=0 WHERE location_id=900002;
+ BEGIN PERFORM october_games_live('buy_guess',other_token,null,payload||'{"confirmed":true,"expected_price":10}');RAISE EXCEPTION 'overdrawn';EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE '%enough SPARK%' THEN RAISE; END IF;END;
+ guess_id:=gen_random_uuid();payload:=jsonb_build_object('request_id',guess_id,'round',1,'guess','wrong');
+ result:=october_games_live('guess',token,null,payload);
+ PERFORM october_games_live('guess',token,null,payload);
+ PERFORM pg_temp.check_it((result#>>'{guess_shop,used_today}')::boolean AND (SELECT count(*)=1 FROM october_live.school_guesses),'one free school guess and exact retry');
+ BEGIN PERFORM october_games_live('guess',second_token,null,payload||jsonb_build_object('request_id',gen_random_uuid()));RAISE EXCEPTION 'second daily guess';EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE '%already guessed today%' THEN RAISE; END IF;END;
+ -- Simulate the next LA date by aging only synthetic test records.
+ UPDATE october_live.school_guesses SET submitted_at=now()-interval '1 day',guess_day=today-1;
+ BEGIN PERFORM october_games_live('guess',token,null,payload||jsonb_build_object('request_id',gen_random_uuid()));RAISE EXCEPTION 'same day purchase used';EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE '%unlock tomorrow%' THEN RAISE; END IF;END;
+ UPDATE october_live.guess_purchases SET available_on=today WHERE location_id=900001;
+ request:=gen_random_uuid();payload:=payload||jsonb_build_object('request_id',request);
+ result:=october_games_live('guess',token,null,payload);
+ PERFORM pg_temp.check_it((SELECT count(*)=1 FROM october_live.guess_purchases WHERE consumed_at IS NOT NULL),'one matured purchase consumed');
+ BEGIN PERFORM october_games_live('round',null,admin_token,'{"id":1}');RAISE EXCEPTION 'started photo replaced';EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE '%rounds are locked%' THEN RAISE; END IF;END;
+ BEGIN PERFORM october_games_live('accept_guess',token,null,jsonb_build_object('round',1,'attempt_key','attempt:'||request));RAISE EXCEPTION 'manager override';EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE '%Supervisor authorization%' THEN RAISE; END IF;END;
+ payload:=jsonb_build_object('round',1,'attempt_key','attempt:'||request);
+ result:=october_games_live('accept_guess',null,admin_token,payload);
+ PERFORM october_games_live('accept_guess',null,admin_token,payload);
+ PERFORM pg_temp.check_it((result->>'current_round')::int=2,'override advances to next photo');
+ PERFORM pg_temp.check_it((SELECT count(*)=1 AND sum(points)=85 FROM spark_points WHERE unique_key='october-live:mystery:1'),'override awards configured points exactly once');
+ PERFORM pg_temp.check_it((SELECT count(*)=6 FROM october_live.guess_purchases WHERE refunded_at IS NOT NULL),'all unused purchases refunded');
+ PERFORM pg_temp.check_it((SELECT sum(points)=1575 FROM spark_points WHERE point_type='mystery_guess_refund'),'refund original prices only');
+ PERFORM pg_temp.check_it((SELECT correct=false FROM october_live.school_guesses WHERE id=request),'original guess history preserved');
+ PERFORM pg_temp.check_it(EXISTS(SELECT 1 FROM jsonb_array_elements(result->'guesses') g WHERE g->>'attempt_key'='attempt:'||request AND (g->>'supervisor_accepted')::boolean),'override visible in history');
+ result:=october_games_live('list',token);
+ PERFORM pg_temp.check_it((result#>>'{guess_shop,next_price}')::int=10 AND (result#>>'{guess_shop,balance}')::int=10075,'prices reset and season net balance reconciles');
+ BEGIN PERFORM october_games_live('guess',token,null,jsonb_build_object('request_id',gen_random_uuid(),'round',2,'guess','wrong'));RAISE EXCEPTION 'new round bypassed daily limit';EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE '%already guessed today%' THEN RAISE; END IF;END;
+ -- Legacy guesses can be corrected without deleting or rewriting them.
+ INSERT INTO october_live.guesses VALUES(2,'900001',900002,'legacy answer',false,now()-interval '1 day');
+ result:=october_games_live('accept_guess',null,admin_token,'{"round":2,"attempt_key":"original:2:900001"}');
+ PERFORM pg_temp.check_it((SELECT winner=900002 FROM october_live.rounds WHERE id=2),'legacy override winner');
+ PERFORM pg_temp.check_it(result#>>'{rounds,1,winner_name}' IS NOT NULL,'winning school label');
+ BEGIN PERFORM october_games_live('accept_guess',null,admin_token,jsonb_build_object('round',1,'attempt_key','attempt:'||guess_id));RAISE EXCEPTION 'winner overwritten';EXCEPTION WHEN unique_violation THEN NULL;END;
+ -- An ordinary correct guess uses the same atomic solve/refund path.
+ payload:=jsonb_build_object('request_id',gen_random_uuid(),'round',3,'guess','synthetic answer');
+ result:=october_games_live('guess',other_token,null,payload);PERFORM october_games_live('guess',other_token,null,payload);
+ PERFORM pg_temp.check_it((result->>'guess_correct')::boolean AND (SELECT count(*)=1 FROM spark_points WHERE unique_key='october-live:mystery:3'),'normal correct guess once');
+ -- Development purchases use only the development ledger.
+ DELETE FROM october_dev.school_guesses;DELETE FROM october_dev.guess_purchases;DELETE FROM october_dev.guess_overrides;DELETE FROM october_dev.guesses;DELETE FROM october_dev.unlocks;
+ INSERT INTO october_dev.rounds(id) SELECT generate_series(1,5) ON CONFLICT DO NOTHING;
+ INSERT INTO october_dev.settings(id) VALUES(true) ON CONFLICT DO NOTHING;
+ UPDATE october_dev.rounds SET solved_at=null,photo_path='synthetic.webp';UPDATE october_dev.settings SET mystery_state='active';
+ INSERT INTO october_dev.schools VALUES(900001,true) ON CONFLICT(location_id) DO UPDATE SET participating=true;
+ INSERT INTO october_dev.rewards(event,location_id,points) VALUES('isolated-test-balance',900001,10000);
+ SELECT sum(points) INTO balance FROM spark_points WHERE location_id=900001;
+ PERFORM october_games_dev('buy_guess',token,null,jsonb_build_object('request_id',gen_random_uuid(),'round',1,'expected_price',10,'confirmed',true));
+ PERFORM pg_temp.check_it((SELECT sum(points)=balance FROM spark_points WHERE location_id=900001),'development never spends real points');
+END$$;
+SET LOCAL ROLE anon;
+DO $$BEGIN
+ BEGIN PERFORM * FROM october_live.guess_purchases;RAISE EXCEPTION 'anonymous purchase access';EXCEPTION WHEN insufficient_privilege THEN NULL;END;
+ BEGIN PERFORM october_live.game_engine('list',null,null,'{}');RAISE EXCEPTION 'legacy engine bypass';EXCEPTION WHEN insufficient_privilege THEN NULL;END;
+ BEGIN PERFORM public.october_games_live('buy_guess',null,null,'{}');RAISE EXCEPTION 'anonymous purchase';EXCEPTION WHEN insufficient_privilege THEN NULL;END;
+END$$;
+ROLLBACK;
+SELECT 'PASS: season balance, prices, confirmation, next-day use, school/day limit, retries, supervisor override, legacy history, refunds, winners, next round, isolation and anonymous rejection. All test writes rolled back.';

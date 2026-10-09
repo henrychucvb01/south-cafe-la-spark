@@ -34,7 +34,7 @@ begin
  perform pg_temp.check_it((select inventory=0 from mystery_prizes where id=(physical->>'id')::uuid),'physical stock decremented');
  perform mystery_admin(admin_token,gen_random_uuid(),jsonb_build_object('action','fulfill','id',result->'win'->>'id'));
  -- Local synthetic game; never connect this script to a hosted project.
- delete from october_live.guesses;delete from october_live.extra_guesses;
+ delete from october_live.school_guesses;delete from october_live.guess_purchases;delete from october_live.guess_overrides;delete from october_live.guesses;delete from october_live.extra_guesses;
  insert into october_live.rounds(id) select generate_series(1,5) on conflict do nothing;
  update october_live.rounds set solved_at=now();
  update october_live.rounds set solved_at=null,winner=null,answer='synthetic answer',aliases='{}',photo_path='synthetic.webp',reward_points=85,pieces='[[[0,0],[1000,0],[0,1000]]]' where id=1;
@@ -46,16 +46,18 @@ begin
  other_session:=open_supper_monitoring_session(900002,900001,login_token,null);
  result:=october_games_live('list',session_token,null,'{}');perform pg_temp.check_it(jsonb_array_length(result->'extra_guess_prizes')=2,'only own unused prizes listed');
  perform pg_temp.check_it(jsonb_array_length(october_games_live('list',other_session,null,'{}')->'extra_guess_prizes')=0,'other school prizes isolated');
- payload:=jsonb_build_object('round',1,'guess','wrong','extra_guess_win',win->>'id');
+ payload:=jsonb_build_object('request_id',gen_random_uuid(),'round',1,'guess','wrong','extra_guess_win',win->>'id');
  begin perform october_games_live('guess',session_token,null,payload);raise exception 'Prize spent before free guess';exception when others then if sqlerrm not like '%free guess first%' then raise;end if;end;
- perform october_games_live('guess',session_token,null,'{"round":1,"guess":"wrong"}');
- begin perform october_games_live('guess',session_token,null,'{"round":1,"guess":"again"}');raise exception 'Unpaid extra guess';exception when others then if sqlerrm not like '%already guessed%' then raise;end if;end;
- begin perform october_games_live('guess',other_session,null,payload);raise exception 'Other school prize used';exception when others then if sqlerrm not like '%already guessed%' then raise;end if;end;
+ perform october_games_live('guess',session_token,null,jsonb_build_object('request_id',gen_random_uuid(),'round',1,'guess','wrong'));
+ begin perform october_games_live('guess',session_token,null,jsonb_build_object('request_id',gen_random_uuid(),'round',1,'guess','again'));raise exception 'Unpaid extra guess';exception when others then if sqlerrm not like '%already guessed%' then raise;end if;end;
+ begin perform october_games_live('guess',other_session,null,payload);raise exception 'Other school prize used';exception when others then if sqlerrm not like '%free guess first%' then raise;end if;end;
+ update october_live.school_guesses set submitted_at=submitted_at-interval '1 day',guess_day=guess_day-1;
  result:=october_games_live('guess',session_token,null,payload);perform pg_temp.check_it((result->>'guess_correct')::boolean=false,'extra wrong guess recorded');
  perform october_games_live('guess',session_token,null,payload);
- perform pg_temp.check_it((select count(*)=1 from october_live.extra_guesses where win_id=(win->>'id')::bigint),'retry does not spend twice');
- begin perform october_games_live('guess',session_token,null,payload||'{"guess":"different"}');raise exception 'Used prize reused';exception when others then if sqlerrm not like '%already used%' then raise;end if;end;
- payload:=jsonb_build_object('round',1,'guess','synthetic answer','extra_guess_win',second_win->>'id');
+ perform pg_temp.check_it((select count(*)=1 from october_live.school_guesses where prize_win=(win->>'id')::bigint),'retry does not spend twice');
+ begin perform october_games_live('guess',session_token,null,payload||'{"guess":"different"}');raise exception 'Used prize reused';exception when others then if sqlerrm not like '%request changed%' then raise;end if;end;
+ update october_live.school_guesses set submitted_at=submitted_at-interval '1 day',guess_day=guess_day-1;
+ payload:=jsonb_build_object('request_id',gen_random_uuid(),'round',1,'guess','synthetic answer','extra_guess_win',second_win->>'id');
  result:=october_games_live('guess',session_token,null,payload);perform pg_temp.check_it((result->>'guess_correct')::boolean and (result->>'guess_points')::int=85,'paid correct guess receives configured points');
  perform october_games_live('guess',session_token,null,payload);
  perform pg_temp.check_it((select count(*)=1 and sum(points)=85 from spark_points where unique_key='october-live:mystery:1'),'correct retry awards only once');

@@ -33,3 +33,7 @@
 .og-door-preview{flex:0 0 190px;padding:10px;display:grid;gap:8px;box-shadow:none}.og-door-preview strong{font-size:13px}.og-door-preview>span:last-child{padding:12px;border:1px dashed currentColor;border-radius:5px;font-size:12px}
 @media(max-width:780px){.og-door-settings-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:500px){.og-door-settings-grid{grid-template-columns:1fr}.og-door-settings-footer{flex-direction:column;align-items:stretch}.og-door-preview{flex:auto;max-width:240px;width:100%;align-self:center}}
+
+.og-unlock-number{fill:#fff1d9;font-size:34px;font-weight:800;paint-order:stroke;stroke:#171717;stroke-width:4px}
+.og-mystery-controls{max-width:780px;margin:18px 0}.og-mystery-controls .og-guess{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}.og-mystery-controls .og-guess label{flex:1 1 230px;margin:0}.og-mystery-controls .og-actions{margin:0;gap:8px}.og-guess-summary{font-size:14px}.og-mystery-controls>small{display:block;color:#5f452b;line-height:1.5}
+@media(max-width:600px){.og-mystery-controls .og-guess label{flex-basis:100%}.og-mystery-controls .og-actions{width:100%}.og-mystery-controls .og-actions button{flex:1}}
