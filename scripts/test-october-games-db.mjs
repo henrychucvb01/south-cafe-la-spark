@@ -143,5 +143,41 @@ try{
  await db.exec('set role anon');await fail(live('list'),/permission denied/);await fail(db.exec('select * from october_live.rounds'),/permission denied/);await db.exec('reset role');
  await db.exec('set role anon');await fail(db.exec('select * from october_dev.entries'),/permission denied/);await fail(call('list'),/permission denied/);
  await db.exec('reset role;set role service_role');check((await call('list')).location_id,1);
+
+ // New door settings: exercise both environments, including real ledger synchronization.
+ await db.exec('reset role');
+ const beforeSettings=await db.query('select event,points,voided from october_live.rewards order by event');
+ await db.exec(await readFile('supabase/migrations/20261009052532_october_door_settings.sql','utf8'));
+ check((await db.query('select event,points,voided from october_live.rewards order by event')).rows,beforeSettings.rows);
+ for(const env of ['dev','live']){
+  const invoke=env==='dev'?call:live,supervisor=env==='dev'?admin:liveAdmin;
+  // Only disposable PGlite fixtures are reset; no network/database connections exist here.
+  await db.exec(`delete from october_${env}.votes;delete from october_${env}.rewards where event like 'entry:%' or event='door:champion';delete from october_${env}.entries where quest=0;update october_${env}.settings set champion=null`);
+  let current=await supervisor('list');
+  check(current.settings.door_participation_points,10);check(current.settings.door_champion_points,20);
+  const schedule={submission_start:new Date(Date.now()-86400000).toISOString(),submission_end:new Date(Date.now()+86400000).toISOString(),voting_start:new Date(Date.now()+172800000).toISOString(),voting_end:new Date(Date.now()+259200000).toISOString()};
+  current=await supervisor('settings',{revision:current.settings.revision,...schedule});
+  const savedSchedule=current.settings.submission_start;
+  check(new Date((await invoke('list')).settings.submission_start).getTime(),new Date(schedule.submission_start).getTime());
+  for(const malformed of [{},{...schedule,voting_end:null},{...schedule,submission_start:''},{...schedule,voting_end:schedule.submission_start}])await fail(supervisor('settings',{revision:current.settings.revision,...malformed}),/dates/);
+  check((await supervisor('list')).settings.submission_start,savedSchedule);
+  for(const value of [null,-1,1.5,1001,'', 'bogus'])await fail(supervisor('settings',{revision:current.settings.revision,door_participation_points:value,door_champion_points:60}),/SPARK Points/);
+  await fail(invoke('settings',{revision:current.settings.revision,door_participation_points:30,door_champion_points:60}),/Supervisor/);
+  const payload={revision:current.settings.revision,door_participation_points:30,door_champion_points:60};
+  current=await supervisor('settings',payload);await fail(supervisor('settings',payload),/Refresh/);
+  check(current.settings.submission_start,savedSchedule);check((await invoke('list')).settings.door_participation_points,30);
+  await invoke('submit',{...photo,quest:0});let door=(await supervisor('list')).entries.find(e=>e.quest===0);
+  current=await supervisor('review',{id:door.id,revision:door.revision,state:'approved'});
+  check(current.rewards.find(r=>r.event==='entry:'+door.id).points,30);
+  if(env==='live')check((await db.query('select points from spark_points where unique_key=$1',['october-live:entry:'+door.id])).rows[0].points,30);
+  current=await supervisor('settings',{revision:current.settings.revision,door_participation_points:45,door_champion_points:75});
+  door=current.entries.find(e=>e.id===door.id);current=await supervisor('review',{id:door.id,revision:door.revision,state:'approved'});
+  check(current.rewards.find(r=>r.event==='entry:'+door.id).points,30);check(current.entries.find(e=>e.id===door.id).awarded_points,30);
+  await db.exec(`update october_${env}.settings set voting_end=now()-interval '1 minute'`);
+  current=await supervisor('champion',{location_id:1});check(current.rewards.find(r=>r.event==='door:champion').points,75);
+  current=await supervisor('champion',{location_id:1});check(current.rewards.filter(r=>r.event==='door:champion').length,1);
+  if(env==='live')check((await db.query("select points from spark_points where unique_key='october-live:door:champion'")).rows[0].points,75);
+  await db.exec('set role anon');await fail(invoke('settings',payload),/permission denied/);await db.exec('reset role');
+ }
  console.log(`PASS ${checks} assertions: school isolation, consent, review/resubmission, idempotent rewards/unlocks, hidden answers/photos, identity restrictions, 5 rounds/125 points, vote dates/own-school/duplicate checks, champion, corrections, notifications, live points unchanged, service-only RPC.`);
 }catch(e){console.error(e.message,e.internalQuery||'',e.where||'');process.exitCode=1;}finally{await db.close();}

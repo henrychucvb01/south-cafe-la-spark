@@ -39,7 +39,7 @@ function DoorGallery({data,run,busy,canVote}){
   return <article key={s.id} className={`og-door ${winner?'og-champion':''}`}><div className="og-door-decor" aria-hidden="true">✦ 🦇 🎃 ✦</div><h4>{s.school_name}</h4>{winner&&<strong>🏆 Door Decorating Champion</strong>}
    <div className="og-door-photo">{approved?<img loading="lazy" src={entry.photo_url} alt={`${s.school_name} Halloween door`}/>:<span>🎃<br/>Awaiting Entry</span>}</div>
    {entry&&!approved&&(own||data.admin)&&<p className="og-status">{entry.state==='pending'?'Submitted — Pending Approval':entry.state==='replacement'?'New photo requested':'Not approved'}{entry.feedback&&` · ${entry.feedback}`}</p>}
-   {approved&&<><span className="og-status">Approved · +10 points</span>{entry.votes!==null&&<p>{entry.votes} votes</p>}{data.vote===entry.id?<p>✓ Your vote</p>:canVote&&!own&&<button disabled={busy||!!data.vote||!data.identified} onClick={()=>window.confirm(`Cast your one vote for ${s.school_name}?`)&&run('vote',{id:entry.id})}>Vote for this school</button>}</>}
+   {approved&&<><span className="og-status">Approved{entry.awarded_points>0?` · +${entry.awarded_points} SPARK Points`:""}</span>{entry.votes!==null&&<p>{entry.votes} votes</p>}{data.vote===entry.id?<p>✓ Your vote</p>:canVote&&!own&&<button disabled={busy||!!data.vote||!data.identified} onClick={()=>window.confirm(`Cast your one vote for ${s.school_name}?`)&&run('vote',{id:entry.id})}>Vote for this school</button>}</>}
   </article>;
  })}</div>;
 }
@@ -88,7 +88,7 @@ function Games({location,employee,managerPin,supervisorPin,galleryOnly=false}){
    {tab==='door'&&<><h3>Halloween Door Decorating Contest <span className="og-status">{settings.door_state}</span></h3><p>Submissions: {day(settings.submission_start)} – {day(settings.submission_end)}<br/>Voting: {day(settings.voting_start)} – {day(settings.voting_end)}</p>
     {!galleryOnly&&submitting&&(!ownDoor||['rejected','replacement'].includes(ownDoor.state))&&<button onClick={()=>setSubmission(0)}>Submit your school’s door</button>}
     {submission===0&&<SubmissionForm quest={0} existing={ownDoor} run={run} busy={busy} close={()=>setSubmission(null)}/>}
-    {!galleryOnly&&!submitting&&!admin&&<p>Door uploads open for participating schools during the submission dates shown above. Use manager preview to see the form at a nonparticipating school.</p>}<p>10 points for approved participation · 20 additional points for the champion. One vote per registered manager; no votes for your own school. Vote totals appear when voting closes.</p>
+    {!galleryOnly&&!submitting&&!admin&&<p>Door uploads open for participating schools during the submission dates shown above. Use manager preview to see the form at a nonparticipating school.</p>}<p>{settings.door_participation_points??10} SPARK Points for approved participation · {settings.door_champion_points??20} additional SPARK Points for the champion. One vote per registered manager; no votes for your own school. Vote totals appear when voting closes.</p>
     <DoorGallery data={data} run={run} busy={busy} canVote={voting&&!admin}/></>}
    {tab==='mystery'&&<><h3>Mystery Photo Unlock <span className="og-status">{settings.mystery_state}</span></h3><p>Five mysteries. One guess per manager for each mystery. First correct answer earns 25 points for your school.</p>
     {round?<><h4>Mystery {round.id} of 5 · {round.unlocked} / {round.piece_count||32} pieces revealed</h4><div className="og-puzzle">{round.photo_url?<><img loading="lazy" key={`${round.id}-${round.unlocked}`} src={round.photo_url} alt={`Shared mystery ${round.id}, ${round.unlocked} pieces revealed`}/>{round.pieces&&<svg viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">{round.pieces.slice(round.unlocked).map((p,i)=><polygon key={i} points={p.map(v=>v.join(',')).join(' ')}/>)}</svg>}</>:<p>Waiting for the supervisor’s mystery artwork.</p>}</div>
@@ -108,8 +108,8 @@ function Management({data,run,busy}){
  const [all,setAll]=useState(false);const cfg=data.settings;
  return <><h3>Games & Challenges</h3><p>Set participating schools, verify BIC and Supper eligibility, upload your five mystery photos, then activate the games.</p>
   <div className="og-grid">{['quests','door','mystery'].map(game=><div className="og-card" key={game}><h4>{game==='quests'?'Side Quests':game==='door'?'Door Contest':'Mystery Photos'}</h4><label>Status<select disabled={busy} value={cfg[game+'_state']} onChange={e=>run('settings',{revision:cfg.revision,game,state:e.target.value})}>{['active','paused','ended'].map(s=><option key={s}>{s}</option>)}</select></label></div>)}</div>
-  <SchoolSettings key={JSON.stringify(data.schools)} data={data} run={run} busy={busy}/><Dates key={`${cfg.submission_start}-${cfg.voting_end}`} cfg={cfg} run={run} busy={busy}/>
-  <NewQuest key={cfg.revision} revision={cfg.revision} run={run} busy={busy}/><details><summary>Quest instructions</summary>{data.quests.map(q=><QuestSettings key={`${q.id}-${q.revision}`} q={q} run={run} busy={busy}/>)}</details>
+  <SchoolSettings key={JSON.stringify(data.schools)} data={data} run={run} busy={busy}/><Dates key={`${cfg.submission_start}-${cfg.submission_end}-${cfg.voting_start}-${cfg.voting_end}`} cfg={cfg} run={run} busy={busy}/>
+  <DoorRewards key={`${cfg.door_participation_points}-${cfg.door_champion_points}`} cfg={cfg} run={run} busy={busy}/><NewQuest key={cfg.revision} revision={cfg.revision} run={run} busy={busy}/><details><summary>Quest instructions</summary>{data.quests.map(q=><QuestSettings key={`${q.id}-${q.revision}`} q={q} run={run} busy={busy}/>)}</details>
   <h3>Photo review</h3><label className="og-check"><input type="checkbox" checked={all} onChange={e=>setAll(e.target.checked)}/>Include already reviewed entries</label>
   <div className="og-grid">{data.entries.filter(e=>all||e.state==='pending').map(e=><Review key={`${e.id}-${e.revision}`} entry={e} data={data} run={run} busy={busy}/>)}</div>
   <h3>Mystery artwork and accepted answers</h3><p>Upload your own images. Started or solved rounds are locked to preserve guesses and winners.</p><div className="og-grid">{data.rounds.map(r=><RoundSettings key={`${r.id}-${r.revision}`} round={r} run={run} busy={busy}/>)}</div>
@@ -124,8 +124,19 @@ function SchoolSettings({data,run,busy}){
 }
 function Dates({cfg,run,busy}){
  const fields=['submission_start','submission_end','voting_start','voting_end'];const local=v=>{if(!v)return '';const d=new Date(v);return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);};
- const [values,setValues]=useState(Object.fromEntries(fields.map(f=>[f,local(cfg[f])])));
- return <details><summary>Door submission and voting dates</summary><form onSubmit={e=>{e.preventDefault();run('settings',{revision:cfg.revision,...Object.fromEntries(fields.map(f=>[f,new Date(values[f]).toISOString()]))});}}><p>Times use your device’s time zone. Voting dates lock after the first vote.</p><div className="og-grid">{fields.map(f=><label key={f}>{f.replace('_',' ')}<input type="datetime-local" required value={values[f]} onChange={e=>setValues({...values,[f]:e.target.value})}/></label>)}</div><button disabled={busy}>Save dates</button></form></details>;
+ const [values,setValues]=useState(Object.fromEntries(fields.map(f=>[f,local(cfg[f])]))),[message,setMessage]=useState('');
+ const labels=['Submissions open','Submissions close','Voting opens','Voting closes'];
+ async function save(e){e.preventDefault();setMessage('');const dates=fields.map(f=>new Date(values[f]));
+  if(dates.some(d=>!Number.isFinite(d.getTime()))){setMessage('Enter all four dates and times.');return;}
+  if(!(dates[0]<dates[1]&&dates[1]<=dates[2]&&dates[2]<dates[3])){setMessage('Submissions must close before voting opens, and each closing time must follow its opening time.');return;}
+  if(await run('settings',{revision:cfg.revision,...Object.fromEntries(fields.map((f,i)=>[f,dates[i].toISOString()]))}))setMessage('Contest dates saved.');
+  else setMessage('Dates were not saved. Check the message above and try again.');
+ }
+ return <details open><summary>Door submission and voting dates</summary><form onSubmit={save}><p>Times use your device’s time zone ({Intl.DateTimeFormat().resolvedOptions().timeZone}). Enter all four dates, then save. Voting dates lock after the first vote.</p><div className="og-grid">{fields.map((f,i)=><label key={f}>{labels[i]}<input type="datetime-local" required value={values[f]} onChange={e=>{setValues({...values,[f]:e.target.value});setMessage('Unsaved dates');}}/></label>)}</div><button disabled={busy}>Save dates</button>{message&&<p role="status">{message}</p>}<p>Saved schedule: Submissions {day(cfg.submission_start)} – {day(cfg.submission_end)} · Voting {day(cfg.voting_start)} – {day(cfg.voting_end)}</p></form></details>;
+}
+function DoorRewards({cfg,run,busy}){
+ const [participation,setParticipation]=useState(cfg.door_participation_points??10),[champion,setChampion]=useState(cfg.door_champion_points??20);
+ return <form className="og-card og-door-rewards" onSubmit={e=>{e.preventDefault();run('settings',{revision:cfg.revision,door_participation_points:Number(participation),door_champion_points:Number(champion)});}}><h4>Door contest rewards</h4><div className="og-grid"><label>Approved participation (SPARK Points)<input type="number" min="0" max="1000" step="1" required value={participation} onChange={e=>setParticipation(e.target.value)}/></label><label>Champion bonus (SPARK Points)<input type="number" min="0" max="1000" step="1" required value={champion} onChange={e=>setChampion(e.target.value)}/></label></div><p>Applies to future awards. Points already earned stay unchanged.</p><button disabled={busy}>Save door rewards</button></form>;
 }
 function NewQuest({revision,run,busy}){
  const [open,setOpen]=useState(false),[name,setName]=useState(''),[description,setDescription]=useState(''),[enabled,setEnabled]=useState(true),[reward,setReward]=useState(10);

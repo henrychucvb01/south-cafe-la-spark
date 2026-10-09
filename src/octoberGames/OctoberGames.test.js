@@ -64,7 +64,29 @@ test('quest card shows its configured SPARK reward at the bottom',async()=>{
  data.quests[0].reward_points=40;await render();const card=host.querySelector('.og-quest-card');expect(card.lastElementChild.textContent).toBe('Reward: 40 SPARK Points');expect(host.textContent).not.toContain('First school: +10');expect(host.textContent).not.toContain('earn 10 points');
 });
 test('supervisor reward setting uses stored amount and completed rewards stay locked',async()=>{
- data.admin=true;data.quests[0].reward_points=40;await render({supervisorPin:'admin-test'});await click('Games & Challenges');let input=host.querySelector('input[type=number]');expect(input.value).toBe('40');expect(input.disabled).toBe(false);
+ data.admin=true;data.quests[0].reward_points=40;await render({supervisorPin:'admin-test'});await click('Games & Challenges');let input=host.querySelector('details details input[type=number]');expect(input.value).toBe('40');expect(input.disabled).toBe(false);
  await act(async()=>input.closest('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));expect(api.gamesRequest).toHaveBeenLastCalledWith('quest',{pin:'admin-test'},expect.objectContaining({reward_points:40}),undefined);
- data.quests[0].first_school=2;data.quests[0].revision++;await click('Refresh');input=host.querySelector('input[type=number]');expect(input.disabled).toBe(true);
+ data.quests[0].first_school=2;data.quests[0].revision++;await click('Refresh');input=host.querySelector('details details input[type=number]');expect(input.disabled).toBe(true);
+});
+
+const changeInput=async(input,value)=>act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));});
+test('door gallery uses configured rewards and keeps actual past awards',async()=>{
+ data.settings.door_participation_points=35;data.settings.door_champion_points=80;
+ data.entries=[{id:'other',location_id:2,quest:0,state:'approved',photo_url:'approved.webp',votes:null,awarded_points:15}];
+ await render();await click('Halloween Doors');expect(host.textContent).toContain('35 SPARK Points for approved participation · 80 additional SPARK Points for the champion');expect(host.textContent).toContain('Approved · +15 SPARK Points');expect(host.textContent).not.toContain('Not set');
+});
+test('supervisor saves both door rewards independently of the schedule',async()=>{
+ data.admin=true;await render({supervisorPin:'admin-test'});await click('Games & Challenges');const form=host.querySelector('.og-door-rewards'),inputs=form.querySelectorAll('input');
+ await changeInput(inputs[0],'35');await changeInput(inputs[1],'80');await act(async()=>form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+ expect(api.gamesRequest).toHaveBeenLastCalledWith('settings',{pin:'admin-test'},{revision:1,door_participation_points:35,door_champion_points:80},undefined);
+});
+test('saved dates reach manager gallery, incomplete and reversed dates cannot submit',async()=>{
+ data.admin=true;await render({supervisorPin:'admin-test'});await click('Games & Challenges');let form=button('Save dates').closest('form');let inputs=form.querySelectorAll('input');
+ await changeInput(inputs[0],'');api.gamesRequest.mockClear();await act(async()=>form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));expect(api.gamesRequest).not.toHaveBeenCalled();expect(host.textContent).toContain('Enter all four dates and times');
+ const values=['2026-10-09T08:30','2026-10-20T15:00','2026-10-21T09:00','2026-10-30T16:00'];for(let i=0;i<4;i++)await changeInput(inputs[i],values[i]);
+ api.gamesRequest.mockImplementation(async(action,auth,payload)=>{if(action==='settings')Object.assign(data.settings,payload);return JSON.parse(JSON.stringify(data));});
+ await act(async()=>form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+ expect(api.gamesRequest).toHaveBeenLastCalledWith('settings',{pin:'admin-test'},expect.objectContaining({submission_start:new Date(values[0]).toISOString(),voting_end:new Date(values[3]).toISOString()}),undefined);
+ expect(host.textContent).toContain('Saved schedule: Submissions Oct 9, 8:30 AM');await click('Halloween Doors');expect(host.textContent).toContain('Submissions: Oct 9, 8:30 AM');
+ await click('Games & Challenges');form=button('Save dates').closest('form');inputs=form.querySelectorAll('input');await changeInput(inputs[3],'2026-10-01T08:00');api.gamesRequest.mockClear();await act(async()=>form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));expect(api.gamesRequest).not.toHaveBeenCalled();expect(host.textContent).toContain('Submissions must close before voting opens');
 });
