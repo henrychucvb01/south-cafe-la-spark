@@ -1,6 +1,7 @@
 import {PGlite} from '@electric-sql/pglite';
 import {readFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
+import {makePieces} from '../lib/octoberGeometry.js';
 const db=new PGlite();let checks=0;
 const check=(actual,expected)=>{assert.deepEqual(actual,expected);checks++;};
 try{
@@ -178,6 +179,58 @@ try{
   current=await supervisor('champion',{location_id:1});check(current.rewards.filter(r=>r.event==='door:champion').length,1);
   if(env==='live')check((await db.query("select points from spark_points where unique_key='october-live:door:champion'")).rows[0].points,75);
   await db.exec('set role anon');await fail(invoke('settings',payload),/permission denied/);await db.exec('reset role');
+ }
+
+ // Holiday settings and weighted mysteries are tested only in disposable local PGlite.
+ const savedRewards=(await db.query('select * from october_live.rewards order by event')).rows;
+ for(const env of ['dev','live']){
+  await db.exec('update october_'+env+'.rounds set unlocked=2 where id=4');
+  await db.query('update october_'+env+'.rounds set pieces=$1 where id=4',[JSON.stringify(makePieces(()=>.45))]);
+ }
+ await db.exec(await readFile('supabase/migrations/20261009151349_holiday_door_controls.sql','utf8'));
+ await db.exec(await readFile('supabase/migrations/20261009151732_mystery_difficulty_rewards.sql','utf8'));
+ check((await db.query('select * from october_live.rewards order by event')).rows,savedRewards);
+ for(const env of ['dev','live']){
+  const invoke=env==='dev'?call:live,supervisor=env==='dev'?admin:liveAdmin;
+  await db.exec('delete from october_'+env+'.votes;delete from october_'+env+'.entries where quest=0;update october_'+env+'.settings set champion=null');
+  let state=await supervisor('list');
+  const payload={revision:state.settings.revision,door_state:'active',door_title:'Winter Doors',door_theme:'winter',door_border_style:'dotted',door_border_color:'#abcdef',door_background:'#eeeeee',door_participation_points:35,door_champion_points:80,submission_end:new Date(Date.now()+86400000).toISOString(),voting_end:new Date(Date.now()+172800000).toISOString()};
+  await fail(invoke('door_settings',payload),/Supervisor/);
+  for(const bad of [{door_background:'url(evil)'},{door_theme:'bad'},{submission_end:null},{voting_end:new Date(Date.now()-86400000).toISOString()},{door_champion_points:-1}])await fail(supervisor('door_settings',{...payload,...bad}),/Choose|closing|close|SPARK/);
+  state=await supervisor('door_settings',payload);check(state.settings.door_title,'Winter Doors');await fail(supervisor('door_settings',payload),/Refresh/);
+  await invoke('submit',{...photo,quest:0});let door=(await supervisor('list')).entries.find(e=>e.quest===0&&e.location_id===1);await supervisor('review',{id:door.id,revision:door.revision,state:'approved'});
+  await invoke('vote',{id:door.id},'school2');
+  // New submissions and approvals still work after another school casts a vote.
+  await invoke('submit',{...photo,quest:0},'school2');let late=(await supervisor('list')).entries.find(e=>e.quest===0&&e.location_id===2);state=await supervisor('review',{id:late.id,revision:late.revision,state:'approved'});check(state.entries.find(e=>e.id===late.id).state,'approved');
+  door=state.entries.find(e=>e.id===door.id);await fail(supervisor('review',{id:door.id,revision:door.revision,state:'replacement'}),/locked/);
+  await fail(invoke('vote',{id:door.id},'school2'),/already/);
+  await db.exec('update october_'+env+'.settings set submission_end=now()-interval \'1 minute\'');
+  await fail(invoke('submit',{...photo,quest:0}),/closed/);
+  await invoke('vote',{id:late.id});
+  // Piece costs preserve the already visible prefix and conserve unlock credits.
+  state=await supervisor('list');let round=state.rounds.find(r=>r.id===4);check(round.unlocked,2);
+  const costs=round.piece_costs;check([...new Set(costs)].sort(),[1,2,3]);check(round.unlock_credits,costs[0]+costs[1]);
+  check((await db.query('select october_dev.revealed_count(array[1,3,2],$1) n',[3])).rows[0].n,1);
+  check((await db.query('select october_dev.revealed_count(array[1,3,2],$1) n',[4])).rows[0].n,2);
+  check((await db.query('select pg_get_functiondef($1::regprocedure) definition', ['public.october_games_'+env+'(text,text,text,jsonb)'])).rows[0].definition.includes('r.id>=3'),true);
+  check((await db.query('select october_dev.piece_costs($1,false) costs',[JSON.stringify(makePieces())])).rows[0].costs.every(x=>x===1),true);
+  await db.exec('delete from october_'+env+'.guesses where round=4;delete from october_'+env+'.rewards where event=\'mystery:4\';update october_'+env+'.rounds set solved_at=now() where id<4;update october_'+env+'.rounds set solved_at=null,winner=null where id=4');
+  state=await supervisor('list');round=state.rounds.find(r=>r.id===4);
+  await fail(invoke('round_reward',{id:4,revision:round.revision,reward_points:90}),/Supervisor/);
+  for(const value of [0,-1,null,1.5,1001])await fail(supervisor('round_reward',{id:4,revision:round.revision,reward_points:value}),/SPARK/);
+  state=await supervisor('round_reward',{id:4,revision:round.revision,reward_points:90});check(state.rounds.find(r=>r.id===4).reward_points,90);
+  await fail(supervisor('round_reward',{id:4,revision:round.revision,reward_points:50}),/Refresh/);
+  const before=state.rounds.find(r=>r.id===4).unlock_credits;
+  state=await supervisor('quest_create',{revision:state.settings.revision,name:'Weighted test',description:'Synthetic photo test',reward_points:10});const quest=state.quests.at(-1).id;
+  await invoke('submit',{...photo,quest});let entry=(await supervisor('list')).entries.find(e=>e.quest===quest);
+  state=await supervisor('review',{id:entry.id,revision:entry.revision,state:'approved'});round=state.rounds.find(r=>r.id===4);check(round.unlock_credits,before+5);
+  check(round.unlocked,(await db.query('select october_dev.revealed_count($1,$2) n',[costs,before+5])).rows[0].n);
+  entry=state.entries.find(e=>e.id===entry.id);state=await supervisor('review',{id:entry.id,revision:entry.revision,state:'approved'});check(state.rounds.find(r=>r.id===4).unlock_credits,before+5);
+  state=await invoke('guess',{round:4,guess:'Answer 4'});check(state.guess_points,90);check(state.rewards.find(r=>r.event==='mystery:4').points,90);
+  if(env==='live')check((await db.query("select points from spark_points where unique_key='october-live:mystery:4'")).rows[0].points,90);
+  await fail(supervisor('round_reward',{id:4,revision:round.revision,reward_points:50}),/locked/);
+  await fail(invoke('guess',{round:4,guess:'Answer 4'}),/no longer/);
+  await db.exec('set role anon');await fail(invoke('door_settings',payload),/permission denied/);await fail(db.exec('select october_dev.revealed_count(array[1],1)'),/permission denied/);await db.exec('reset role');
  }
  console.log(`PASS ${checks} assertions: school isolation, consent, review/resubmission, idempotent rewards/unlocks, hidden answers/photos, identity restrictions, 5 rounds/125 points, vote dates/own-school/duplicate checks, champion, corrections, notifications, live points unchanged, service-only RPC.`);
 }catch(e){console.error(e.message,e.internalQuery||'',e.where||'');process.exitCode=1;}finally{await db.close();}
