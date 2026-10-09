@@ -189,3 +189,6 @@
 .mystery-history-detail { padding:0 18px 16px 42px; border-top:1px solid #ffffff12; }
 .mystery-history-detail p { font-size:12px; margin:8px 0; }
 @media(max-width:650px) { .mystery-history-record summary { grid-template-columns:14px minmax(0,1fr) minmax(0,1fr); gap:8px; padding:12px 10px; } .mystery-history-record time { grid-column:2; } .mystery-history-detail { padding-left:32px; } }
+
+/* Supervisor inventory: one compact row per prize. */
+.mystery-inventory{width:100%;border-collapse:collapse}.mystery-inventory th,.mystery-inventory td{text-align:left;padding:12px;border-bottom:1px solid #ffffff26;vertical-align:middle}.mystery-inventory td:first-child{min-width:200px}.mystery-inventory td:nth-child(2){font-size:13px;line-height:1.45;max-width:440px}.mystery-inventory td:last-child{width:80px}.mystery-inventory .mystery-status{white-space:nowrap}.mystery-inventory-icon{display:inline-block;font-size:26px;vertical-align:middle;margin-right:12px}.mystery-icon-picker{display:flex;flex-wrap:wrap;gap:6px;border:1px solid #ffffff30;border-radius:10px;padding:10px}.mystery-icon-picker button{font-size:24px;min-width:44px;min-height:44px;background:#ffffff0d;border:1px solid #ffffff30;border-radius:8px}.mystery-icon-picker button[aria-pressed=true]{background:#2563eb;border-color:#93c5fd}.mystery-icon-picker legend{padding:0 6px}

@@ -1,0 +1,68 @@
+begin;
+create function pg_temp.check_it(ok boolean,message text) returns void language plpgsql as $$begin if ok is distinct from true then raise exception 'FAIL: %',message;end if;end$$;
+do $$ declare admin_token text:='synthetic-prize-admin'; manager_token text:='synthetic-prize-manager'; other_token text:='synthetic-prize-other';
+ session_token text; other_session text; login_token text; request uuid:=gen_random_uuid();payload jsonb;prize jsonb;physical jsonb;win jsonb;second_win jsonb;result jsonb;balance int;
+begin
+ insert into mystery_sessions(token_hash,role,location_id) values
+ (encode(sha256(convert_to(admin_token,'UTF8')),'hex'),'supervisor',null),
+ (encode(sha256(convert_to(manager_token,'UTF8')),'hex'),'manager',900001),
+ (encode(sha256(convert_to(other_token,'UTF8')),'hex'),'manager',900002);
+ insert into mystery_balances(location_id,tokens) values(900001,10),(900002,10) on conflict(location_id) do update set tokens=10;
+ update mystery_prizes set active=false;
+ payload:=jsonb_build_object('action','prize','name','Extra test guess','description','Synthetic extra chance','icon','🔍','reward_type','extra_guess','active',true,'points_amount',9999,'bonus_tokens',9999);
+ begin perform mystery_admin(manager_token,request,payload);raise exception 'Manager changed prizes';exception when others then if sqlerrm not like '%Supervisor%' then raise;end if;end;
+ prize:=mystery_admin(admin_token,request,payload);
+ perform pg_temp.check_it((prize->>'points_amount')::int=0 and (prize->>'bonus_tokens')::int=0,'caller cannot invent reward effects');
+ perform pg_temp.check_it(mystery_admin(admin_token,request,payload)=prize,'creation retry is idempotent');
+ begin perform mystery_admin(admin_token,request,payload||'{"name":"changed"}');raise exception 'Reused request accepted';exception when others then if sqlerrm not like '%already used%' then raise;end if;end;
+ begin perform mystery_admin(admin_token,gen_random_uuid(),prize||'{"action":"prize","reward_type":"physical"}');raise exception 'Effect changed';exception when others then if sqlerrm not like '%existing prize effect%' then raise;end if;end;
+ perform mystery_admin(admin_token,gen_random_uuid(),prize||'{"action":"prize","name":"Renamed extra guess","icon":"🎯"}');
+ begin perform mystery_admin(admin_token,gen_random_uuid(),prize||'{"action":"prize"}');raise exception 'Stale edit accepted';exception when others then if sqlerrm not like '%changed%' then raise;end if;end;
+ win:=mystery_pull(manager_token,gen_random_uuid(),(mystery_context(manager_token)->>'revision')::int)->'win';
+ second_win:=mystery_pull(manager_token,gen_random_uuid(),(mystery_context(manager_token)->>'revision')::int)->'win';
+ perform pg_temp.check_it(win->>'reward_type'='extra_guess' and win->>'status'='waiting','extra guess won into school inventory');
+ begin perform mystery_admin(admin_token,gen_random_uuid(),jsonb_build_object('action','fulfill','id',win->>'id'));raise exception 'Extra guess manually fulfilled';exception when others then if sqlerrm not like '%digital prize%' then raise;end if;end;
+ update mystery_prizes set active=false;
+ physical:=mystery_admin(admin_token,gen_random_uuid(),'{"action":"prize","name":"Custom mug","description":"A stocked reward","icon":"☕","reward_type":"physical","active":true}');
+ perform pg_temp.check_it((mystery_context(manager_token)->>'prizes_available')::boolean=false,'unstocked custom prize excluded');
+ balance:=(mystery_context(manager_token)->>'tokens')::int;
+ begin perform mystery_pull(manager_token,gen_random_uuid(),(mystery_context(manager_token)->>'revision')::int);raise exception 'Unstocked prize drawn';exception when others then if sqlerrm not like '%restocked%' then raise;end if;end;
+ perform pg_temp.check_it((mystery_context(manager_token)->>'tokens')::int=balance,'failed draw keeps token');
+ perform mystery_admin(admin_token,gen_random_uuid(),jsonb_build_object('action','stock','id',physical->>'id','revision',physical->>'revision','delta',1));
+ result:=mystery_pull(manager_token,gen_random_uuid(),(mystery_context(manager_token)->>'revision')::int);
+ perform pg_temp.check_it(result->'win'->>'reward_type'='physical','stocked physical draw works');
+ perform pg_temp.check_it((select inventory=0 from mystery_prizes where id=(physical->>'id')::uuid),'physical stock decremented');
+ perform mystery_admin(admin_token,gen_random_uuid(),jsonb_build_object('action','fulfill','id',result->'win'->>'id'));
+ -- Local synthetic game; never connect this script to a hosted project.
+ delete from october_live.guesses;delete from october_live.extra_guesses;
+ insert into october_live.rounds(id) select generate_series(1,5) on conflict do nothing;
+ update october_live.rounds set solved_at=now();
+ update october_live.rounds set solved_at=null,winner=null,answer='synthetic answer',aliases='{}',photo_path='synthetic.webp',reward_points=85,pieces='[[[0,0],[1000,0],[0,1000]]]' where id=1;
+ delete from october_live.rewards where event='mystery:1';
+ update october_live.settings set mystery_state='active';
+ insert into october_live.schools values(900001,true),(900002,true) on conflict(location_id) do update set participating=true;
+ login_token:=spark_login(p_role=>'employee',p_employee_id=>900001,p_pin=>'3141');
+ session_token:=open_supper_monitoring_session(900001,900001,login_token,null);
+ other_session:=open_supper_monitoring_session(900002,900001,login_token,null);
+ result:=october_games_live('list',session_token,null,'{}');perform pg_temp.check_it(jsonb_array_length(result->'extra_guess_prizes')=2,'only own unused prizes listed');
+ perform pg_temp.check_it(jsonb_array_length(october_games_live('list',other_session,null,'{}')->'extra_guess_prizes')=0,'other school prizes isolated');
+ payload:=jsonb_build_object('round',1,'guess','wrong','extra_guess_win',win->>'id');
+ begin perform october_games_live('guess',session_token,null,payload);raise exception 'Prize spent before free guess';exception when others then if sqlerrm not like '%free guess first%' then raise;end if;end;
+ perform october_games_live('guess',session_token,null,'{"round":1,"guess":"wrong"}');
+ begin perform october_games_live('guess',session_token,null,'{"round":1,"guess":"again"}');raise exception 'Unpaid extra guess';exception when others then if sqlerrm not like '%already guessed%' then raise;end if;end;
+ begin perform october_games_live('guess',other_session,null,payload);raise exception 'Other school prize used';exception when others then if sqlerrm not like '%already guessed%' then raise;end if;end;
+ result:=october_games_live('guess',session_token,null,payload);perform pg_temp.check_it((result->>'guess_correct')::boolean=false,'extra wrong guess recorded');
+ perform october_games_live('guess',session_token,null,payload);
+ perform pg_temp.check_it((select count(*)=1 from october_live.extra_guesses where win_id=(win->>'id')::bigint),'retry does not spend twice');
+ begin perform october_games_live('guess',session_token,null,payload||'{"guess":"different"}');raise exception 'Used prize reused';exception when others then if sqlerrm not like '%already used%' then raise;end if;end;
+ payload:=jsonb_build_object('round',1,'guess','synthetic answer','extra_guess_win',second_win->>'id');
+ result:=october_games_live('guess',session_token,null,payload);perform pg_temp.check_it((result->>'guess_correct')::boolean and (result->>'guess_points')::int=85,'paid correct guess receives configured points');
+ perform october_games_live('guess',session_token,null,payload);
+ perform pg_temp.check_it((select count(*)=1 and sum(points)=85 from spark_points where unique_key='october-live:mystery:1'),'correct retry awards only once');
+ perform pg_temp.check_it((select count(*)=2 from mystery_redemptions where win_id in ((win->>'id')::bigint,(second_win->>'id')::bigint)),'permanent redemption history retained');
+ perform pg_temp.check_it((select status='received' from mystery_wins where id=(second_win->>'id')::bigint),'prize inventory updated');
+end$$;
+set local role anon;
+do $$begin begin perform * from october_live.extra_guesses;raise exception 'Anonymous access allowed';exception when insufficient_privilege then null;end;end$$;
+rollback;
+select 'PASS custom prizes, icons, idempotent creation, immutable effects, stock, school isolation, extra guesses, replay safety, configured points, history and anonymous protection. All local writes rolled back.';

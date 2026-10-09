@@ -98,3 +98,11 @@ test('hard mystery shows individual reward; supervisor can edit reward without c
  data.current_round=3;data.rounds=[{id:3,revision:1,reward_points:75,unlocked:2,piece_count:32,photo_url:'masked.png'}];await render();await click('Mystery Photos');expect(host.textContent).toContain('Reward: 75 SPARK Points');expect(host.textContent).toContain('inner pieces cost 2 or 3');
  data.admin=true;await render({supervisorPin:'admin-test'});await click('Games & Challenges');const btn=button('Save photo points');await changeInput(btn.closest('form').querySelector('input[type=number]'),'90');await act(async()=>btn.click());expect(api.gamesRequest).toHaveBeenLastCalledWith('round_reward',{pin:'admin-test'},{id:3,revision:1,reward_points:90},undefined);expect(button('Save mystery').disabled).toBe(true);
 });
+
+test('extra guess prize is optional and submitted only with its specific inventory id',async()=>{
+ data.rounds[0].guessed=true;data.rounds[0].photo_url='masked.png';data.extra_guess_prizes=[{id:55,name:'Extra Mystery Guess'}];
+ await render();await click('Mystery Photos');await click('Use extra guess prize (1 available)');expect(button('Use prize & submit guess')).toBeDefined();await click('Keep prize');expect(button('Use prize & submit guess')).toBeUndefined();
+ await click('Use extra guess prize (1 available)');await changeInput(host.querySelector('.og-guess input'),'my answer');jest.spyOn(window,'confirm').mockReturnValue(true);
+ await act(async()=>host.querySelector('.og-guess').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+ expect(api.gamesRequest).toHaveBeenLastCalledWith('guess',{token:'scoped-token'},{round:1,guess:'my answer',extra_guess_win:55},undefined);window.confirm.mockRestore();
+});
