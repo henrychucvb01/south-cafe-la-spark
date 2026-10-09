@@ -44,3 +44,17 @@ test('archive uses published-post API with pagination',async()=>{
  expect(host.querySelectorAll('article')).toHaveLength(20);
  await act(async()=>button('Load older Spotlights').click());expect(spotlightRequest).toHaveBeenLastCalledWith('list',{token:'manager-session',offset:20,limit:20});
 });
+
+test('managers and supervisors can expand names, schools and reactions including legacy entries',async()=>{
+ const reactors=[{location_id:1,name:'Manager One',school_name:'School One',reaction:'love'},{location_id:2,name:null,school_name:'School Two',reaction:'great'}];
+ spotlightRequest.mockResolvedValue([{...post,reactors}]);
+ await act(async()=>root.render(<SpotlightManager supervisorPin="admin"/>));
+ expect(host.querySelector('summary').textContent).toBe('See who reacted (2)');
+ await act(async()=>host.querySelector('summary').click());expect(host.querySelector('details').open).toBe(true);
+ expect(host.querySelector('details').textContent).toContain('Manager One');expect(host.querySelector('details').textContent).toContain('School Two');expect(host.querySelector('details').textContent).toContain('Name not recorded');
+ await act(async()=>root.render(<SpotlightFeed location={{id:1}} employee={{id:2}} managerPin="pin"/>));
+ expect(host.querySelectorAll('.spotlight-reaction-details li')).toHaveLength(2);
+ spotlightRequest.mockResolvedValue({mine:'spark',counts:{spark:1},reactors:[{...reactors[0],name:'Cover Helper',reaction:'spark'}]});
+ await act(async()=>host.querySelector('.spotlight-reactions button').click());
+ expect(host.querySelector('details').textContent).toContain('Cover Helper');expect(host.querySelector('summary').textContent).toBe('See who reacted (1)');
+});

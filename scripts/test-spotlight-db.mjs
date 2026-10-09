@@ -5,11 +5,11 @@ const db=new PGlite();
 try{
  await db.exec(`create role anon;create role authenticated;create role service_role;
  create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
- create table public.locations(id bigint primary key);insert into locations values(1),(2);
- create table supper_monitoring_sessions(location_id bigint,actor_role text);
+ create table public.locations(id bigint primary key,school_name text);insert into locations values(1,'School One'),(2,'School Two');
+ create table supper_monitoring_sessions(location_id bigint,actor_role text,monitor_name text);
  create function verify_supervisor_pin(text) returns boolean language sql as $$select $1='admin-test'$$;
  create function require_supper_monitoring_session(text) returns supper_monitoring_sessions language plpgsql as $$begin
- if $1='school1' then return (1,'manager')::supper_monitoring_sessions;elsif $1='school2' then return (2,'manager')::supper_monitoring_sessions;else raise exception 'Invalid session';end if;end$$;
+ if $1='school1' then return (1,'manager','Manager One')::supper_monitoring_sessions;elsif $1='school2' then return (2,'manager','Manager Two')::supper_monitoring_sessions;elsif $1='cover' then return (1,'manager','Cover Helper')::supper_monitoring_sessions;else raise exception 'Invalid session';end if;end$$;
  create table spark_points(points integer);`);
  await db.exec(await readFile('supabase/migrations/202610010004_spotlight.sql','utf8'));
  const manage=async(action,id=null,revision=null,payload={},pin='admin-test')=>(await db.query('select spotlight_manage($1,$2,$3,$4,$5) r',[pin,action,id,revision,payload])).rows[0].r;
@@ -20,8 +20,16 @@ try{
  let {post}=await manage('save',null,null,payload);assert.equal((await list()).length,0);assert.equal((await list(null,'admin-test')).length,1);
  await assert.rejects(react(post.id,'love'),/no longer published/);
  ({post}=await manage('publish',post.id,post.revision));assert.equal((await list()).length,1);
+ await react(post.id,'love','school2');
+ await db.exec(await readFile('supabase/migrations/20261009051852_spotlight_reaction_names.sql','utf8'));
+ assert.equal((await list())[0].reactors[0].name,null,'Legacy school reactions are retained without fabricated names');
  await react(post.id,'love');await react(post.id,'awesome');await react(post.id,'awesome');await react(post.id,'awesome','school2');
  let visible=(await list())[0];assert.deepEqual(visible.counts,{awesome:2});assert.equal(visible.mine,'awesome');
+ assert.deepEqual(visible.reactors.map(r=>[r.name,r.school_name]),[['Manager One','School One'],['Manager Two','School Two']]);
+ assert.equal((await list(null,'admin-test'))[0].reactors.length,2);
+ const covered=await react(post.id,'spark','cover');assert.equal(covered.reactors.find(r=>r.location_id===1).name,'Cover Helper');
+ assert.deepEqual(covered.counts,{awesome:1,spark:1});
+ await assert.rejects(list('forged'),/Invalid session/);
  await assert.rejects(react(post.id,'fake'),/check constraint/);await assert.rejects(react(post.id,'love','forged'),/Invalid session/);
  const photo='00000000-0000-0000-0000-000000000001/00000000-0000-0000-0000-000000000002.jpg';
  ({post}=await manage('save',post.id,post.revision,{...payload,published:true,headline:'Winner updated',photo_path:photo}));assert.equal(post.photo_path,photo);
