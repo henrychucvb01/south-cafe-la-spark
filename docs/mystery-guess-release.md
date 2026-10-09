@@ -1,5 +1,7 @@
 # Mystery guesses: release and recovery
 
+New Side Quest approvals grant **3 unlock credits**. `20261009172016_mystery_three_unlock_credits.sql` reuses the existing `unlocks.pieces` history field for each approval's credit value. Existing five-credit approvals and current round progress are preserved, including queued approvals. `scripts/test-three-unlocks-local.cjs` verifies both schemas, immediate/queued approvals and replay protection. Recovery must continue summing each event's stored value; never restore a constant-five queued calculation after three-credit events exist.
+
 The October 9 update uses a school-wide daily limit in America/Los_Angeles, one free guess per photo, and next-day purchased guesses. Prices are 10, 25, 50, 100, 200, 400, then double. The balance is the existing August 1–June 7 season ledger through today, including supervisor adjustments and prior purchases/refunds. Purchases are closed during the championship freeze after June 7 until August 1.
 
 The existing registered-manager and helping-other-schools login rules remain. School identity comes from the verified session, never the purchase payload. Covering-manager eligibility is unchanged. Purchase, attempt, solve, configured award and refund operations share the existing game settings transaction lock. Unique request IDs prevent replay charges and awards. Clients cannot execute either the public Games RPC or its private engine directly; only the existing server API has permission.
