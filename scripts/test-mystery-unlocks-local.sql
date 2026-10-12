@@ -1,0 +1,91 @@
+BEGIN;
+CREATE FUNCTION pg_temp.check_it(ok boolean,message text) RETURNS void LANGUAGE plpgsql AS $$BEGIN IF ok IS DISTINCT FROM true THEN RAISE EXCEPTION 'FAIL: %',message;END IF;END$$;
+DO $$
+DECLARE started timestamptz:='2026-10-12 12:00:00 America/Los_Angeles'; token text; other_token text; second_token text; admin_token text;
+  result jsonb; payload jsonb; request uuid; before_points bigint; before_rounds jsonb; before_guesses jsonb; i int;
+BEGIN
+  PERFORM pg_temp.check_it(current_database()='spark_unlock_credit_tests' AND inet_server_port()=55432,'dedicated synthetic database');
+  UPDATE public.employees SET active=true WHERE id=900001;
+  DELETE FROM spark_private.login_limits;
+  INSERT INTO public.locations(id,location_code,school_name,active,created_at)
+  VALUES(900101,'9101','Daily credit test A',true,started-interval '10 days'),(900102,'9102','Daily credit test B',true,started-interval '10 days'),
+    (900103,'9103','New school test',true,started+interval '2 days') ON CONFLICT(id) DO UPDATE SET created_at=excluded.created_at;
+  DELETE FROM october_live.unlock_credit_events;
+  UPDATE october_live.settings SET unlock_credits_started_at=started;
+  INSERT INTO public.spark_excluded_days(location_id,service_date,reason) VALUES(900101,'2026-10-13','existing calendar test exclusion');
+  PERFORM october_live.award_daily_unlocks(started-interval '1 second');
+  PERFORM pg_temp.check_it((SELECT count(*)=0 FROM october_live.unlock_credit_events),'no awards before deployment');
+  PERFORM october_live.award_daily_unlocks(started);
+  PERFORM october_live.award_daily_unlocks(started+interval '1 hour');
+  PERFORM pg_temp.check_it((SELECT count(*)=1 FROM october_live.unlock_credit_events WHERE location_id=900101),'one daily credit without a login');
+  PERFORM october_live.award_daily_unlocks(started+interval '11 hours 30 minutes');
+  PERFORM pg_temp.check_it((SELECT count(*)=1 AND max(service_date)='2026-10-12'::date FROM october_live.unlock_credit_events WHERE location_id=900102),'UTC next-day boundary still uses school timezone');
+  PERFORM october_live.award_daily_unlocks(started+interval '6 days');
+  PERFORM pg_temp.check_it((SELECT sum(credits)=4 FROM october_live.unlock_credit_events WHERE location_id=900101),'weekend and recorded holiday excluded; credits carry over');
+  PERFORM pg_temp.check_it((SELECT sum(credits)=5 FROM october_live.unlock_credit_events WHERE location_id=900102),'weekdays fallback without an invented holiday');
+  PERFORM pg_temp.check_it((SELECT min(service_date)='2026-10-14'::date FROM october_live.unlock_credit_events WHERE location_id=900103),'new schools have no retroactive awards');
+  PERFORM october_live.award_daily_unlocks(started+interval '6 days');
+  PERFORM pg_temp.check_it((SELECT sum(credits)=4 FROM october_live.unlock_credit_events WHERE location_id=900101),'repeated scheduled runs are idempotent');
+  PERFORM pg_temp.check_it((SELECT command='SELECT october_live.award_daily_unlocks();' AND schedule='*/5 * * * *' FROM cron.job WHERE jobname='spark-mystery-daily-unlocks'),'server scheduler is registered');
+  token:=open_supper_monitoring_session(900001,900001,spark_login(p_role=>'employee',p_employee_id=>900001,p_pin=>'3141'),null);
+  other_token:=open_supper_monitoring_session(900002,900001,spark_login(p_role=>'employee',p_employee_id=>900001,p_pin=>'3141'),null);
+  second_token:=open_supper_monitoring_session(900001,900001,spark_login(p_role=>'employee',p_employee_id=>900001,p_pin=>'3141'),null);
+  admin_token:=spark_login(p_role=>'supervisor',p_pin=>'1618');
+  DELETE FROM october_live.unlock_credit_events WHERE location_id IN(900001,900002);
+  DELETE FROM public.spark_points WHERE location_id IN(900001,900002);
+  INSERT INTO public.spark_points(location_id,points,point_type,service_date) VALUES(900001,100,'manual',(now() AT TIME ZONE 'America/Los_Angeles')::date),(900002,0,'manual',(now() AT TIME ZONE 'America/Los_Angeles')::date);
+  INSERT INTO october_live.schools VALUES(900001,true),(900002,true) ON CONFLICT(location_id) DO UPDATE SET participating=true;
+  INSERT INTO october_live.rounds(id) SELECT generate_series(1,5) ON CONFLICT DO NOTHING;
+  UPDATE october_live.rounds SET unlocked=1,unlock_credits=1,photo_path='existing-test.webp',pieces='[[[0,0],[500,0],[0,500]],[[500,0],[1000,0],[1000,500]],[[0,500],[500,500],[0,1000]]]',piece_costs=ARRAY[1,3,2];
+  UPDATE october_live.rounds SET solved_at=now(),winner=900001 WHERE id=3;
+  PERFORM october_games_live('list',token);
+  SELECT jsonb_agg(to_jsonb(r) ORDER BY id) INTO before_rounds FROM october_live.rounds r;
+  SELECT jsonb_agg(to_jsonb(g) ORDER BY id) INTO before_guesses FROM october_live.school_guesses g;
+  FOR i IN 1..3 LOOP
+    request:=gen_random_uuid(); payload:=jsonb_build_object('credits',CASE WHEN i=1 THEN 1 ELSE 5 END,'expected_price',CASE WHEN i=1 THEN 5 ELSE 20 END,'confirmed',true,'request_id',request,'location_id',900002);
+    result:=october_games_live('buy_unlocks',token,null,payload);
+    PERFORM october_games_live('buy_unlocks',second_token,null,payload);
+    PERFORM pg_temp.check_it((SELECT count(*)=1 FROM spark_points WHERE unique_key='mystery-unlock-purchase:'||request),'same purchase charged once across sessions');
+  END LOOP;
+  PERFORM pg_temp.check_it((result#>>'{unlock_shop,balance}')::int=11 AND (result#>>'{unlock_shop,points}')::int=55,'exact package costs, shared balance and unlimited purchases');
+  PERFORM pg_temp.check_it((SELECT coalesce(sum(credits),0)=0 FROM october_live.unlock_credit_events WHERE location_id=900002),'payload cannot choose another school');
+  PERFORM pg_temp.check_it((SELECT jsonb_agg(to_jsonb(r) ORDER BY id) IS NOT DISTINCT FROM before_rounds FROM october_live.rounds r),'purchases do not change existing puzzle progress');
+  PERFORM pg_temp.check_it((SELECT jsonb_agg(to_jsonb(g) ORDER BY id) IS NOT DISTINCT FROM before_guesses FROM october_live.school_guesses g),'purchases do not change guesses');
+  payload:=jsonb_build_object('credits',1,'expected_price',5,'confirmed',true,'request_id',gen_random_uuid());
+  BEGIN PERFORM october_games_live('buy_unlocks',other_token,null,payload); RAISE EXCEPTION 'overspent'; EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE '%enough SPARK%' THEN RAISE;END IF;END;
+  BEGIN PERFORM october_games_live('buy_unlocks',token,null,payload||'{"confirmed":false}'); RAISE EXCEPTION 'unconfirmed'; EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE '%Confirm a valid%' THEN RAISE;END IF;END;
+  BEGIN PERFORM october_games_live('buy_unlocks',token,null,payload||'{"credits":5}'); RAISE EXCEPTION 'wrong price'; EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE '%Confirm a valid%' THEN RAISE;END IF;END;
+  BEGIN PERFORM october_games_live('buy_unlocks',token,null,payload||'{"request_id":null}'); RAISE EXCEPTION 'missing request'; EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE '%Refresh the page%' THEN RAISE;END IF;END;
+  BEGIN PERFORM october_games_live('buy_unlocks',other_token,null,jsonb_build_object('request_id',request,'credits',5,'expected_price',20)); RAISE EXCEPTION 'foreign replay'; EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE '%Unlock request changed%' THEN RAISE;END IF;END;
+  BEGIN PERFORM october_games_live('buy_unlocks',null,admin_token,payload); RAISE EXCEPTION 'supervisor purchase'; EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE '%Participating school%' THEN RAISE;END IF;END;
+  -- Use the unchanged sequential reveal calculation, including a partly funded hard piece.
+  DELETE FROM october_live.unlocks;
+  UPDATE october_live.settings SET mystery_state='active';
+  UPDATE october_live.rounds SET solved_at=null,unlocked=0,unlock_credits=0,photo_path='synthetic.webp',pieces='[[[0,0],[500,0],[0,500]],[[500,0],[1000,0],[1000,500]],[[0,500],[500,500],[0,1000]]]',piece_costs=ARRAY[1,3,2];
+  request:=gen_random_uuid();payload:=jsonb_build_object('round',1,'expected_unlocked',0,'expected_cost',1,'request_id',request);
+  result:=october_games_live('reveal_piece',token,null,payload);
+  PERFORM october_games_live('reveal_piece',second_token,null,payload);
+  PERFORM pg_temp.check_it((SELECT unlocked=1 AND unlock_credits=1 FROM october_live.rounds WHERE id=1) AND (result#>>'{unlock_shop,balance}')::int=10,'reveal debits bank once');
+  UPDATE october_live.rounds SET unlock_credits=2 WHERE id=1;
+  request:=gen_random_uuid();payload:=jsonb_build_object('round',1,'expected_unlocked',1,'expected_cost',2,'request_id',request);
+  result:=october_games_live('reveal_piece',token,null,payload);
+  PERFORM pg_temp.check_it((SELECT unlocked=2 AND unlock_credits=4 FROM october_live.rounds WHERE id=1) AND (result#>>'{unlock_shop,balance}')::int=8,'partial hard-piece cost preserved');
+  BEGIN PERFORM october_games_live('reveal_piece',second_token,null,payload||jsonb_build_object('request_id',gen_random_uuid()));RAISE EXCEPTION 'stale reveal';EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE '%puzzle changed%' THEN RAISE;END IF;END;
+  BEGIN PERFORM october_games_live('reveal_piece',other_token,null,jsonb_build_object('round',1,'expected_unlocked',2,'expected_cost',2,'request_id',gen_random_uuid()));RAISE EXCEPTION 'no credits';EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE '%enough unlock credits%' THEN RAISE;END IF;END;
+  result:=october_games_live('list',token);
+  PERFORM pg_temp.check_it((result#>>'{unlock_shop,balance}')::int=8,'multiple logins and reads never award credits');
+  -- Development credits and purchases cannot change the live points ledger.
+  SELECT sum(points) INTO before_points FROM public.spark_points WHERE location_id=900001;
+  INSERT INTO october_dev.schools VALUES(900001,true) ON CONFLICT(location_id) DO UPDATE SET participating=true;
+  INSERT INTO october_dev.rewards(event,location_id,points) VALUES('unlock-isolated-balance',900001,100);
+  PERFORM october_games_dev('buy_unlocks',token,null,jsonb_build_object('credits',5,'expected_price',20,'confirmed',true,'request_id',gen_random_uuid()));
+  PERFORM pg_temp.check_it((SELECT sum(points)=before_points FROM public.spark_points WHERE location_id=900001),'development ledger isolated');
+END$$;
+SET LOCAL ROLE anon;
+DO $$BEGIN
+  BEGIN PERFORM october_live.award_daily_unlocks();RAISE EXCEPTION 'anonymous scheduler';EXCEPTION WHEN insufficient_privilege THEN NULL;END;
+  BEGIN PERFORM * FROM october_live.unlock_credit_events;RAISE EXCEPTION 'anonymous ledger';EXCEPTION WHEN insufficient_privilege THEN NULL;END;
+  BEGIN PERFORM october_live.credit_game_engine('list',null,null,'{}');RAISE EXCEPTION 'anonymous engine';EXCEPTION WHEN insufficient_privilege THEN NULL;END;
+  BEGIN PERFORM public.october_games_live('buy_unlocks',null,null,'{}');RAISE EXCEPTION 'anonymous purchase';EXCEPTION WHEN insufficient_privilege THEN NULL;END;
+END$$;
+ROLLBACK;

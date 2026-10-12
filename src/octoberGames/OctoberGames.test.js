@@ -7,6 +7,7 @@ jest.mock('./service',()=>({useOctoberAvailable:jest.fn(()=>true),gamesRequest:j
 jest.mock('../supperMonitoring/service',()=>({openSession:jest.fn(),closeSession:jest.fn()}));
 const location={id:1,school_name:'School A'},employee={id:11,employee_name:'Manager'};
 const initial=()=>({admin:false,location_id:1,identified:true,participating:true,server_time:'2026-10-15T12:00:00Z',new_challenge:true,guess_shop:{next_price:10,balance:500,used_today:false,free_available:true,available:0,tomorrow:0},
+ unlock_shop:{balance:2,points:500,next_piece_cost:1},
  settings:{revision:1,quests_state:'active',door_state:'active',mystery_state:'active',submission_start:'2026-10-01T00:00:00Z',submission_end:'2026-10-14T00:00:00Z',voting_start:'2026-10-14T00:00:00Z',voting_end:'2026-10-30T00:00:00Z',champion:null},
  schools:Array.from({length:28},(_,i)=>({id:i+1,school_name:'School '+String.fromCharCode(65+i),participating:true})),
  quests:[{id:1,name:'Team Spirit',description:'A team photo',eligible:null,enabled:true,revision:1}],entries:[],rounds:[{id:1,unlocked:0,piece_count:32,guessed:false}],current_round:1,rewards:[],guesses:[],unlock_events:[]});
@@ -129,4 +130,12 @@ test('supervisor accepts an actual submitted guess and collection names winning 
 });
 test('preview purchase never sends a write',async()=>{
  data.participating=false;await render();await click('Preview manager experience');await click('Mystery Photos');const confirm=jest.spyOn(window,'confirm').mockReturnValue(true);await click('Extra guess · 10 SPARK Points');expect(api.gamesRequest.mock.calls.every(([a])=>['seen','list'].includes(a))).toBe(true);expect(host.textContent).toContain('No points were spent');confirm.mockRestore();
+});
+
+test('unlock purchase and reveal previews never send mutation requests',async()=>{
+ data.participating=false;data.rounds[0].photo_url='masked.png';await render();await click('Preview manager experience');await click('Mystery Photos');
+ const confirm=jest.spyOn(window,'confirm').mockReturnValue(true);
+ await click('Buy 1 Credit · 5 Points');expect(host.textContent).toContain('No points were spent');
+ await click('Reveal next piece · 1 credit');expect(host.textContent).toContain('No credits were used');
+ expect(api.gamesRequest.mock.calls.every(([action])=>['seen','list'].includes(action))).toBe(true);confirm.mockRestore();
 });

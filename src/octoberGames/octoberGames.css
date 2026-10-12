@@ -35,5 +35,8 @@
 @media(max-width:500px){.og-door-settings-grid{grid-template-columns:1fr}.og-door-settings-footer{flex-direction:column;align-items:stretch}.og-door-preview{flex:auto;max-width:240px;width:100%;align-self:center}}
 
 .og-unlock-number{fill:#fff1d9;font-size:34px;font-weight:800;paint-order:stroke;stroke:#171717;stroke-width:4px}
+.og-unlock-shop{max-width:780px;margin:20px 0;padding:16px 0;border-top:1px solid #e8d6c2;border-bottom:1px solid #e8d6c2}
+.og-unlock-shop-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}.og .og-unlock-shop h4{margin:0;font-size:17px}.og .og-unlock-shop-heading p{margin:0;font-size:14px}.og-unlock-shop-heading span{display:block;margin-top:4px;color:#5f452b}.og .og-unlock-daily{font-size:13px;line-height:1.5;margin:10px 0 12px}.og-unlock-shop .og-actions{margin:0;gap:8px}.og-unlock-shop button{min-height:44px;font-size:14px}
+@media(max-width:600px){.og-unlock-shop .og-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.og-unlock-shop .og-actions button{min-width:0;white-space:normal}.og-unlock-shop .og-actions button:last-child:nth-child(3){grid-column:1/-1}}
 .og-mystery-controls{max-width:780px;margin:18px 0}.og-mystery-controls .og-guess{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}.og-mystery-controls .og-guess label{flex:1 1 230px;margin:0}.og-mystery-controls .og-actions{margin:0;gap:8px}.og-guess-summary{font-size:14px}.og-mystery-controls>small{display:block;color:#5f452b;line-height:1.5}
 @media(max-width:600px){.og-mystery-controls .og-guess label{flex-basis:100%}.og-mystery-controls .og-actions{width:100%}.og-mystery-controls .og-actions button{flex:1}}
