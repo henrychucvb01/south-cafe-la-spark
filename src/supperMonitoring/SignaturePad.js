@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 // Store normalized vectors, not device-size pixels. Resizing/rotating does not
 // erase ink; the same accepted strokes can later be embedded in the official PDF.
-export default function SignaturePad({ name, value, onChange, disabled = false, label }) {
+export default function SignaturePad({ name, value, onChange, disabled = false, label, signaturePages = [1, 2], pageDescription = 'both pages' }) {
   const canvas = useRef(null);
   const drawing = useRef(null);
   const strokes = useRef(value?.strokes || []);
@@ -73,17 +73,17 @@ export default function SignaturePad({ name, value, onChange, disabled = false, 
   function accept() {
     if (!name.trim() || !date || !hasInk || !applyBoth) { setMessage("Confirm your printed name, draw a signature, enter its date, and select both pages before accepting."); return; }
     const rect = canvas.current.getBoundingClientRect();
-    onChange({ strokes: strokes.current.map(stroke => stroke.map(point => [...point])), aspectRatio: rect.width / rect.height, printedName: name.trim(), date, pages: [1, 2], acceptedAt: new Date().toISOString(), method: "this-device" });
+    onChange({ strokes: strokes.current.map(stroke => stroke.map(point => [...point])), aspectRatio: rect.width / rect.height, printedName: name.trim(), date, pages: signaturePages, acceptedAt: new Date().toISOString(), method: "this-device" });
     setMessage("");
   }
   return <div className="sm-signature">
     {!accepted && !disabled && <button type="button" className="sm-primary" aria-expanded={expanded} onClick={() => setExpanded(true)}>Sign with Finger</button>}
     {(expanded || accepted) && <>
-    <p>{accepted ? "Your signature will appear in your signature spaces on both PDF pages." : "Use your finger to sign in the box below, or use a mouse on a computer. Your signature will be copied into your signature spaces on both PDF pages."}</p>
+    <p>{accepted ? `Your signature will appear in your signature spaces on ${pageDescription}.` : `Use your finger to sign in the box below, or use a mouse on a computer. Your signature will be copied into your signature spaces on ${pageDescription}.`}</p>
     <canvas ref={canvas} className="sm-signature-canvas" aria-label={`${label} signature drawing area`} onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={() => { drawing.current = null; }} />
     <label>Signature date<input type="date" value={date} disabled={disabled || accepted} onChange={e => setDate(e.target.value)} /></label>
-    <label className="sm-check"><input type="checkbox" checked={applyBoth} disabled={disabled || accepted} onChange={e => setApplyBoth(e.target.checked)} />I authorize this signature to be applied to the required {label} signature locations on both official pages.</label>
-    {accepted && <p role="status">✓ Signature Complete — Signature accepted for both pages — {value.date}</p>}
+    <label className="sm-check"><input type="checkbox" checked={applyBoth} disabled={disabled || accepted} onChange={e => setApplyBoth(e.target.checked)} />I authorize this signature to be applied to the required {label} signature locations on {pageDescription}.</label>
+    {accepted && <p role="status">✓ Signature Complete — Signature accepted for {pageDescription} — {value.date}</p>}
     {message && <p className="sm-error" role="alert">{message}</p>}
     {!disabled && <div className="sm-actions"><button type="button" onClick={clear}>Clear</button><button type="button" onClick={accept} disabled={accepted || !hasInk}>Accept Signature</button></div>}
     </>}

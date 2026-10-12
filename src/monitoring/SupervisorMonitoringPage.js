@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import SupperScheduling from './SupperScheduling';
 import MonitoringPage from './MonitoringPage';
+import SnpMonitoringPage from '../snpMonitoring/SnpMonitoringPage';
 import MonitoringDownload from './MonitoringDownload';
 import { MONITORING_TYPES, recordLabel, typeLabel, siteLabel } from './types';
 import PdfReviewWorkspace from '../supperMonitoring/PdfReviewWorkspace';
@@ -11,6 +12,7 @@ import { schoolYear, localDate } from '../supperMonitoring/model';
 import '../supperMonitoring/supperMonitoring.css';
 
 export default function SupervisorMonitoringPage({ supervisorPin, onBack }) {
+  const [snp,setSnp]=useState(false);
   const [overview,setOverview]=useState({schools:[],records:[]});
   const [school,setSchool]=useState(null);
   const [workspace,setWorkspace]=useState(null);
@@ -33,6 +35,7 @@ export default function SupervisorMonitoringPage({ supervisorPin, onBack }) {
     }catch(e){if(token)await closeSession(token).catch(()=>{});setError(e.message);}finally{setBusy(false);}
   }
   async function closeReview(){await closeSession(workspace.token).catch(()=>{});setWorkspace(null);await load();}
+  if(snp)return <SnpMonitoringPage schools={overview.schools} supervisorPin={supervisorPin} onBack={()=>setSnp(false)}/>;
   if(workspace) return <div className="login-app sm-app"><main className="sm-main"><PdfReviewWorkspace token={workspace.token} initialRecord={workspace.record} school={workspace.school} supervisor onBack={closeReview}/></main></div>;
   if(upload) return <div className="login-app sm-app"><main className="sm-main"><SupervisorExistingUpload schools={overview.schools} supervisorPin={supervisorPin} initialYear={year} onBack={()=>setUpload(false)} onUploaded={async(record,school)=>{await openReview(record,school);}}/>{error&&<p role="alert" className="sm-error">{error}</p>}</main></div>;
   if(school) return <MonitoringPage key={school.id} location={school} employee={{employee_name:'Supervisor / AFSS'}} supervisorPin={supervisorPin} onBack={()=>{setSchool(null);load();}}/>;
@@ -45,6 +48,7 @@ export default function SupervisorMonitoringPage({ supervisorPin, onBack }) {
   const queue=overview.records.filter(r=>r.status==='submitted'&&(!monitoringType||r.monitoring_type===monitoringType)&&r.school_year===year&&(!schoolFilter||String(r.location_id)===schoolFilter)).sort((a,b)=>String(a.submitted_at).localeCompare(String(b.submitted_at)));
   return <div className="login-app sm-app"><main className="sm-main">
     <button type="button" onClick={onBack}>← Command Center</button><h1>Monitorings</h1>
+    <button disabled={busy||!overview.schools.length} onClick={()=>setSnp(true)}>SNP Monitoring · Breakfast & Lunch</button>
     {error&&<p role="alert" className="sm-error">{error}</p>}
     <section className="sm-card">
       <div className="sm-actions"><button type="button" className="sm-primary" disabled={busy||!overview.schools.length} onClick={()=>setUpload(true)}>Upload Existing Monitoring</button></div>

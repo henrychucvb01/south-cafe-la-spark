@@ -1,5 +1,8 @@
 {
   "functions": {
+    "api/snp-monitoring.js": {
+      "includeFiles": "public/snp-monitoring-2025-09-08.pdf"
+    },
     "api/supervisor-notifications.js": {
       "maxDuration": 60
     },
