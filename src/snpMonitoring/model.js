@@ -41,14 +41,14 @@ export function validate(d,signatures=true){
  const questions=questionsFor(d);const snack=d?.program==='eec-snack';
  const errors=[];const add=(section,message)=>errors.push({section,message});
  if(!d||typeof d!=='object')return [{section:0,message:'Open a valid draft.'}];
- for(const [key,label] of [['siteName','Site'],['staff','Site staff responsible']])if(!String(d[key]||'').trim())add(0,`${label} is required.`);
+ for(const [key,label] of (snack?[['siteName','Site']]:[['siteName','Site'],['staff','Site staff responsible']]))if(!String(d[key]||'').trim())add(0,`${label} is required.`);
  if(!validDate(d.visitDate))add(0,'Enter a valid review date.');
  if(d.program&&!['snp','eec-snack'].includes(d.program))add(0,'Unknown monitoring program.');
  if(snack)validateSnack(d,add);
  if(!snack&&!['Breakfast','Lunch'].includes(d.meal))add(0,'Choose Breakfast or Lunch.');
  for(const k of ['arrival','departure'])if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(d[k]||''))add(0,`Enter ${k} time.`);
  if(d.arrival&&d.departure&&d.departure<d.arrival)add(0,'Departure must be after arrival.');
- if(!d.menu?.trim())add(1,'Record all menu items and serving sizes.');
+ if(!snack&&!d.menu?.trim())add(1,'Record all menu items and serving sizes.');
  if(!snack&&!d.procedures?.trim())add(2,'Question 2: record where the procedures are kept.');
  if(!snack&&(!Array.isArray(d.grades)||!d.grades.length||d.grades.some(g=>!GRADES.includes(g))))add(1,'Question 3: select the menu planning grade group(s).');
  for(const q of questions)if(!q.options.includes(d.answers?.[q.id]))add(q.section,`Question ${q.id} is unanswered.`);
@@ -77,8 +77,8 @@ export function validate(d,signatures=true){
  }
  if(signatures)for(const role of ['monitor','representative']){
   const s=d.signatures?.[role];
-  if(s?.printedName!==String(d[role]||'').trim())add(5,`The ${role} printed name must match the accepted signature.`);
-  if(!s||!s.printedName?.trim()||!validDate(s.date)||s.date<d.visitDate||JSON.stringify(s.pages)!==JSON.stringify(signaturePages(d))||!Number.isFinite(Date.parse(s.acceptedAt))||!(s.aspectRatio>0&&s.aspectRatio<=20)||!Array.isArray(s.strokes)||!s.strokes.length||s.strokes.length>80||s.strokes.flat().length>4000||!s.strokes.some(l=>l.length>1)||s.strokes.some(l=>!Array.isArray(l)||l.length>1500||l.some(p=>!Array.isArray(p)||p.length!==2||p.some(n=>typeof n!=='number'||!Number.isFinite(n)||n<0||n>1))))add(5,`Accept a valid ${role} signature on pages ${signaturePages(d).join(" and ")}.`);
+  if(!snack&&s?.printedName!==String(d[role]||'').trim())add(5,`The ${role} printed name must match the accepted signature.`);
+  if(!s||(!snack&&!s.printedName?.trim())||!validDate(s.date)||s.date<d.visitDate||JSON.stringify(s.pages)!==JSON.stringify(signaturePages(d))||!Number.isFinite(Date.parse(s.acceptedAt))||!(s.aspectRatio>0&&s.aspectRatio<=20)||!Array.isArray(s.strokes)||!s.strokes.length||s.strokes.length>80||s.strokes.flat().length>4000||!s.strokes.some(l=>l.length>1)||s.strokes.some(l=>!Array.isArray(l)||l.length>1500||l.some(p=>!Array.isArray(p)||p.length!==2||p.some(n=>typeof n!=='number'||!Number.isFinite(n)||n<0||n>1))))add(5,`Accept a valid ${role} signature on pages ${signaturePages(d).join(" and ")}.`);
  }
  return errors;
 }

@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 // Store normalized vectors, not device-size pixels. Resizing/rotating does not
 // erase ink; the same accepted strokes can later be embedded in the official PDF.
-export default function SignaturePad({ name, value, onChange, disabled = false, label, signaturePages = [1, 2], pageDescription = 'both pages' }) {
+export default function SignaturePad({ name, value, onChange, disabled = false, label, requireName = true, signaturePages = [1, 2], pageDescription = 'both pages' }) {
   const canvas = useRef(null);
   const drawing = useRef(null);
   const strokes = useRef(value?.strokes || []);
@@ -12,7 +12,7 @@ export default function SignaturePad({ name, value, onChange, disabled = false, 
   const [applyBoth, setApplyBoth] = useState(value?.pages?.length === 2);
   const [message, setMessage] = useState("");
   const [expanded, setExpanded] = useState(false);
-  const accepted = !!value && value.printedName === name.trim();
+  const accepted = !!value && (!requireName || value.printedName === name.trim());
 
   function paint() {
     const surface = canvas.current;
@@ -71,7 +71,7 @@ export default function SignaturePad({ name, value, onChange, disabled = false, 
     strokes.current = []; drawing.current = null; setHasInk(false); setMessage(""); onChange(null); paint();
   }
   function accept() {
-    if (!name.trim() || !date || !hasInk || !applyBoth) { setMessage("Confirm your printed name, draw a signature, enter its date, and select both pages before accepting."); return; }
+    if ((requireName && !name.trim()) || !date || !hasInk || !applyBoth) { setMessage(`${requireName ? "Confirm your printed name, then draw" : "Draw"} a signature, enter its date, and select both pages before accepting.`); return; }
     const rect = canvas.current.getBoundingClientRect();
     onChange({ strokes: strokes.current.map(stroke => stroke.map(point => [...point])), aspectRatio: rect.width / rect.height, printedName: name.trim(), date, pages: signaturePages, acceptedAt: new Date().toISOString(), method: "this-device" });
     setMessage("");

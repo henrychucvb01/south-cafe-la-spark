@@ -20,15 +20,14 @@ const texts = [
  'Does this visit indicate that training is necessary at this site?'
 ];
 export const SNACK_QUESTIONS=texts.map((text,i)=>({id:String(i+1),text,section:i===14?0:i<7||i===12?1:i<12||i===13?2:3,options:[5,6,10,11,12].includes(i+1)?['Yes','No','N/A']:['Yes','No'],trigger:i===16?'Yes':'No'}));
-export const snackDefaults=()=>({program:'eec-snack',meal:'Snack',areaEligible:'',servingTime:'',attendance:'',capacity:'',capacityNA:false,children:'',adults:'',applications:{},claimed:{},components:{},training:''});
+export const snackDefaults=()=>({program:'eec-snack',meal:'Snack',areaEligible:'Yes',servingTime:'',attendance:'',capacity:'',capacityNA:false,children:'',adults:'0',applications:{},claimed:{},components:{},training:''});
 export function validateSnack(d,add){
  if(d.meal!=='Snack')add(0,'Choose the Snack monitoring form.');
- if(!['Yes','No'].includes(d.areaEligible))add(0,'Answer whether the site is area eligible.');
+ if(d.areaEligible!=='Yes'||String(d.adults)!=='0')add(0,'Snack uses area eligibility and zero adult meals. Reopen the draft to apply these defaults.');
  if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(d.servingTime||''))add(1,'Enter the snack serving time.');
  const count=(value,label)=>{if(!/^\d{1,6}$/.test(String(value??'')))add(1,`Enter a whole-number ${label}, including zero when applicable.`);};
  for(const key of ['attendance','children','adults'])count(d[key],key+' count');
  if(!d.capacityNA)count(d.capacity,'license / room capacity');
- if(d.areaEligible==='No')for(const key of ['free','reduced','paid']){count(d.applications?.[key],`${key} approved applications`);count(d.claimed?.[key],`${key} meals claimed`);}
  const selected=Object.keys(d.components||{}).filter(k=>d.components[k]?.selected);
  if(selected.length!==2||selected.some(k=>!COMPONENTS[k]))add(1,'Select two of the four snack components.');
  for(const key of selected)for(const part of ['food','portion','prepared'])if(!d.components[key]?.[part]?.trim())add(1,`Complete the food, serving size and total prepared for ${COMPONENTS[key]||key}.`);

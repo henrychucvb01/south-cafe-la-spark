@@ -17,3 +17,6 @@
 .snp-app .sm-errors button { display:block;width:100%;text-align:left;margin:8px 0; }
 .snp-app .sm-pdf-viewer { margin-top:20px; }
 @media(max-width:600px){.snp-app .sm-main{width:calc(100% - 24px);margin-top:16px;}.snp-app .sm-card{padding:16px;}.snp-app .sm-grid{grid-template-columns:1fr;}.snp-finding{padding:12px;}.snp-app .sm-signature-canvas{max-width:100%;}.snp-app h1{font-size:28px;}.snp-heading{font-size:18px;}}
+
+.snack-observation input,.snack-observation textarea {font-size:18px;}
+.snack-observation input[type=number],.snack-observation input[type=time] {text-align:center;}
