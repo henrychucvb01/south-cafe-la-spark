@@ -4,6 +4,7 @@ import {findings} from '../snpMonitoring/model.js';
 import {SNACK_QUESTIONS} from './spec.js';
 import fields from './fields.js';
 export const TEMPLATE_SHA256='d6ea60217a3b43cf4ed5ab7cbcdad1ea3899239b0d269fa2faf4f49d39ca970a';
+export function formatTime(value){if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(value||''))return '';const [hour,minute]=value.split(':');const h=Number(hour);return `${h%12||12}:${minute} ${h<12?'AM':'PM'}`;}
 export async function generatePdf(template,d){
  const pdf=await PDFDocument.load(template,{updateMetadata:false});
  if(pdf.getPageCount()!==2)throw Error('The official snack template must contain both pages.');
@@ -16,8 +17,8 @@ export async function generatePdf(template,d){
  function mark(key){for(const f of fields[key]){const [x,y,x2,y2]=f.rect;pages[f.page].drawLine({start:{x:x+3,y:y+3},end:{x:x2-3,y:y2-3},thickness:1.1});pages[f.page].drawLine({start:{x:x+3,y:y2-3},end:{x:x2-3,y:y+3},thickness:1.1});}}
  const date=s=>`${s.slice(5,7)}/${s.slice(8,10)}/${s.slice(2,4)}`;
  field('EEC',d.siteName.replace(/\s+(EEC|Early Education Center)$/i,''));field('REVIEW DATE',date(d.visitDate));
- field('ARRIVAL TIME',d.arrival);field('DEPARTURE TIME',d.departure);mark('Check Box1');
- field('SERVING TIMERow1',d.servingTime,16,true);field('ATTENDANCE TODAYRow1',d.attendance,16,true);field('Text12',d.children,16,true);field('Text5','0',16,true);
+ field('ARRIVAL TIME',formatTime(d.arrival));field('DEPARTURE TIME',formatTime(d.departure));mark('Check Box1');
+ field('SERVING TIMERow1',formatTime(d.servingTime),14,true);field('ATTENDANCE TODAYRow1',d.attendance,16,true);field('Text12',d.children,16,true);field('Text5','0',16,true);
  if(d.capacityNA)mark('Check Box3');else field('LICENSEROOM CAPACITY Check Box if NARow1',d.capacity,16,true);
  mark('Check Box4');field('Text3','N/A',16,true);field('Text4','N/A',16,true);
  box(pages[0],d.menu,[40,410,183,475],'Snack menu',13);

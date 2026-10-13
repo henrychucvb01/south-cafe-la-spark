@@ -53,7 +53,7 @@ try{
   }
   await page.getByRole('button',{name:/^5\. /}).click();await page.getByLabel('No Findings').check();await page.getByRole('group',{name:'Site appears to be in compliance, no corrective action is needed.'}).getByRole('button',{name:'Yes',exact:true}).click();
   await page.getByRole('button',{name:'Save draft',exact:true}).click();await expect(page.getByRole('status')).toHaveText('Saved');await page.getByRole('button',{name:/^6\. /}).click();await expect(page.getByLabel('Site representative printed name')).toHaveCount(0);
-  await expect(page.getByRole('heading',{name:'Monitor',exact:true})).toBeVisible();await expect(page.getByRole('heading',{name:'Site Rep',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Monitor’s Signature',exact:true})).toBeVisible();await expect(page.getByRole('heading',{name:'Site Representative’s Signature',exact:true})).toBeVisible();
   for(const name of ['Monitor','Site Rep']){
    const pad=page.locator('.sm-signature').filter({has:page.getByRole('button',{name:'Sign with Finger'})}).first();await pad.getByRole('button',{name:'Sign with Finger'}).click();const canvas=pad.locator('canvas');await canvas.scrollIntoViewIfNeeded();const box=await canvas.boundingBox();await page.mouse.move(box.x+20,box.y+25);await page.mouse.down();await page.mouse.move(box.x+60,box.y+65);await page.mouse.move(box.x+110,box.y+35);await page.mouse.up();await pad.getByRole('checkbox').check();await pad.getByRole('button',{name:'Accept Signature'}).click();
   }
