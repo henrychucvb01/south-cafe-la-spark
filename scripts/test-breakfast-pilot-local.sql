@@ -21,6 +21,7 @@ begin
  if r#>>'{record,revision}'<>'1' then raise exception 'duplicate submission';end if;
  select count(*) into n from breakfast_events where classroom_id=(c->>'id')::uuid and action='teacher_submission';if n<>1 then raise exception 'duplicate event';end if;
  begin perform breakfast_teacher_submit_v2(q,t,13,'',true,0,20,sig,'{"entree1":3,"fruit":2}',p->'menu');raise exception 'stale revision accepted';exception when others then if sqlerrm='stale revision accepted' then raise;end if;end;
+ update breakfast_daily_records set returned_counts='{"entree1":100,"fruit":100}',worker_certified=true,worker_submitted_at=now() where classroom_id=(c->>'id')::uuid;
  r:=breakfast_returns_report(token,t,t,(c->>'id')::uuid,900011);if r#>>'{rows,0,counts,entree1}'<>'3' then raise exception 'returns mismatch';end if;
  begin perform breakfast_returns_report(q::text,t,t,null,900011);raise exception 'QR accessed manager report';exception when others then if sqlerrm='QR accessed manager report' then raise;end if;end;
  begin perform breakfast_returns_report(token,t,t,null,900002);raise exception 'cross-school report access';exception when others then if sqlerrm='cross-school report access' then raise;end if;end;
