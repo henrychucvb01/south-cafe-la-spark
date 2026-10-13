@@ -1,6 +1,7 @@
 import React,{useEffect,useState} from 'react';
 import {rolloutSettings} from './service';
 import './breakfast.css';
+import ReturnedItems from './ReturnedItems';
 export default function BreakfastRollout({supervisorPin}) {
  const [schools,setSchools]=useState([]),[selected,setSelected]=useState({}),[busy,setBusy]=useState(true),[error,setError]=useState(''),[message,setMessage]=useState('');
  const accept=rows=>{setSchools(rows);setSelected(Object.fromEntries(rows.map(s=>[s.id,s.enabled])));};
@@ -13,5 +14,6 @@ export default function BreakfastRollout({supervisorPin}) {
  <div className="ba-toolbar"><strong aria-live="polite">{schools.filter(s=>selected[s.id]).length} of {schools.length} schools enabled{changes.length?' (pending changes)':''}</strong><button disabled={busy} onClick={reload}>Reload</button><button className="ba-primary" disabled={busy||!changes.length} onClick={apply}>{busy?'Loading…':'Apply Changes'}</button></div>
  <div className="ba-rollout-schools">{schools.map(s=><label className="ba-check ba-rollout-school" key={s.id}><input type="checkbox" checked={Boolean(selected[s.id])} disabled={busy} onChange={e=>{setSelected(old=>({...old,[s.id]:e.target.checked}));setMessage('');}}/><span><strong>{s.school_name}</strong><small>Location {s.location_code}</small></span></label>)}</div>
  {!busy&&!error&&!schools.length&&<p>No active schools found.</p>}
+ <ReturnedItems token={supervisorPin} schools={schools}/>
  </section>;
 }

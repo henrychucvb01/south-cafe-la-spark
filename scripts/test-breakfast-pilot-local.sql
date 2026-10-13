@@ -1,0 +1,50 @@
+begin;
+do $$
+declare login text;token text;q uuid;c jsonb;p jsonb;r jsonb;t date;sig jsonb:='{"strokes":[[[0.1,0.8],[0.3,0.2],[0.7,0.6]]]}';n integer;
+begin
+ if current_database()<>'spark_security' then raise exception 'Only run against the isolated local fixture';end if;
+ login:=spark_login(p_role=>'employee',p_employee_id=>900001,p_pin=>'3141');if login is null then raise exception 'Local fixture login failed';end if;
+ insert into locations(id,location_code,school_name,active) values(900011,'9011','Synthetic pilot transaction',true);
+ token:=open_supper_monitoring_session(900011,900001,login);
+ insert into breakfast_rollout(location_id,enabled) values(900011,true) on conflict(location_id) do update set enabled=true;
+ perform breakfast_manager_settings(token,true,'23:59:59','','');
+ c:=breakfast_save_classroom(token,null,null,'Pilot-'||left(gen_random_uuid()::text,8),'Synthetic Teacher',30,'',true);
+ q:=breakfast_classroom_qr(token,(c->>'id')::uuid);
+ p:=breakfast_teacher_page(q);t:=(p->>'service_date')::date;
+ perform breakfast_menu(token,t,'{"entree1":"Toast","fruit":"Apple"}');
+ p:=breakfast_teacher_page(q);
+ begin perform breakfast_teacher_submit_v2(q,t,12,'',true,0,20,null,'{"entree1":3,"fruit":2}',p->'menu');raise exception 'invalid signature accepted';exception when others then if sqlerrm='invalid signature accepted' then raise;end if;end;
+ begin perform breakfast_teacher_submit_v2(q,t,12,'',true,0,-1,sig,'{"entree1":3,"fruit":2}',p->'menu');raise exception 'negative attendance accepted';exception when others then if sqlerrm='negative attendance accepted' then raise;end if;end;
+ r:=breakfast_teacher_submit_v2(q,t,12,'',true,0,20,sig,'{"entree1":3,"fruit":2}',p->'menu');
+ if r#>>'{record,attendance}'<>'20' or r#>>'{record,count}'<>'12' then raise exception 'attendance/meals mismatch';end if;
+ r:=breakfast_teacher_submit_v2(q,t,12,'',true,0,20,sig,'{"entree1":3,"fruit":2}',p->'menu');
+ if r#>>'{record,revision}'<>'1' then raise exception 'duplicate submission';end if;
+ select count(*) into n from breakfast_events where classroom_id=(c->>'id')::uuid and action='teacher_submission';if n<>1 then raise exception 'duplicate event';end if;
+ begin perform breakfast_teacher_submit_v2(q,t,13,'',true,0,20,sig,'{"entree1":3,"fruit":2}',p->'menu');raise exception 'stale revision accepted';exception when others then if sqlerrm='stale revision accepted' then raise;end if;end;
+ r:=breakfast_returns_report(token,t,t,(c->>'id')::uuid,900011);if r#>>'{rows,0,counts,entree1}'<>'3' then raise exception 'returns mismatch';end if;
+ begin perform breakfast_returns_report(q::text,t,t,null,900011);raise exception 'QR accessed manager report';exception when others then if sqlerrm='QR accessed manager report' then raise;end if;end;
+ begin perform breakfast_returns_report(token,t,t,null,900002);raise exception 'cross-school report access';exception when others then if sqlerrm='cross-school report access' then raise;end if;end;
+ perform breakfast_menu(token,(p->>'preorder_date')::date,'{"entree1":"Bagel","entree2":"Cereal","fruit":"Orange"}');
+ r:=breakfast_teacher_preorder_v2(q,t,(p->>'preorder_date')::date,'{"entree1":5,"entree2":6}','{"entree1":"Bagel","entree2":"Cereal"}',0);
+ if r#>>'{record,preorder_count}'<>'11' then raise exception 'preorder mismatch';end if;
+ begin perform breakfast_teacher_preorder_v2(q,t,(p->>'preorder_date')::date,'{"entree1":5}','{"entree1":"Fake"}',1);raise exception 'invented menu accepted';exception when others then if sqlerrm='invented menu accepted' then raise;end if;end;
+ update breakfast_rollout set enabled=false where location_id=900011;
+ begin perform breakfast_teacher_page(q);raise exception 'disabled QR accepted';exception when others then if sqlerrm='disabled QR accepted' then raise;end if;end;
+ if has_table_privilege('anon','breakfast_daily_records','SELECT') or has_table_privilege('anon','breakfast_daily_records','UPDATE') then raise exception 'Anonymous direct record access';end if;
+ if has_function_privilege('anon','breakfast_teacher_submit(uuid,date,integer,text,boolean,integer)','EXECUTE') then raise exception 'Legacy unsigned submission open';end if;
+ update breakfast_rollout set enabled=true where location_id=900011;
+ r:=breakfast_returns_report(spark_login(p_role=>'supervisor',p_pin=>'1618'),t,t,(c->>'id')::uuid,900011);
+ if r#>>'{rows,0,counts,fruit}'<>'2' then raise exception 'Supervisor report mismatch';end if;
+ perform breakfast_copy_menu(token,(p->>'preorder_date')::date,t+20,'{}');
+ r:=breakfast_menu(token,t+20);if r->>'entree1'<>'Bagel' then raise exception 'Copy mismatch';end if;
+ begin perform breakfast_copy_menu(token,(p->>'preorder_date')::date,t+20,'{}');raise exception 'unconfirmed overwrite accepted';exception when others then if sqlerrm='unconfirmed overwrite accepted' then raise;end if;end;
+ update breakfast_daily_records set packing_submitted_at=now(),items_sent='{"entree1":25,"fruit":25}' where classroom_id=(c->>'id')::uuid;
+ perform breakfast_review_day(token,(c->>'id')::uuid,t,(select updated_at from breakfast_daily_records where classroom_id=(c->>'id')::uuid),'Synthetic review');
+ if not exists(select 1 from breakfast_daily_records where classroom_id=(c->>'id')::uuid and review_status='reviewed') then raise exception 'Teacher-only returns review failed';end if;
+ r:=breakfast_teacher_submit_v2(q,t,13,'',true,1,20,sig||'{"acceptedAt":"new-test-signature"}'::jsonb,'{"entree1":3,"fruit":2}',p->'menu');
+ if exists(select 1 from breakfast_daily_records where classroom_id=(c->>'id')::uuid and reviewed_at is not null) then raise exception 'Correction kept stale review';end if;
+ raise notice 'PASS: signed attendance/meals, return totals, duplicate protection, stale rejection, menu preorders, QR isolation and disabled school protection';
+end $$;
+rollback;
+
+

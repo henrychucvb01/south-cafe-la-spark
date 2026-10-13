@@ -15,7 +15,7 @@ export const settings=(token,values)=>rpc('breakfast_manager_settings',{p_token:
 export const sendMessage=(token,id,values)=>rpc('breakfast_send_message',{p_token:token,p_id:id,p_body:values.body,p_delivery:values.delivery,p_ack:values.require_ack,p_expires:values.delivery==='expires'?values.expires_on:null});
 export const teacherPage=qr=>rpc('breakfast_teacher_page',{p_qr:qr});
 export const teacherMessage=(qr,id,ack=false)=>rpc('breakfast_teacher_message',{p_qr:qr,p_message:id,p_ack:ack});
-export const teacherSubmit=(qr,page,count,comments,certified)=>rpc('breakfast_teacher_submit',{p_qr:qr,p_date:page.service_date,p_count:count,p_comments:comments,p_certified:certified,p_revision:page.record?.revision||0});
+export const teacherSubmit=(qr,page,count,comments,certified,details)=>rpc('breakfast_teacher_submit_v2',{p_qr:qr,p_date:page.service_date,p_count:count,p_comments:comments,p_certified:certified,p_revision:page.record?.revision||0,p_attendance:details.attendance,p_signature:details.signature,p_returns:details.returns,p_menu:page.menu||{}});
 
 export const workerNames=qr=>rpc('breakfast_worker_names',{p_qr:qr});
 export const workerLogin=(qr,employee,pin)=>rpc('breakfast_worker_login',{p_qr:qr,p_employee:employee,p_pin:pin});
@@ -41,3 +41,8 @@ export const rolloutSettings=(pin,changes=null)=>rpc('breakfast_rollout_settings
 export const managerEnabled=token=>rpc('breakfast_manager_enabled',{p_token:token});
 export const qrEnabled=qr=>rpc('breakfast_qr_enabled',{p_qr:qr});
 export const finishLineTotal=(token,date)=>rpc('breakfast_finish_line_total',{p_token:token,p_date:date});
+
+export const teacherPreorderItems=(qr,page,counts,menu)=>rpc('breakfast_teacher_preorder_v2',{p_qr:qr,p_date:page.service_date,p_for_date:page.preorder_date,p_counts:counts,p_menu:menu,p_revision:page.record?.preorder_revision||0});
+export const returnsReport=(token,from,to,classroom=null,location=null)=>rpc('breakfast_returns_report',{p_token:token,p_from:from,p_to:to,p_classroom:classroom,p_location:location});
+
+export const copyBreakfastMenu=(token,source,destination,expected)=>rpc('breakfast_copy_menu',{p_token:token,p_source:source,p_destination:destination,p_expected:expected});

@@ -22,14 +22,22 @@ export async function buildMealCountPdf(template,{location,record,days,week}){
   const day=submitted.find(d=>d.service_date===date);if(!day)return;
   if(day.adult_meal_recorded_at)fill(i===0?'Todays Adult Meal':`Todays Adult Meal_${i+1}`,day.adult_meal_received?1:0);
   if(day.preorder_submitted_at&&day.preorder_date){
-   const suffix=i===0?'':`_${i*3+1}`;fill(`Entrée Name${suffix}`,day.preorder_entree);fill(`Amount needed${suffix}`,day.preorder_count);
+   const entries=day.preorder_items?Object.entries(day.preorder_items.menu).map(([key,name])=>[name,day.preorder_items.counts[key]]):[[day.preorder_entree,day.preorder_count]];
+   // The district form has three entree slots. Combine any extra special-diet option in the final slot.
+   const slots=entries.length>3?[...entries.slice(0,2),[entries.slice(2).map(e=>e[0]).join(' / '),entries.slice(2).map(e=>e[1]).join(' / ')]]:entries;
+   slots.forEach(([name,count],j)=>{const n=i*3+j+1,suffix=n===1?'':`_${n}`;fill(`Entrée Name${suffix}`,name);fill(`Amount needed${suffix}`,count);});
    const y=[594.121,460.071,327.067,191.635,55.49][i];page.drawRectangle({x:18,y:y-2,width:109,height:12,color:rgb(1,1,1)});page.drawText(`Pre-order for ${day.preorder_date.slice(5,7)}/${day.preorder_date.slice(8,10)}/${day.preorder_date.slice(0,4)}`,{x:19,y,size:8,font,color:rgb(0,0,0)});
   }
   if(!day.teacher_submitted_at||!day.teacher_certified)return;
   fill(totalFields[i],day.teacher_meal_count);
+  if(Number.isInteger(day.teacher_attendance))fill(`Text${8+i*3}`,day.teacher_attendance);
+  if(day.teacher_signature?.strokes){
+   const x=519,y=[573,439,306,171,35][i],width=69,height=28;
+   for(const stroke of day.teacher_signature.strokes)for(let j=1;j<stroke.length;j++)page.drawLine({start:{x:x+stroke[j-1][0]*width,y:y+(1-stroke[j-1][1])*height},end:{x:x+stroke[j][0]*width,y:y+(1-stroke[j][1])*height},thickness:0.7,color:rgb(0,0,0)});
+  }
   marks[i].slice(0,day.teacher_meal_count).forEach(([x,y])=>page.drawLine({start:{x:x-5,y:y-5},end:{x:x+5,y:y+5},thickness:1,color:rgb(0,0,0)}));
  });
- // Uncollected attendance/designee/signatures remain blank.
+ // Historical records without collected attendance or ink remain blank.
  // Keep the supplied AcroForm interactive; do not invent a teacher signature.
  form.updateFieldAppearances(font);
  pdf.setTitle(`Breakfast Meal Count - ${submitted[0].room_snapshot} - ${dates[0]}`);

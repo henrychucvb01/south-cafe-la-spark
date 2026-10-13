@@ -26,3 +26,9 @@ await mkdir('node_modules/.cache/bic-forms',{recursive:true});await writeFile('n
 console.log('PASS: official template fields, weekday dates, saved counts, zero vs missing, scoped classroom, blank uncollected fields, interactive form, overflow/duplicate protection. Sample PDF written for visual verification.');
 
 assert.equal(form.getTextField('Entrée Name').getText(),'Breakfast burrito');assert.equal(form.getTextField('Amount needed').getText(),'20');
+
+const signedArgs={...args,days:args.days.map((d,i)=>({...d,teacher_attendance:20+i,teacher_signature:{strokes:[[[0.1,0.8],[0.3,0.2],[0.5,0.7],[0.8,0.3]]]}}))};
+const signedBytes=await buildMealCountPdf(template,signedArgs);const signedPdf=await PDFDocument.load(signedBytes);
+assert.equal(signedPdf.getForm().getTextField('Text8').getText(),'20');assert.equal(signedPdf.getForm().getTextField('Text20').getText(),'24');
+await writeFile('node_modules/.cache/bic-forms/signed.pdf',signedBytes);
+console.log('PASS: attendance saved independently and real vector signature rendered on each submitted day.');

@@ -1,6 +1,6 @@
 import {PDFDocument,StandardFonts,degrees,rgb} from 'pdf-lib';
 import QRCode from 'qrcode';
-export const qrPrintDefaults={orientation:'portrait',perPage:4,layout:'vertical',order:'qr,room,campus',showCampus:true,qrSize:144,fontSize:32,campusSize:18,qrRotation:0,textRotation:0,spacing:24,doubleText:false,doubleQr:false};
+export const qrPrintDefaults={orientation:'portrait',perPage:1,layout:'vertical',order:'qr,room,campus',showCampus:true,qrSize:144,fontSize:32,campusSize:18,qrRotation:0,textRotation:0,spacing:24,doubleText:false,doubleQr:false};
 export function qrPageSize(options){return options.orientation==='landscape'?[792,612]:[612,792];}
 export function qrLabelBoxes(options,index){
  const [width,height]=qrPageSize(options),n=Number(options.perPage),cols=n===1?1:2,rows=Math.ceil(n/cols),w=(width-48)/cols,h=(height-48)/rows;

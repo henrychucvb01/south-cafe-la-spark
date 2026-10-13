@@ -5,3 +5,5 @@ build/
 test-results/
 
 public/pdfjs/
+
+.pilot-runtime/
