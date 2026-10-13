@@ -7,33 +7,43 @@ import webpack from 'webpack';
 import {chromium,expect} from '@playwright/test';
 import {createHandler} from '../api/snp-monitoring.js';
 import {QUESTIONS} from '../src/snpMonitoring/model.js';
+const serve=process.argv.includes('--serve');
 // Dedicated component harness. All data is synthetic and all external requests are blocked.
-const dir=resolve('.security-runtime/snp/browser');await mkdir(dir,{recursive:true});
+const dir=resolve(serve?'.security-runtime/snp/preview-bundle':'.security-runtime/snp/browser');await mkdir(dir,{recursive:true});
 const token=randomUUID()+randomUUID();let records=[],documents=new Map();
+const stateFile=resolve('.security-runtime/snp/preview-state.json');
+if(serve){try{const saved=JSON.parse(await readFile(stateFile,'utf8'));records=saved.records;documents=new Map(saved.documents);}catch(e){if(e.code!=='ENOENT')throw e;}}
+let persistence=Promise.resolve();
+const persist=()=>{if(!serve)return;const snapshot=JSON.stringify({records,documents:[...documents]});persistence=persistence.then(()=>writeFile(stateFile,snapshot));return persistence;};
+const previewSchools=[{id:1,school_name:'Dolores El',staff:'Sample Dolores Manager'},{id:2,school_name:'Wilmington Park El',staff:'Sample Wilmington Manager'}];
+const sessions=new Map();
 const rpc=async(name,a)=>{
+ if(name==='preview_open'){const session=randomUUID()+randomUUID();sessions.set(session,a.location);return session;}
+ const school=previewSchools.find(s=>s.id===sessions.get(a.p_token))||previewSchools[0];
  let r=records.find(r=>r.id===a.p_id);
- if(name==='snp_sites')return [{key:'main',name:'Synthetic School',staff:'Parent Manager'},{key:'dolores-eec',name:'Dolores EEC',staff:'Parent Manager'}];
- if(name==='snp_list')return records.map(r=>({...r,meal:r.payload.meal,visit_date:r.payload.visitDate}));
+ if(name==='snp_sites')return serve?[{key:'main',name:school.school_name,staff:school.staff},{key:school.id===1?'dolores-eec':'wilmington-park-eec',name:school.id===1?'Dolores EEC':'Wilmington Park EEC',staff:school.staff}]:[{key:'main',name:'Synthetic School',staff:'Parent Manager'},{key:'dolores-eec',name:'Dolores EEC',staff:'Parent Manager'}];
+ if(name==='snp_list')return records.filter(r=>!serve||(r.location_id||1)===school.id).map(r=>({...r,meal:r.payload.meal,visit_date:r.payload.visitDate}));
  if(name==='snp_get')return r;
  if(name==='supper_context')return {actor_role:'supervisor'};
- if(name==='snp_save'){if(!r){r={id:a.p_id,site_key:a.p_site,site_name:a.p_payload.siteName,revision:0,status:'draft'};records.push(r);}Object.assign(r,{payload:a.p_payload,revision:r.revision+1,section:a.p_section});return r;}
- if(name==='snp_finalize'){documents.set(a.p_id,a.p_pdf);Object.assign(r,{status:'finalized',revision:r.revision+1});return r;}
+ if(name==='snp_save'){if(!r){r={id:a.p_id,location_id:school.id,site_key:a.p_site,site_name:a.p_payload.siteName,revision:0,status:'draft'};records.push(r);}Object.assign(r,{payload:a.p_payload,revision:r.revision+1,section:a.p_section});await persist();return r;}
+ if(name==='snp_finalize'){documents.set(a.p_id,a.p_pdf);Object.assign(r,{status:'finalized',revision:r.revision+1});await persist();return r;}
  if(name==='snp_pdf')return documents.get(a.p_id);
  throw Error(`Unexpected mock RPC ${name}`);
 };
 const api=createHandler({database:{rpc:async(n,a)=>({data:await rpc(n,a)})}});
-await writeFile(resolve(dir,'auth.js'),`export const openSession=async()=>${JSON.stringify(token)};export const openSupervisorSession=openSession;export const closeSession=async()=>{};`);
+await writeFile(resolve(dir,'auth.js'),`export const openSession=async(location)=>await(await fetch('/rpc/preview_open',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:location.id})})).json();export const openSupervisorSession=openSession;export const closeSession=async()=>{};`);
 await writeFile(resolve(dir,'client.js'),`export const supabase={rpc:async(name,args)=>({data:await(await fetch('/rpc/'+name,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(args)})).json()})};`);
-await writeFile(resolve(dir,'entry.js'),`import React from 'react';import {createRoot} from 'react-dom/client';import SNP from ${JSON.stringify(resolve('src/snpMonitoring/SnpMonitoringPage.js'))};const manager=location.search.includes('manager');createRoot(document.getElementById('root')).render(<SNP location={{id:1,school_name:'Synthetic School'}} employee={{id:1,employee_name:'Parent Manager'}} managerPin="fixture" supervisorPin={manager?undefined:'fixture'} onBack={()=>{}}/>);`);
+await writeFile(resolve(dir,'entry.js'),`import React from 'react';import {createRoot} from 'react-dom/client';import SNP from ${JSON.stringify(resolve('src/snpMonitoring/SnpMonitoringPage.js'))};const manager=location.search.includes('manager');createRoot(document.getElementById('root')).render(<SNP schools={${JSON.stringify(previewSchools)}} location={${serve?'manager?{id:1,school_name:"Dolores El"}:undefined':'{id:1,school_name:"Synthetic School"}'}} employee={{id:1,employee_name:'Parent Manager'}} managerPin="fixture" supervisorPin={manager?undefined:'fixture'} onBack={()=>{}}/>);`);
 await new Promise((ok,bad)=>webpack({mode:'development',devtool:false,entry:resolve(dir,'entry.js'),output:{path:dir,filename:'bundle.js'},module:{rules:[{test:/\.js$/,exclude:/node_modules/,use:{loader:'babel-loader',options:{presets:['@babel/preset-react']}}},{test:/\.css$/,use:['style-loader','css-loader']}]},plugins:[new webpack.NormalModuleReplacementPlugin(/supperMonitoring[\/]service$/,resolve(dir,'auth.js')),new webpack.NormalModuleReplacementPlugin(/supabaseClient$/,resolve(dir,'client.js'))]},(e,s)=>e||s.hasErrors()?bad(e||Error(s.toString({all:false,errors:true}))):ok()));
-const server=createServer(async(req,res)=>{try{
+const server=createServer(async(req,res)=>{res.setHeader('Cache-Control','no-store');try{
  const path=new URL(req.url,'http://localhost').pathname;
  if(path.startsWith('/rpc/')||path==='/api/snp-monitoring'){let body='';for await(const c of req)body+=c;req.body=JSON.parse(body);if(path.startsWith('/rpc/')){res.setHeader('Content-Type','application/json');res.end(JSON.stringify(await rpc(path.slice(5),req.body)));return;}res.status=c=>{res.statusCode=c;return res;};res.json=b=>res.end(JSON.stringify(b));res.send=b=>res.end(b);await api(req,res);return;}
- if(path==='/'){res.setHeader('Content-Type','text/html');res.end('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font-family:Arial}</style><div id="root"></div><script src="/bundle.js"></script>');return;}
+ if(path==='/'){res.setHeader('Content-Type','text/html');res.end('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font-family:Arial}</style><aside style="padding:12px;background:#edf6f4;color:#153e37">SNP BREAKFAST &amp; LUNCH TEST PREVIEW · Sample data only. Entries are saved on this computer, not live SPARK.</aside><div id="root"></div><script src="/bundle.js"></script>');return;}
  const base=path.startsWith('/pdfjs/')?resolve('public'):dir;const file=resolve(base,'.'+path);if(!file.startsWith(base+sep)){res.writeHead(403).end();return;}
  res.setHeader('Content-Type',({'.js':'application/javascript','.mjs':'application/javascript','.wasm':'application/wasm'})[extname(file)]||'application/octet-stream');res.end(await readFile(file));
  }catch(e){res.writeHead(500).end(e.message);}});
-await new Promise(ok=>server.listen(0,'127.0.0.1',ok));const origin=`http://127.0.0.1:${server.address().port}`;
+await new Promise(ok=>server.listen(serve?4180:0,'127.0.0.1',ok));const origin=`http://127.0.0.1:${server.address().port}`;
+if(serve){console.log('SNP test preview: '+origin);await new Promise(()=>{});}
 const browser=await chromium.launch({channel:'chrome',headless:true});const errors=[];
 try{
  for(const width of [390,1360]){

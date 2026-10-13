@@ -45,3 +45,7 @@ test('snack training Yes creates a finding and asks how and when',async()=>{
 test('snack checks answers before offering signatures and removes duplicate menu input',async()=>{
  await render(true,'eec-snack');await click('Dolores EEC');await click('2. Meal');expect(container.textContent).not.toContain('Today’s snack menu');expect(container.querySelectorAll('.snack-component')).toHaveLength(4);await click('6. Signatures');expect(container.textContent).toContain('Before you sign');expect(container.textContent).not.toContain('Signature pad');expect(container.textContent).not.toContain('Accept a valid monitor signature');expect([...container.querySelectorAll('button')].find(b=>b.textContent==='Preview official PDF').disabled).toBe(true);
 });
+
+test('supervisor selects a school from the dropdown and loads its assigned staff',async()=>{
+ await act(async()=>root.render(<SnpMonitoringPage schools={[{id:1,school_name:'Dolores El'},{id:2,school_name:'Wilmington Park El'}]} supervisorPin="session" onBack={()=>{}}/>));const select=container.querySelector('select');expect(select).not.toBeNull();await act(async()=>{select.value='1';select.dispatchEvent(new Event('change',{bubbles:true}));});expect(auth.openSupervisorSession).toHaveBeenCalledWith(expect.objectContaining({id:1,school_name:'Dolores El'}),'session');await click('Dolores EEC');expect([...container.querySelectorAll('input')].some(x=>x.value==='Parent Manager')).toBe(true);
+});
