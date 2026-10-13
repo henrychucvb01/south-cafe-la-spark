@@ -1,6 +1,6 @@
-# SNP Monitoring — Phase 1
+# SNP and EEC Snack Monitoring — Phases 1–2
 
-Development-only delivery for Breakfast and Lunch. Snack is not implemented.
+Development-only delivery for Breakfast, Lunch, and EEC Snack.
 
 ## Entry and access
 
@@ -45,3 +45,15 @@ Hawthorne Academy and Peary MS are excluded. Existing monthly import mappings th
 The migration was applied **only to the isolated local test database**. No hosted Supabase migration, main merge or production deployment is part of this phase. Hosted development still needs a separate Supabase database; existing environment guards continue to block production fallback.
 
 For a future approved release, apply the additive migration to the target isolated database and deploy the matching application/API together. To roll back access, revert the application entry points while retaining the protected SNP tables and signed records; do not drop tables or delete monitoring history.
+
+## Phase 2 — EEC Snack
+
+- Dedicated EEC Snack Monitoring entry in supervisor and manager monitoring pages, using the existing login. Only supervisors edit; assigned and covering managers see finalized results.
+- Uses the original two-page SNP-24 template supplied as EEC Snack Site Monitoring 2024-02-06.pdf. All 17 questions and the printed N/A choices (5, 6, 10, 11, 12) are represented. Attendance, children/adults served, capacity, area eligibility, non-area-eligible F/R/P counts, and two snack components are recorded.
+- Questions 1–16 trigger findings on No. Question 17 asks whether training is necessary, so Yes requires a training plan and corrective action; No means no training is needed. This is a semantic exception to the form's blanket “any No” footnote, consistent with its actual question wording.
+- The six-section editor, revision-checked autosave, signatures, follow-up audit and immutable final PDFs are shared with SNP. Snack signatures apply to pages 1 and 2, including continuation findings sheets.
+- The immutable program discriminator keeps Snack and Breakfast/Lunch histories separate. EEC sites include the confirmed Dolores and Wilmington Park relationships and EECs registered under that parent through the existing Add Site / Program control. No import mappings are used or altered.
+- The additive `20261013015646_eec_snack_monitoring.sql` migration was tested only on the isolated local database. No hosted project or production changes were made.
+- `node scripts/test-snack-monitoring.mjs` tests form validation, findings, signatures, original PDF/overflow and API rendering. `node scripts/test-snack-browser.mjs` verifies desktop and phone-sized form completion, PDF preview, finalization and manager view. Shared local SQL tests verify permissions and separate histories.
+- `node scripts/test-snack-browser.mjs --serve` starts a loopback-only synthetic preview at http://127.0.0.1:4179. It imports the actual form and PDF renderer but replaces database/login modules with sample adapters. This is a UI test preview, not a database integration test or hosted release. Entries reset when the preview restarts. It cannot access live SPARK records. Use only sample signatures and information.
+- Rollback: remove the Snack entry points while retaining saved records, documents and events. Keep the additive column/functions to preserve existing history; never drop monitoring records to roll back the interface.

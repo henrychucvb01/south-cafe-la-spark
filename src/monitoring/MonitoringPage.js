@@ -5,6 +5,6 @@ import MonitoringWorkspace from "../supperMonitoring/SupperMonitoringPage";
 // guided editor; other types can use existing PDFs without invented form rules.
 export default function MonitoringPage({ monitoringType = "supper", ...props }) {
   const [snp,setSnp]=useState(false);
-  if(snp)return <SnpMonitoringPage {...props} onBack={()=>setSnp(false)}/>;
-  return <MonitoringWorkspace monitoringType={monitoringType} {...props} onOpenSnp={()=>setSnp(true)} />;
+  if(snp)return <SnpMonitoringPage program={snp==='snack'?'eec-snack':'snp'} {...props} onBack={()=>setSnp(false)}/>;
+  return <MonitoringWorkspace monitoringType={monitoringType} {...props} onOpenSnp={()=>setSnp(true)} onOpenSnack={()=>setSnp('snack')} />;
 }

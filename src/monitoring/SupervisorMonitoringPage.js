@@ -35,7 +35,7 @@ export default function SupervisorMonitoringPage({ supervisorPin, onBack }) {
     }catch(e){if(token)await closeSession(token).catch(()=>{});setError(e.message);}finally{setBusy(false);}
   }
   async function closeReview(){await closeSession(workspace.token).catch(()=>{});setWorkspace(null);await load();}
-  if(snp)return <SnpMonitoringPage schools={overview.schools} supervisorPin={supervisorPin} onBack={()=>setSnp(false)}/>;
+  if(snp)return <SnpMonitoringPage program={snp==='snack'?'eec-snack':'snp'} schools={overview.schools} supervisorPin={supervisorPin} onBack={()=>setSnp(false)}/>;
   if(workspace) return <div className="login-app sm-app"><main className="sm-main"><PdfReviewWorkspace token={workspace.token} initialRecord={workspace.record} school={workspace.school} supervisor onBack={closeReview}/></main></div>;
   if(upload) return <div className="login-app sm-app"><main className="sm-main"><SupervisorExistingUpload schools={overview.schools} supervisorPin={supervisorPin} initialYear={year} onBack={()=>setUpload(false)} onUploaded={async(record,school)=>{await openReview(record,school);}}/>{error&&<p role="alert" className="sm-error">{error}</p>}</main></div>;
   if(school) return <MonitoringPage key={school.id} location={school} employee={{employee_name:'Supervisor / AFSS'}} supervisorPin={supervisorPin} onBack={()=>{setSchool(null);load();}}/>;
@@ -49,6 +49,7 @@ export default function SupervisorMonitoringPage({ supervisorPin, onBack }) {
   return <div className="login-app sm-app"><main className="sm-main">
     <button type="button" onClick={onBack}>← Command Center</button><h1>Monitorings</h1>
     <button disabled={busy||!overview.schools.length} onClick={()=>setSnp(true)}>SNP Monitoring · Breakfast & Lunch</button>
+    <button disabled={busy||!overview.schools.length} onClick={()=>setSnp('snack')}>EEC Snack Monitoring</button>
     {error&&<p role="alert" className="sm-error">{error}</p>}
     <section className="sm-card">
       <div className="sm-actions"><button type="button" className="sm-primary" disabled={busy||!overview.schools.length} onClick={()=>setUpload(true)}>Upload Existing Monitoring</button></div>

@@ -56,5 +56,16 @@ do $$ declare t text:=current_setting('snp.test.supervisor'); id uuid:='99000000
  if jsonb_array_length(r->'history')<>4 then raise exception 'Audit events missing';end if;
 end $$;
 reset role;
+set local role anon;
+do $$ declare t text:=current_setting('snp.test.supervisor'); id uuid:='99000000-0000-4000-8000-000000000099'; d jsonb:='{"program":"eec-snack","siteName":"Dolores EEC","meal":"Snack"}'; begin
+ if jsonb_array_length(public.snack_sites(t))<>1 then raise exception 'Non-EEC site offered';end if;
+ perform public.snp_save(t,id,0,'dolores-eec',d,1);
+ if jsonb_array_length(public.snack_list(t))<>1 or jsonb_array_length(public.snp_list(t))<>1 then raise exception 'Program histories mixed';end if;
+ if public.snack_list(current_setting('snp.test.manager'))<>'[]'::jsonb then raise exception 'Manager sees snack draft';end if;
+ begin perform public.snp_save(t,id,1,'dolores-eec',d||'{"program":"snp"}',1);raise exception 'Program switch accepted';exception when raise_exception then if sqlerrm not like '%program cannot change%' then raise;end if;end;
+ begin perform public.snack_list('fake');raise exception 'Invalid snack token accepted';exception when invalid_authorization_specification then null;end;
+ begin perform public.snp_get(current_setting('snp.test.supervisor2'),id);raise exception 'Other school sees snack';exception when insufficient_privilege then null;end;
+end $$;
+reset role;
 rollback;
 select 'SNP isolated database: roster, inheritance, role checks, school isolation, idempotency, stale revisions, atomic finalization, immutable originals, follow-up and audit passed.';

@@ -1,7 +1,7 @@
 {
   "functions": {
     "api/snp-monitoring.js": {
-      "includeFiles": "public/snp-monitoring-2025-09-08.pdf"
+      "includeFiles": "public/{snp-monitoring-2025-09-08,eec-snack-monitoring-2024-02-06}.pdf"
     },
     "api/supervisor-notifications.js": {
       "maxDuration": 60

@@ -1,4 +1,5 @@
-import {PDFDocument,PDFName,PDFDict,StandardFonts,rgb,pushGraphicsState,popGraphicsState,concatTransformationMatrix,drawObject} from 'pdf-lib';
+import {flattenOriginal} from './flattenOriginal.js';
+import {PDFDocument,StandardFonts,rgb} from 'pdf-lib';
 import fields from './fields.js';
 import {QUESTIONS,GRADES,findings} from './model.js';
 export const TEMPLATE_SHA256='2ba206d0eacaf53e0b051dbc8f073541ec28150a458c72871b65278fc7d5e4e5';
@@ -9,23 +10,7 @@ export async function generatePdf(template,d){
  if(pdf.getPageCount()!==4)throw Error('The official SNP template must contain all four pages.');
  // Shared field widgets in this source confuse generic flattening (lost agency,
  // dangling references, resized boxes). Paint original appearances directly.
- for(const page of pdf.getPages()){
-  const annotations=page.node.Annots();
-  for(let i=0;annotations&&i<annotations.size();i++){
-   const widget=annotations.lookup(i);if(widget.get(PDFName.of('Subtype'))?.toString()!=='/Widget')continue;
-   const ap=widget.lookup(PDFName.of('AP'));const normal=ap?.lookup(PDFName.of('N'));
-   const ref=normal instanceof PDFDict?normal.get(PDFName.of('Off')):ap?.get(PDFName.of('N'));
-   if(!ref)continue;const stream=pdf.context.lookup(ref);if(!stream?.dict)continue;
-   stream.dict.set(PDFName.of('Type'),PDFName.of('XObject'));stream.dict.set(PDFName.of('Subtype'),PDFName.of('Form'));
-   const b=stream.dict.lookup(PDFName.of('BBox')).asArray().map(n=>n.asNumber()),r=widget.lookup(PDFName.of('Rect')).asArray().map(n=>n.asNumber());
-   const sx=(r[2]-r[0])/(b[2]-b[0]),sy=(r[3]-r[1])/(b[3]-b[1]);
-   const name=page.node.newXObject('OriginalWidget',ref);
-   page.pushOperators(pushGraphicsState(),concatTransformationMatrix(sx,0,0,sy,r[0]-b[0]*sx,r[1]-b[1]*sy),drawObject(name),popGraphicsState());
-  }
-  // Keep district notice hyperlinks, but remove all interactive form widgets.
-  if(annotations){const links=[];for(let i=0;i<annotations.size();i++)if(annotations.lookup(i).get(PDFName.of('Subtype'))?.toString()==='/Link')links.push(annotations.get(i));if(links.length)page.node.set(PDFName.of('Annots'),pdf.context.obj(links));else page.node.delete(PDFName.of('Annots'));}
- }
- pdf.catalog.delete(PDFName.of('AcroForm'));pdf.catalog.delete(PDFName.of('OpenAction'));pdf.catalog.delete(PDFName.of('AA'));
+ flattenOriginal(pdf);
  const font=await pdf.embedFont(StandardFonts.Helvetica);const pages=pdf.getPages();
  const fail=label=>{throw Error(`${label} does not fit the official field. Shorten that entry; nothing has been truncated.`);};
  function wrap(value,width,size){const result=[];for(const para of String(value||'').split(/\r?\n/)){let line='';for(const word of para.split(/\s+/).filter(Boolean)){if(font.widthOfTextAtSize(word,size)>width)fail('A word');const next=line?`${line} ${word}`:word;if(font.widthOfTextAtSize(next,size)>width){result.push(line);line=word;}else line=next;}result.push(line);}return result;}

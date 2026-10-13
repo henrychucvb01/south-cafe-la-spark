@@ -5,8 +5,9 @@ import {resolve} from 'node:path';
 import {serverDatabase} from '../src/security/databaseEnvironment.js';
 import {canonical,validate,filename} from '../src/snpMonitoring/model.js';
 import {generatePdf,TEMPLATE_SHA256} from '../src/snpMonitoring/pdf.js';
+import {generatePdf as generateSnackPdf,TEMPLATE_SHA256 as SNACK_SHA256} from '../src/snackMonitoring/pdf.js';
 const digest=value=>createHash('sha256').update(value).digest('hex');
-export function createHandler({database,templateLoader=()=>readFile(resolve(process.cwd(),'public/snp-monitoring-2025-09-08.pdf'))}){
+export function createHandler({database,templateLoader=(program)=>readFile(resolve(process.cwd(),program==='eec-snack'?'public/eec-snack-monitoring-2024-02-06.pdf':'public/snp-monitoring-2025-09-08.pdf'))}){
  return async(req,res)=>{
   res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');
   if(req.method!=='POST')return res.status(405).json({error:'Use POST.'});
@@ -25,8 +26,9 @@ export function createHandler({database,templateLoader=()=>readFile(resolve(proc
    for(const role of ['monitor','representative'])if(record.payload.signatures?.[role]?.contentHash!==hash)errors.push({section:5,message:`Accept the ${role} signature for the current report content.`});
    if(errors.length)return res.status(422).json({error:'Complete the required items before previewing.',errors});
    if(action==='finalize'&&previewHash!==hash)return res.status(409).json({error:'Preview this version before finalizing.'});
-   const template=await templateLoader();if(digest(template)!==TEMPLATE_SHA256)throw Error('The official SNP template does not match the verified version.');
-   const bytes=await generatePdf(template,record.payload);
+   const snack=record.payload.program==='eec-snack';
+   const template=await templateLoader(record.payload.program);if(digest(template)!==(snack?SNACK_SHA256:TEMPLATE_SHA256))throw Error('The official SNP template does not match the verified version.');
+   const bytes=await (snack?generateSnackPdf:generatePdf)(template,record.payload);
    if(action==='preview'){res.setHeader('X-SNP-Preview-Hash',hash);return send(bytes);}
    const completed=await rpc('snp_finalize',{p_token:token,p_id:id,p_revision:revision,p_pdf:Buffer.from(bytes).toString('base64'),p_sha256:digest(bytes)});
    return res.status(200).json({record:completed});

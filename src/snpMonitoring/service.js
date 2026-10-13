@@ -1,8 +1,8 @@
 import {supabase} from '../supabaseClient';
 import {filename} from './model';
 const rpc=async(name,args)=>{const {data,error}=await supabase.rpc(name,args);if(error)throw Error(error.message);return data;};
-export const list=token=>rpc('snp_list',{p_token:token});
-export const sites=token=>rpc('snp_sites',{p_token:token});
+export const list=(token,program='snp')=>rpc(program==='eec-snack'?'snack_list':'snp_list',{p_token:token});
+export const sites=(token,program='snp')=>rpc(program==='eec-snack'?'snack_sites':'snp_sites',{p_token:token});
 export const get=(token,id)=>rpc('snp_get',{p_token:token,p_id:id});
 export const save=(token,record,data,section)=>rpc('snp_save',{p_token:token,p_id:record.id,p_revision:record.revision,p_site:record.site_key,p_payload:data,p_section:section});
 export const completeFollowup=(token,record,id,note,date)=>rpc('snp_followup',{p_token:token,p_id:record.id,p_revision:record.revision,p_finding:id,p_note:note,p_completed:date});
