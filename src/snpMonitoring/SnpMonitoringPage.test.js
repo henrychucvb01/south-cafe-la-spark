@@ -41,3 +41,7 @@ test('snack uses the existing sign-in and separate history with 17 responses',as
 test('snack training Yes creates a finding and asks how and when',async()=>{
  await render(true,'eec-snack');await click('Dolores EEC');await click('4. Food');const q=[...container.querySelectorAll('.snp-question')].find(n=>n.textContent.startsWith('17.'));await act(async()=>[...q.querySelectorAll('button')].find(b=>b.textContent==='Yes').click());expect(container.textContent).toContain('How and when will training be provided?');await input('Observation for 17','Training required');await click('5. Findings');expect(container.querySelector('textarea').value).toBe('Training required');
 });
+
+test('snack checks answers before offering signatures and removes duplicate menu input',async()=>{
+ await render(true,'eec-snack');await click('Dolores EEC');await click('2. Meal');expect(container.textContent).not.toContain('Today’s snack menu');expect(container.querySelectorAll('.snack-component')).toHaveLength(4);await click('6. Signatures');expect(container.textContent).toContain('Before you sign');expect(container.textContent).not.toContain('Signature pad');expect(container.textContent).not.toContain('Accept a valid monitor signature');expect([...container.querySelectorAll('button')].find(b=>b.textContent==='Preview official PDF').disabled).toBe(true);
+});

@@ -3,12 +3,12 @@ import React, { useEffect, useRef, useState } from "react";
 
 // Store normalized vectors, not device-size pixels. Resizing/rotating does not
 // erase ink; the same accepted strokes can later be embedded in the official PDF.
-export default function SignaturePad({ name, value, onChange, disabled = false, label, requireName = true, signaturePages = [1, 2], pageDescription = 'both pages' }) {
+export default function SignaturePad({ name, value, onChange, disabled = false, label, showLabel = false, minDate, requireName = true, signaturePages = [1, 2], pageDescription = 'both pages' }) {
   const canvas = useRef(null);
   const drawing = useRef(null);
   const strokes = useRef(value?.strokes || []);
   const [hasInk, setHasInk] = useState(strokes.current.length > 0);
-  const [date, setDate] = useState(value?.date || localDate());
+  const [date, setDate] = useState(value?.date || (minDate && minDate > localDate() ? minDate : localDate()));
   const [applyBoth, setApplyBoth] = useState(value?.pages?.length === 2);
   const [message, setMessage] = useState("");
   const [expanded, setExpanded] = useState(false);
@@ -71,17 +71,19 @@ export default function SignaturePad({ name, value, onChange, disabled = false, 
     strokes.current = []; drawing.current = null; setHasInk(false); setMessage(""); onChange(null); paint();
   }
   function accept() {
+    if (minDate && date < minDate) {setMessage("Signature date cannot be before the review date."); return;}
     if ((requireName && !name.trim()) || !date || !hasInk || !applyBoth) { setMessage(`${requireName ? "Confirm your printed name, then draw" : "Draw"} a signature, enter its date, and select both pages before accepting.`); return; }
     const rect = canvas.current.getBoundingClientRect();
     onChange({ strokes: strokes.current.map(stroke => stroke.map(point => [...point])), aspectRatio: rect.width / rect.height, printedName: name.trim(), date, pages: signaturePages, acceptedAt: new Date().toISOString(), method: "this-device" });
     setMessage("");
   }
   return <div className="sm-signature">
+    {showLabel && <h3>{label}</h3>}
     {!accepted && !disabled && <button type="button" className="sm-primary" aria-expanded={expanded} onClick={() => setExpanded(true)}>Sign with Finger</button>}
     {(expanded || accepted) && <>
     <p>{accepted ? `Your signature will appear in your signature spaces on ${pageDescription}.` : `Use your finger to sign in the box below, or use a mouse on a computer. Your signature will be copied into your signature spaces on ${pageDescription}.`}</p>
     <canvas ref={canvas} className="sm-signature-canvas" aria-label={`${label} signature drawing area`} onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={() => { drawing.current = null; }} />
-    <label>Signature date<input type="date" value={date} disabled={disabled || accepted} onChange={e => setDate(e.target.value)} /></label>
+    <label>Signature date<input type="date" min={minDate} value={date} disabled={disabled || accepted} onChange={e => setDate(e.target.value)} /></label>
     <label className="sm-check"><input type="checkbox" checked={applyBoth} disabled={disabled || accepted} onChange={e => setApplyBoth(e.target.checked)} />I authorize this signature to be applied to the required {label} signature locations on {pageDescription}.</label>
     {accepted && <p role="status">✓ Signature Complete — Signature accepted for {pageDescription} — {value.date}</p>}
     {message && <p className="sm-error" role="alert">{message}</p>}

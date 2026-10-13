@@ -20,3 +20,7 @@
 
 .snack-observation input,.snack-observation textarea {font-size:18px;}
 .snack-observation input[type=number],.snack-observation input[type=time] {text-align:center;}
+
+.snack-component {padding:18px;margin:14px 0;border:1px solid #d5e3e9;border-radius:12px;background:#f5faf9;}
+.snack-check {padding:16px;border:1px solid #d5e3e9;border-radius:12px;background:#f5faf9;margin-bottom:18px;}
+.snack-check button {display:block;text-align:left;width:100%;margin:8px 0;}
