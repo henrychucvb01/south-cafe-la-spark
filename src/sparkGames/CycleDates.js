@@ -1,0 +1,6 @@
+import React from 'react';
+const date=value=>new Date(value).toLocaleString('en-US',{timeZone:'America/Los_Angeles',month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'});
+export default function CycleDates({data}){
+ const cycles=data.game_cycles||[],waves=data.game_waves||[];
+ return cycles.length?<details><summary>Competition opening and closing dates</summary>{cycles.map(c=>{const first=waves.filter(w=>w.cycle_id===c.id&&(c.state!=="planned"||Number(w.approved_count)>0)).sort((a,b)=>new Date(a.release_at)-new Date(b.release_at))[0];const next=cycles.filter(x=>x.month>c.month&&waves.some(w=>w.cycle_id===x.id&&Number(w.approved_count)>0)).sort((a,b)=>a.month.localeCompare(b.month))[0];const nextWave=next&&waves.filter(w=>w.cycle_id===next.id&&Number(w.approved_count)>0).sort((a,b)=>new Date(a.release_at)-new Date(b.release_at))[0];return <p key={c.id}><strong>{c.month.slice(0,7)} · {c.state}</strong><br/>Opens {c.opened_at?date(c.opened_at):first?date(first.release_at):'when its first Monday is scheduled'} · Closes {c.closed_at?date(c.closed_at):nextWave?date(nextWave.release_at):'when the next approved competition opens'}{c.state==='planned'&&' · Approval is required before activation.'}</p>;})}</details>:null;
+}

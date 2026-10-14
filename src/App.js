@@ -59,7 +59,7 @@ function App() {
     askSpark: ["Ask SPARK", "Manager Resources", "managerResources"],
     locationInformation: ["Location Information", "Manager Resources", "managerResources"],
     spotlight: ["SPARK Spotlight", "Daily Bites", "dailyBites"],
-    octoberGames: ["October Games", "Daily Bites", "dailyBites"],
+    octoberGames: ["SPARK Games", "Daily Bites", "dailyBites"],
     dailyBites: ["Daily Bites", "Manager Hub", "homeBase"],
     incidentHelper: ["Incident Record Helper", "Manager Hub", "homeBase"],
     schoolHub: ["School Dashboard", "Manager Hub", "homeBase"],

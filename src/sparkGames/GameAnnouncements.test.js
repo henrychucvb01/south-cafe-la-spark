@@ -1,0 +1,5 @@
+import {waveAnnouncement} from './GameAnnouncements';
+const cycle={id:'cycle',state:'active'};
+test('announcement selects one released wave and includes actual released count',()=>{const now=Date.parse('2026-11-02T16:00:00Z');const data={game_cycles:[cycle],game_waves:[{id:'wave',cycle_id:'cycle',state:'released',release_at:'2026-11-02T15:00:00Z',released_at:'2026-11-02T15:00:00Z',released_count:7}]};expect(waveAnnouncement(data,now)).toMatchObject({key:'wave',title:'NEW SIDE QUESTS ARE HERE!',description:'7 new challenges are available.'});});
+test('upcoming announcement uses Los Angeles release time across DST',()=>{const data={game_waves:[{id:'w',state:'planned',release_at:'2026-11-02T15:00:00Z',approved_count:10}]};expect(waveAnnouncement(data,Date.parse('2026-11-01T12:00:00Z')).description).toContain('7:00 AM PST');});
+test('unapproved and expired wave announcements are absent',()=>{expect(waveAnnouncement({game_waves:[{state:'planned',release_at:'2090-01-01',approved_count:0}]})).toBeNull();});

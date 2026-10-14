@@ -1,3 +1,4 @@
+import GameAnnouncements from '../sparkGames/GameAnnouncements';
 import SideQuestGalleries from '../dailyBites/SideQuestGalleries';
 import {OctoberBadge} from "../octoberGames/OctoberGames";
 import {useOctoberAvailable} from "../octoberGames/service";
@@ -278,6 +279,7 @@ function DailyBitesPage({ location, employee, managerPin, onBack, onViewSpotligh
 
       <main className="login-main">
         <div className="school-dashboard-page" ref={galleryContent}>
+          {octoberAvailable&&<GameAnnouncements location={location} employee={employee} managerPin={managerPin} onOpen={onOctoberGames}/>}
           {octoberAvailable&&<SideQuestGalleries contentRef={galleryContent} location={location} employee={employee} managerPin={managerPin}/>}
           <div className="school-dashboard-header">
             <div>
@@ -293,7 +295,7 @@ function DailyBitesPage({ location, employee, managerPin, onBack, onViewSpotligh
             </div>
           </div>
 
-          {octoberAvailable&&<button className="og-shortcut" onClick={onOctoberGames}><strong>🎃 October Games</strong><OctoberBadge location={location} employee={employee} managerPin={managerPin}/><span>Open Side Quests, Halloween Doors & Mystery Photos →</span></button>}
+          {octoberAvailable&&<button className="og-shortcut" onClick={onOctoberGames}><strong>🎮 SPARK Games</strong><OctoberBadge location={location} employee={employee} managerPin={managerPin}/><span>Open Side Quests, Door Contests & Mystery Photos →</span></button>}
           <SpotlightFeed location={location} employee={employee} managerPin={managerPin} onViewAll={onViewSpotlights} />
           {doubleUntil&&new Date(doubleUntil)>new Date()&&<p role="status" className="dashboard-card">🍎 Double Daily Bites is active until {new Date(doubleUntil).toLocaleString()}. Visit, Word, Connections and AR Training points are doubled automatically.</p>}
           <section className="dashboard-card">
