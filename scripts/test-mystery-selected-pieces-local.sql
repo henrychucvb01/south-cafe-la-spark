@@ -1,0 +1,44 @@
+BEGIN;
+CREATE FUNCTION pg_temp.check_it(ok boolean,message text) RETURNS void LANGUAGE plpgsql AS $$BEGIN IF ok IS DISTINCT FROM true THEN RAISE EXCEPTION 'FAIL: %',message;END IF;END$$;
+DO $$DECLARE token text; other_token text; admin_token text; c uuid; entry_id uuid; request uuid; payload jsonb; result jsonb; i int; today date:=(now() AT TIME ZONE 'America/Los_Angeles')::date;
+BEGIN
+ PERFORM pg_temp.check_it(current_database() IN ('spark_mystery_monthly_tests','spark_mystery_monthly_release') AND inet_server_port()=55432,'isolated fixture');
+ DELETE FROM spark_private.login_limits;UPDATE employees SET active=true WHERE id=900001;
+ token:=open_supper_monitoring_session(900001,900001,spark_login(p_role=>'employee',p_employee_id=>900001,p_pin=>'3141'),null);
+ other_token:=open_supper_monitoring_session(900002,900001,spark_login(p_role=>'employee',p_employee_id=>900001,p_pin=>'3141'),null);
+ admin_token:=spark_login(p_role=>'supervisor',p_pin=>'1618');
+ INSERT INTO october_live.schools VALUES(900001,true),(900002,true) ON CONFLICT(location_id) DO UPDATE SET participating=true;
+ UPDATE october_live.mystery_collections SET state='archived';
+ INSERT INTO october_live.mystery_collections(month,state) VALUES((date_trunc('month',now())+interval '1 month')::date,'active') RETURNING id INTO c;
+ INSERT INTO october_live.rounds(id,collection_id,position,answer,photo_path,pieces,piece_costs,reward_points) VALUES(6,c,1,'answer','synthetic.webp','[[[0,0],[300,0],[300,1000],[0,1000]],[[300,0],[700,0],[700,1000],[300,1000]],[[700,0],[1000,0],[1000,1000],[700,1000]]]',ARRAY[1,3,2],30);
+ UPDATE october_live.settings SET mystery_state='active',quests_state='active';
+ DELETE FROM october_live.unlock_credit_events WHERE location_id IN(900001,900002);
+ DELETE FROM spark_points WHERE location_id=900001;
+ INSERT INTO spark_points(location_id,points,point_type,service_date) VALUES(900001,100,'manual',today);
+ FOR i IN 1..2 LOOP
+  result:=october_games_live('buy_unlocks',token,null,jsonb_build_object('request_id',gen_random_uuid(),'credits',CASE i WHEN 1 THEN 1 ELSE 5 END,'expected_price',CASE i WHEN 1 THEN 5 ELSE 20 END,'confirmed',true));
+ END LOOP;
+ PERFORM pg_temp.check_it((result#>>'{unlock_shop,balance}')::int=6 AND (result#>>'{unlock_shop,points}')::int=75,'unchanged unlock package prices');
+ request:=gen_random_uuid();payload:=jsonb_build_object('round',6,'piece_index',1,'expected_unlocked',0,'expected_cost',3,'request_id',request);
+ result:=october_games_live('reveal_piece',token,null,payload);PERFORM october_games_live('reveal_piece',token,null,payload);
+ PERFORM pg_temp.check_it((result#>>'{unlock_shop,balance}')::int=3 AND (SELECT revealed_indices=ARRAY[1] AND unlocked=1 FROM october_live.rounds WHERE id=6),'selected middle piece costs 3, exact retry once');
+ BEGIN PERFORM october_games_live('reveal_piece',other_token,null,payload);RAISE EXCEPTION 'FAIL: foreign replay';EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE '%Unlock request changed%' THEN RAISE;END IF;END;
+ BEGIN PERFORM october_games_live('reveal_piece',token,null,payload||'{"piece_index":2}');RAISE EXCEPTION 'FAIL: changed replay';EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE '%Unlock request changed%' THEN RAISE;END IF;END;
+ BEGIN PERFORM october_games_live('reveal_piece',token,null,payload||jsonb_build_object('request_id',gen_random_uuid()));RAISE EXCEPTION 'FAIL: repeated piece';EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE '%puzzle changed%' THEN RAISE;END IF;END;
+ INSERT INTO october_live.quests(id,name,description) VALUES(90001,'Synthetic quest','test');
+ INSERT INTO october_live.entries(location_id,quest,photo_path,consent) VALUES(900001,90001,'test.webp',true) RETURNING id INTO entry_id;
+ result:=october_games_live('review',null,admin_token,jsonb_build_object('id',entry_id,'state','approved','revision',1));
+ PERFORM pg_temp.check_it((SELECT sum(credits)=6 FROM october_live.unlock_credit_events WHERE location_id=900001),'Side Quest banks three credits');
+ PERFORM pg_temp.check_it((SELECT revealed_indices=ARRAY[1] AND unlocked=1 FROM october_live.rounds WHERE id=6),'Side Quest does not spend school credits automatically');
+ result:=october_games_live('review',null,admin_token,jsonb_build_object('id',entry_id,'state','approved','revision',2));
+ PERFORM pg_temp.check_it((SELECT count(*)=1 FROM october_live.unlock_credit_events WHERE quest_entry=entry_id),'reapproval cannot duplicate credits');
+ FOR i IN 1..7 LOOP
+  INSERT INTO october_live.school_guesses(id,correct,round,location_id,employee_id,guess,guess_day,submitted_at) VALUES(gen_random_uuid(),false,6,900002,'900001','other guess '||i,today-i,now()-make_interval(days=>i));
+ END LOOP;
+ INSERT INTO october_live.school_guesses(id,correct,round,location_id,employee_id,guess,guess_day) VALUES(gen_random_uuid(),false,6,900001,'900001','own private filter test',today);
+ result:=october_games_live('list',token);
+ PERFORM pg_temp.check_it(jsonb_array_length(result->'recent_guesses')=5 AND result#>>'{recent_guesses,0,guess}'='other guess 1' AND result#>>'{recent_guesses,4,guess}'='other guess 5','five most recent other-school guesses in order');
+ PERFORM pg_temp.check_it(NOT EXISTS(SELECT 1 FROM jsonb_array_elements(result->'recent_guesses')g WHERE g ? 'employee_id' OR g->>'guess'='own private filter test'),'recent guesses omit employee identifiers and own school');
+ RAISE NOTICE 'PASS selected-piece spending, package prices, replay protection, Side Quest bank/reapproval and latest-five privacy/order';
+END$$;
+ROLLBACK;

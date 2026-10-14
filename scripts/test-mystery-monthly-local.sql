@@ -3,15 +3,16 @@ CREATE FUNCTION pg_temp.check_it(ok boolean,message text) RETURNS void LANGUAGE 
 DO $$
 DECLARE admin_token text; token text; result jsonb; collection uuid; c october_live.mystery_collections; d october_live.mystery_drafts; original jsonb; bank bigint; round_id int; i int; month_text text:=to_char(now() AT TIME ZONE 'America/Los_Angeles','YYYY-MM'); request uuid;
 BEGIN
- PERFORM pg_temp.check_it(current_database() IN ('spark_mystery_monthly_tests','spark_mystery_monthly_verify') AND inet_server_port()=55432,'isolated database');
+ PERFORM pg_temp.check_it(current_database() IN ('spark_mystery_monthly_tests','spark_mystery_monthly_verify','spark_mystery_monthly_release') AND inet_server_port()=55432,'isolated database');
  DELETE FROM spark_private.login_limits;UPDATE employees SET active=true WHERE id=900001;
  admin_token:=spark_login(p_role=>'supervisor',p_pin=>'1618');
  token:=open_supper_monitoring_session(900001,900001,spark_login(p_role=>'employee',p_employee_id=>900001,p_pin=>'3141'),null);
  INSERT INTO october_live.schools VALUES(900001,true) ON CONFLICT(location_id) DO UPDATE SET participating=true;
  INSERT INTO october_live.rounds(id,collection_id,position,photo_path,answer,pieces,piece_costs,unlocked,unlock_credits,solved_at,winner)
- SELECT n,(SELECT id FROM october_live.mystery_collections WHERE legacy),n,'legacy-fixture.webp','legacy answer','[[[0,0],[1000,0],[0,1000]],[[1000,0],[1000,1000],[0,1000]]]'::jsonb,ARRAY[1,3],1,1,now(),900001 FROM generate_series(1,5)n;
+ SELECT n,(SELECT id FROM october_live.mystery_collections WHERE legacy),n,'legacy-fixture.webp','legacy answer','[[[0,0],[1000,0],[0,1000]],[[1000,0],[1000,1000],[0,1000]]]'::jsonb,ARRAY[1,3],1,1,now(),900001 FROM generate_series(1,5)n ON CONFLICT DO NOTHING;
  SELECT jsonb_agg(to_jsonb(r) ORDER BY id) INTO original FROM october_live.rounds r;
  PERFORM pg_temp.check_it(jsonb_array_length(original)=5,'five existing historical mysteries in fixture');
+ INSERT INTO october_live.unlock_credit_events(location_id,kind,credits,price,service_date,request_id) VALUES(900001,'purchase',5,20,current_date,gen_random_uuid());
  SELECT coalesce(sum(credits),0) INTO bank FROM october_live.unlock_credit_events WHERE location_id=900001;
  UPDATE october_live.mystery_collections SET month=date_trunc('month',now() AT TIME ZONE 'America/Los_Angeles')::date-interval '1 month' WHERE state='active';
  BEGIN PERFORM public.october_games_live('collection_create',token,null,jsonb_build_object('month',month_text));RAISE EXCEPTION 'FAIL: manager modified collections';EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'FAIL:%' THEN RAISE;END IF;END;

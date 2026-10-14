@@ -70,7 +70,7 @@ export function createHandler(db,enabled=previewEnabled(),production=false){
      else{
       const {data:blob,error}=await bucket.download(r.photo_path);if(error)throw Error('Could not load the mystery.');
       const bytes=Buffer.from(await blob.arrayBuffer());const meta=await sharp(bytes).metadata();
-      const masked=await sharp(bytes).ensureAlpha().composite([{input:maskSvg(r.pieces,r.unlocked,meta.width,meta.height),blend:'dest-in'}]).png().toBuffer();
+      const masked=await sharp(bytes).ensureAlpha().composite([{input:maskSvg(r.pieces,r.unlocked,meta.width,meta.height,r.revealed_indices),blend:'dest-in'}]).png().toBuffer();
       // Flatten in a separate pass so even fully transparent RGB channels cannot
       // carry hidden pixels that a client could recover by editing the alpha.
       const safe=await sharp(masked).flatten({background:'#171717'}).png().toBuffer();

@@ -1,12 +1,14 @@
 import React, {useRef} from 'react';
 
-export default function MysteryUnlockControls({data, round, preview, busy, run}) {
+export default function MysteryUnlockControls({data, round, preview, busy, run, selectedPiece}) {
   const requests = useRef({});
   const inFlight = useRef(false);
   const shop = data.unlock_shop;
   if (!shop) return null;
   const ready = preview || (data.identified && data.participating);
-  const cost = shop.next_piece_cost;
+  const selectable = Array.isArray(round?.revealed_indices);
+  const selectionValid = Number.isInteger(selectedPiece) && selectedPiece>=0 && selectedPiece<(round?.pieces?.length||0) && !round.revealed_indices?.includes(selectedPiece);
+  const cost = selectable ? (selectionValid ? round.piece_costs[selectedPiece] : null) : shop.next_piece_cost;
   const canReveal = ready && round && data.settings.mystery_state === 'active' && round.photo_url && cost > 0 && (preview || shop.balance >= cost);
 
   async function submit(action, payload) {
@@ -31,7 +33,7 @@ export default function MysteryUnlockControls({data, round, preview, busy, run})
     <div className="og-actions">
       <button type="button" disabled={!ready || busy || (!preview && shop.points < 5)} onClick={() => buy(1, 5)}>Buy 1 Credit &#183; 5 Points</button>
       <button type="button" disabled={!ready || busy || (!preview && shop.points < 20)} onClick={() => buy(5, 20)}>Buy 5 Credits &#183; 20 Points</button>
-      {round && <button type="button" disabled={!canReveal || busy} onClick={() => submit('reveal_piece', {round: round.id, expected_unlocked: round.unlocked, expected_cost: cost})}>Reveal next piece{cost > 0 ? ` · ${cost} ${cost === 1 ? 'credit' : 'credits'}` : ''}</button>}
+      {round && <button type="button" disabled={!canReveal || busy} onClick={() => submit('reveal_piece', {round: round.id, expected_unlocked: round.unlocked, expected_cost: cost,...(selectable?{piece_index:selectedPiece}:{})})}>{selectable?(selectionValid?`Reveal piece ${selectedPiece+1}`:'Select a piece in the photo'):'Reveal next piece'}{cost > 0 ? ` · ${cost} ${cost === 1 ? 'credit' : 'credits'}` : ''}</button>}
     </div>
   </section>;
 }

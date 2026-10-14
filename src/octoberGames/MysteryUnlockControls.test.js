@@ -48,3 +48,9 @@ test('reveals include the observed puzzle revision and piece cost',async()=>{
 test('all-solved collection retains the balance and purchase controls',()=>{
   render({round:null});expect(button('Reveal')).toBeUndefined();expect(button('Buy 5').disabled).toBe(false);
 });
+
+test('selected mystery piece spends its own displayed cost and index',async()=>{
+ const selectable={...round,pieces:Array(3).fill([]),piece_costs:[1,3,2],revealed_indices:[0]};render({round:selectable});expect(button('Select a piece').disabled).toBe(true);
+ render({round:selectable,selectedPiece:1});expect(button('Reveal piece 2').textContent).toContain('3 credits');await click('Reveal piece 2');expect(run).toHaveBeenCalledWith('reveal_piece',expect.objectContaining({piece_index:1,expected_cost:3,round:3}));
+ render({round:selectable,selectedPiece:0});expect(button('Select a piece').disabled).toBe(true);
+});

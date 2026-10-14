@@ -46,3 +46,8 @@ const designed=calls.filter(c=>c[0]==='rpc'&&c[1].p_action==='collection_round')
 check(designed.pieces.length,12);check(designed.piece_costs,Array(12).fill(4));check(designed.layout_seed,1234);
 check((await request({action:'collection_round',pin:'admin',payload:{piece_count:12,difficulty:2,layout_seed:1234,piece_costs:Array(12).fill(99)}})).status,400);
 console.log('PASS monthly API: server-generated layout, retained manual costs, invalid costs rejected.');
+const arbitraryMask=await sharp({create:{width:100,height:50,channels:3,background:'#ff0000'}}).ensureAlpha().composite([{input:maskSvg([[[0,0],[500,0],[500,1000],[0,1000]],[[500,0],[1000,0],[1000,1000],[500,1000]]],1,100,50,[1]),blend:'dest-in'}]).png().toBuffer();
+const arbitraryBytes=await sharp(arbitraryMask).flatten({background:'#171717'}).raw().toBuffer();
+assert.deepEqual([...arbitraryBytes.subarray((25*100+10)*3,(25*100+10)*3+3)],[23,23,23]);
+assert.deepEqual([...arbitraryBytes.subarray((25*100+80)*3,(25*100+80)*3+3)],[255,0,0]);
+console.log('PASS: only the selected non-prefix piece reveals image pixels.');

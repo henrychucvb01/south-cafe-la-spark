@@ -4,7 +4,7 @@ export function remainingUnlocks(round) {
  return (round.pieces||[]).map((piece,index)=>{
   const cost=Number(round.piece_costs?.[index])||1;
   const used=Math.min(cost,credits);credits-=used;
-  return {piece,remaining:index<(round.unlocked||0)?0:cost-used,
+  return {piece,index,remaining:Array.isArray(round.revealed_indices)?(round.revealed_indices.includes(index)?0:cost):(index<(round.unlocked||0)?0:cost-used),
    x:piece.reduce((sum,p)=>sum+p[0],0)/piece.length,
    y:piece.reduce((sum,p)=>sum+p[1],0)/piece.length};
  });
