@@ -51,3 +51,7 @@ const arbitraryBytes=await sharp(arbitraryMask).flatten({background:'#171717'}).
 assert.deepEqual([...arbitraryBytes.subarray((25*100+10)*3,(25*100+10)*3+3)],[23,23,23]);
 assert.deepEqual([...arbitraryBytes.subarray((25*100+80)*3,(25*100+80)*3+3)],[255,0,0]);
 console.log('PASS: only the selected non-prefix piece reveals image pixels.');
+
+check((await request({action:'collection_round',pin:'admin',payload:{piece_count:48,difficulty:3,layout_seed:1234,piece_costs:Array(48).fill(3)}})).status,200);
+check((await request({action:'collection_round',pin:'admin',payload:{piece_count:49,difficulty:3,layout_seed:1234,piece_costs:Array(49).fill(3)}})).status,400);
+console.log('PASS: server permits 48 pieces and rejects 49.');

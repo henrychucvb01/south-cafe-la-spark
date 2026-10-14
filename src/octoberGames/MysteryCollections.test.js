@@ -26,3 +26,10 @@ test('designer shuffle, custom costs and manager preview stay local until Save',
  await act(async()=>host.querySelector('.mc-editor').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
  expect(run).toHaveBeenCalledWith('collection_round',expect.objectContaining({layout_seed:expect.any(Number),piece_costs:expect.arrayContaining([5])}),null);
 });
+test('active October shows five editable additions without editing solved photos',async()=>{
+ data.collections=[data.collections[0]];data.rounds=Array.from({length:5},(_,i)=>({...data.rounds[0],id:i+1,position:i+1}));
+ data.mystery_drafts=data.mystery_drafts.slice(0,5).map((d,i)=>({...d,collection_id:'old',position:i+6,piece_count:32+i*4}));
+ await render();expect(host.querySelectorAll('tbody tr')).toHaveLength(10);expect([...host.querySelectorAll('button')].filter(b=>b.textContent==='Edit')).toHaveLength(5);
+ expect(button('Activate additional mysteries').disabled).toBe(true);expect(host.querySelector('[aria-label="Move mystery 6 up"]').disabled).toBe(true);
+ await act(async()=>button('Edit').click());expect(host.querySelector('input[max="48"]')).not.toBeNull();
+});
