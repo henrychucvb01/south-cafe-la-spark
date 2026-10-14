@@ -40,15 +40,15 @@ async function main(){
   async function open(){await page.goto(origin);await page.getByLabel('Location Code').fill('9001');await page.getByRole('button',{name:'Continue',exact:true}).click();await page.getByRole('button',{name:/Synthetic Manager/}).click();await page.locator('#managerPin').fill('3141');await page.getByRole('button',{name:/Daily Bites/}).click();await page.locator('.og-shortcut').click();await expect(page.locator('.og-quest-card')).toHaveCount(2);}
   await open();
   const game=page.locator('.og');await expect(game).toContainText('Reward: 40 SPARK Points');await expect(game.getByRole('button',{name:'Upload photo'})).toHaveCount(2);
-  data.quests.forEach(quest=>quest.first_school=2);data.entries=[{id:'winner',quest:1,location_id:2,state:'approved',photo_url:'https://invalid.example/never-show-this-photo.webp'}];
+  data.quests[0].first_school=2;data.entries=[{id:'winner',quest:1,location_id:2,state:'approved',photo_url:'data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="320" height="220"><rect width="320" height="220" fill="#4b985a"/><text x="30" y="110" fill="white" font-size="24">Winning team photo</text></svg>')}];
   await game.getByRole('button',{name:'Refresh',exact:true}).click();
-  const cards=game.locator('.og-completed');await expect(cards).toHaveCount(2);
+  const cards=game.locator('.og-completed');await expect(cards).toHaveCount(1);await expect(game.locator('.og-quest-card')).toHaveCount(1);
+  await expect(cards.first()).toHaveAttribute('aria-pressed','false');
   await expect(cards.first()).toHaveAttribute('aria-pressed','true');await expect(cards.first().locator('.og-flip-inner')).toHaveCSS('transition-duration','0.6s');
-  await expect(cards.nth(1)).toHaveAttribute('aria-pressed','false');
   const start=await cards.first().locator('.og-flip-inner').evaluate(node=>getComputedStyle(node).transform);
   assert.notEqual(start,'none');
-  await expect(cards.nth(1)).toHaveAttribute('aria-pressed','true');
-  await expect(cards.locator('img')).toHaveCount(0);await expect(cards.first()).toContainText('COMPLETED');await expect(cards.first()).toContainText('Synthetic Winning School');
+  await expect(cards.locator('img')).toHaveCount(1);assert(await cards.locator('img').evaluate(img=>img.complete&&img.naturalWidth>0));await expect(cards.first()).toContainText('COMPLETED');await expect(cards.first()).toContainText('Synthetic Winning School');
+  await page.waitForTimeout(3000);await expect(cards.first()).toHaveAttribute('aria-pressed','true');
   await page.waitForTimeout(750);
   await fs.promises.mkdir('test-results/side-quest-flip',{recursive:true});
   for(const width of [1440,390,320]){
@@ -61,14 +61,13 @@ async function main(){
    await cards.first().screenshot({path:`test-results/side-quest-flip/card-${width}.png`});
   }
   await cards.first().click();await game.getByRole('button',{name:'Refresh',exact:true}).click();await expect(cards.first()).toHaveAttribute('aria-pressed','false');
-  // Existing completed quests load on the back without any transition class.
+  // Previously completed quests also reveal their photos automatically.
   await page.reload();await page.getByLabel('Location Code').fill('9001');await page.getByRole('button',{name:'Continue',exact:true}).click();await page.getByRole('button',{name:/Synthetic Manager/}).click();await page.locator('#managerPin').fill('3141');await page.getByRole('button',{name:/Daily Bites/}).click();await page.locator('.og-shortcut').click();
-  await expect(cards.first()).toHaveAttribute('aria-pressed','true');assert.equal(await cards.first().evaluate(node=>node.classList.contains('is-animated')),false);
-  await expect(cards.first().locator('.og-flip-inner')).toHaveCSS('transition-duration','0s');
+  await expect(cards.first()).toHaveAttribute('aria-pressed','false');await expect(cards.first()).toHaveAttribute('aria-pressed','true');
   await page.emulateMedia({reducedMotion:'reduce'});data=initial();await game.getByRole('button',{name:'Refresh',exact:true}).click();await expect(game.locator('.og-quest-card')).toHaveCount(2);
   data.quests[0].first_school=2;await game.getByRole('button',{name:'Refresh',exact:true}).click();await expect(cards.first()).toHaveAttribute('aria-pressed','true');await expect(cards.first().locator('.og-flip-inner')).toHaveCSS('transition-duration','0s');
   assert.deepEqual(writes,[],'flips never mutate approvals, photos, credits or points');assert.deepEqual(errors,[]);
-  console.log('PASS observed sequential flips, historical defaults/no replay, zero photos, gray cards, keyboard/manual toggles, stable dimensions, desktop/mobile, reduced motion and zero mutations.');
+  console.log('PASS delayed automatic photo reveals that stay visible, approved winning photos, unfinished cards stay still, gray cards, keyboard controls, stable dimensions, desktop/mobile, reduced motion and zero mutations.');
  }finally{await browser.close();}
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

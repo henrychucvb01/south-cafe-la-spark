@@ -1,7 +1,7 @@
 import MysteryGuessControls from './MysteryGuessControls';
 import MysteryUnlockControls from './MysteryUnlockControls';
 import {remainingUnlocks} from './mysteryUnlocks';
-import React,{useCallback,useEffect,useRef,useState} from 'react';
+import React,{useEffect,useRef,useState} from 'react';
 import {openSession,closeSession} from '../supperMonitoring/service';
 import {gamesRequest,prepareGamePhoto,useOctoberAvailable} from './service';
 import './octoberGames.css';
@@ -47,29 +47,31 @@ function DoorGallery({data,run,busy,canVote}){
   </article>;
  })}</div>;
 }
-function QuestCard({quest,school,example=false,activeFlip,onComplete,onManualFlip,children}){
+function QuestCard({quest,school,photo,example=false,children}){
  const completed=example||Boolean(quest.first_school);
- const [flipped,setFlipped]=useState(completed),[animated,setAnimated]=useState(false);
- const wasCompleted=useRef(completed);
+ const [reduced,setReduced]=useState(()=>Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches));
+ const [flipped,setFlipped]=useState(reduced);
  useEffect(()=>{
-  if(completed&&!wasCompleted.current)onComplete(quest.id);
-  wasCompleted.current=completed;
- },[completed,quest.id,onComplete]);
+  const media=window.matchMedia?.('(prefers-reduced-motion: reduce)');
+  const change=()=>setReduced(Boolean(media?.matches));
+  media?.addEventListener?.('change',change);
+  return()=>media?.removeEventListener?.('change',change);
+ },[]);
  useEffect(()=>{
-  if(!completed||activeFlip===undefined||activeFlip!==quest.id)return;
-  if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches){setFlipped(true);return;}
-  setAnimated(true);
-  let next;const frame=requestAnimationFrame(()=>{next=requestAnimationFrame(()=>setFlipped(true));});
-  return()=>{cancelAnimationFrame(frame);if(next)cancelAnimationFrame(next);};
- },[activeFlip,completed,quest.id]);
+  if(!completed)return;
+  if(reduced){setFlipped(true);return;}
+  const timer=setTimeout(()=>setFlipped(true),2000);
+  return()=>clearTimeout(timer);
+ },[completed,reduced]);
  if(!completed)return <article className="og-card og-quest-card">{children}</article>;
- return <button type="button" className={`og-completed ${flipped?'is-flipped':''} ${animated?'is-animated':''}`} aria-pressed={flipped} aria-label={`${quest.name} — completed by ${school}. Reward: ${quest.reward_points??10} SPARK Points. ${flipped?'Show quest description':'Show completion details'}`} onClick={()=>{onManualFlip?.(quest.id);setAnimated(true);setFlipped(value=>!value);}}>
+ return <button type="button" className={`og-completed ${flipped?'is-flipped':''} ${!reduced?'is-animated':''}`} aria-pressed={flipped} aria-label={`${quest.name} — completed by ${school}. Reward: ${quest.reward_points??10} SPARK Points. ${flipped?'Show quest description':'Show winning photo'}`} onClick={()=>setFlipped(value=>!value)}>
   <span className="og-flip-inner">
    <span className="og-flip-face og-flip-front" aria-hidden={flipped}>
     <span className="og-completed-task"><strong>{quest.name}</strong><span>{quest.description}</span></span>
     <span className="og-quest-reward">Reward: {quest.reward_points??10} SPARK Points</span>
    </span>
    <span className="og-flip-face og-flip-back" aria-hidden={!flipped}>
+    {photo&&<img className="og-winning-photo" src={photo} alt={`${school}: ${quest.name} approved winning submission`}/>}
     <span className="og-completed-task"><strong>{quest.name}</strong><span className="og-completed-stamp">COMPLETED</span><span className="og-completed-school">Completed by: {school}</span></span>
     <span className="og-quest-reward">Reward: {quest.reward_points??10} SPARK Points</span>
    </span>
@@ -77,16 +79,6 @@ function QuestCard({quest,school,example=false,activeFlip,onComplete,onManualFli
  </button>;
 }
 function Games({location,employee,managerPin,supervisorPin,galleryOnly=false,initialTab="quests"}){
- const [flipQueue,setFlipQueue]=useState([]);
- const queueFlip=useCallback(id=>setFlipQueue(queue=>queue.includes(id)?queue:[...queue,id]),[]);
- const cancelFlip=useCallback(id=>setFlipQueue(queue=>queue.filter(item=>item!==id)),[]);
- const activeFlip=flipQueue[0];
- useEffect(()=>{
-  if(activeFlip===undefined)return;
-  const delay=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?0:700;
-  const timer=setTimeout(()=>setFlipQueue(queue=>queue.filter(id=>id!==activeFlip)),delay);
-  return()=>clearTimeout(timer);
- },[activeFlip]);
  const [data,setData]=useState(null),[tab,setTab]=useState(galleryOnly?'door':initialTab),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[submission,setSubmission]=useState(null),[preview,setPreview]=useState(false);
  const auth=useRef(null);const mounted=useRef(true);const admin=Boolean(supervisorPin);
  useEffect(()=>{mounted.current=true;let cancelled=false,token,timer;
@@ -110,7 +102,7 @@ function Games({location,employee,managerPin,supervisorPin,galleryOnly=false,ini
    {!admin&&!data.identified&&<p>Voting and mystery guesses use your registered manager login. Covering managers can submit photos for their school.</p>}
    {tab==='quests'&&<><h3>Side Quests <span className="og-status">{settings.quests_state}</span></h3><p>Be the first school approved for a quest to earn SPARK Points. Each quest locks after its first approval. Win as many quests as you can! Each winning completion adds 3 mystery unlock credits.</p>
     {preview&&<><h4>Completed card preview</h4><p>Try the sample card below. This does not complete a real quest.</p><div className="og-grid og-example"><QuestCard example quest={{name:'Picture Perfect Lunch',description:'Photograph a beautifully presented, complete school lunch tray.'}} school={location?.school_name||'Your school'}/></div></>}
-    <div className="og-grid">{data.quests.map(q=>{const entry=data.entries.find(e=>e.quest===q.id&&e.location_id===data.location_id);return <QuestCard key={q.id} quest={q} school={q.first_school?schoolName(data,q.first_school):null} activeFlip={activeFlip} onComplete={queueFlip} onManualFlip={cancelFlip}><h4>{q.name}</h4><p>{q.description}</p>{entry&&<><p className="og-status">{entry.state==='pending'?'Submitted — Pending Approval':entry.state}</p>{entry.feedback&&<p>{entry.feedback}</p>}</>}{!admin&&!q.first_school&&(preview||(data.participating&&settings.quests_state==='active'))&&(!entry||['rejected','replacement'].includes(entry.state))&&<button disabled={busy} onClick={()=>setSubmission(q.id)}>Upload photo</button>}{submission===q.id&&<SubmissionForm quest={q.id} existing={entry} run={run} busy={busy} close={()=>setSubmission(null)}/>}<strong className="og-quest-reward">Reward: {q.reward_points??10} SPARK Points</strong></QuestCard>;})}</div>
+    <div className="og-grid">{data.quests.map(q=>{const entry=data.entries.find(e=>e.quest===q.id&&e.location_id===data.location_id);const winner=data.entries.find(e=>e.quest===q.id&&String(e.location_id)===String(q.first_school)&&e.state==='approved');return <QuestCard key={q.id} quest={q} school={q.first_school?schoolName(data,q.first_school):null} photo={winner?.photo_url}><h4>{q.name}</h4><p>{q.description}</p>{entry&&<><p className="og-status">{entry.state==='pending'?'Submitted — Pending Approval':entry.state}</p>{entry.feedback&&<p>{entry.feedback}</p>}</>}{!admin&&!q.first_school&&(preview||(data.participating&&settings.quests_state==='active'))&&(!entry||['rejected','replacement'].includes(entry.state))&&<button disabled={busy} onClick={()=>setSubmission(q.id)}>Upload photo</button>}{submission===q.id&&<SubmissionForm quest={q.id} existing={entry} run={run} busy={busy} close={()=>setSubmission(null)}/>}<strong className="og-quest-reward">Reward: {q.reward_points??10} SPARK Points</strong></QuestCard>;})}</div>
     <p className="og-disclaimer">{DISCLAIMER}</p></>}
    {tab==='door'&&<><h3>{settings.door_title||'Halloween Door Decorating Contest'} <span className="og-status">{settings.door_state}</span></h3><p>Submissions close: {day(settings.submission_end)}<br/>Voting closes: {day(settings.voting_end)}</p>
     {!galleryOnly&&submitting&&(!ownDoor||['rejected','replacement'].includes(ownDoor.state))&&<button onClick={()=>setSubmission(0)}>Submit your school’s door</button>}
