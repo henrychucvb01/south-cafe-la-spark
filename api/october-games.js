@@ -1,3 +1,4 @@
+import {makeMonthlyPieces,initialCosts} from '../lib/monthlyPuzzleGeometry.js';
 import {sideQuestGallery} from '../lib/sideQuestGallery.js';
 import {serverDatabase} from '../src/security/databaseEnvironment.js';
 import {createClient} from '@supabase/supabase-js';
@@ -27,9 +28,9 @@ export function createHandler(db,enabled=previewEnabled(),production=false){
    // Never accept a caller-provided storage path or puzzle arrangement.
    const content={...payload};delete content.photo_path;delete content.pieces;
    if(photo){
-    if(!['submit','round'].includes(action))throw Error('Unexpected photo.');
+    if(!['submit','round','collection_round'].includes(action))throw Error('Unexpected photo.');
     const actor=await rpc('authorize');
-    if(action==='round'&&!actor.admin)throw Error('Supervisor authorization required.');
+    if(['round','collection_round'].includes(action)&&!actor.admin)throw Error('Supervisor authorization required.');
     if(typeof photo.base64!=='string'||photo.base64.length>2800000||!/^[A-Za-z0-9+/]+={0,2}$/.test(photo.base64))throw Error('Choose a photo under 2 MB.');
     const input=Buffer.from(photo.base64,'base64');
     const metadata=await sharp(input,{limitInputPixels:20000000}).metadata();
@@ -42,16 +43,18 @@ export function createHandler(db,enabled=previewEnabled(),production=false){
     content.photo_path=staged;
     if(action==='round')content.pieces=makePieces();
    }
+   if(action==='collection_round'){content.pieces=makeMonthlyPieces(Number(content.piece_count));content.piece_costs=initialCosts(content.pieces,content.difficulty);}
    const data=await rpc(action==='badge'?'list':action,content);staged=null;
    // Existing photo paths may be referenced by both launch and preview data. Keep replaced originals private.
    if(data && !Array.isArray(data))data.production=production;
    delete data.old_photo;
    if(action==='authorize')return res.status(200).json(data);
    if(action==='badge')return res.status(200).json({participating:data.participating,new_challenge:data.new_challenge});
-   const paths=(data.entries||[]).filter(e=>e.photo_path).map(e=>e.photo_path);
+   const photoEntries=[...(data.entries||[]),...(data.admin?data.mystery_drafts||[]:[])];
+   const paths=photoEntries.filter(e=>e.photo_path).map(e=>e.photo_path);
    const urls=new Map();
    if(paths.length){const {data:signed,error}=await bucket.createSignedUrls(paths,300);if(error)throw Error('Could not load submission photos.');for(const url of signed)urls.set(url.path,url.signedUrl);}
-   for(const e of data.entries||[]){
+   for(const e of photoEntries){
     if(e.photo_path){e.photo_url=urls.get(e.photo_path);if(!e.photo_url)throw Error('Could not load a photo.');}
     delete e.photo_path;
    }
