@@ -35,3 +35,6 @@ test('active October shows five editable additions without editing solved photos
 });
 
 test('question defaults to Who is this and saves with the draft',async()=>{await render();await act(async()=>button('Edit').click());const question=[...host.querySelectorAll('label')].find(x=>x.textContent==='Question').querySelector('input');expect(question.value).toBe('Who is this?');await act(async()=>host.querySelector('.mc-editor').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));expect(run).toHaveBeenCalledWith('collection_round',expect.objectContaining({question:'Who is this?'}),null);expect(host.textContent).not.toContain('Alternative spellings');});
+
+test('active unsolved photo has a question-only editor',async()=>{data.collections=[{...data.collections[0],revision:4}];data.rounds[0].solved_at=null;data.rounds[0].revision=2;await render();await act(async()=>button('Edit question').click());expect(host.querySelector('input[maxlength="240"]').value).toBe('Who is this?');await act(async()=>host.querySelector('.mc-editor').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));expect(run).toHaveBeenCalledWith('collection_question',expect.objectContaining({id:1,revision:2,collection_revision:4,question:'Who is this?'}));});
+

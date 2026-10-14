@@ -28,6 +28,9 @@ BEGIN
  BEGIN PERFORM october_games_live('collection_append',null,admin_token,jsonb_build_object('collection_id',c,'collection_revision',rev,'confirmed',true));RAISE EXCEPTION 'FAIL duplicate accepted';EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE '%Collection changed%' THEN RAISE;END IF;END;
  BEGIN PERFORM october_games_live('collection_round',null,admin_token,jsonb_build_object('collection_id',c,'collection_revision',rev+1,'id',d.id,'revision',d.revision));RAISE EXCEPTION 'FAIL published draft mutable';EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE '%Activated mysteries cannot%' THEN RAISE;END IF;END;
  BEGIN UPDATE october_live.mystery_drafts SET piece_count=49 WHERE id=d.id;RAISE EXCEPTION 'FAIL 49 pieces allowed';EXCEPTION WHEN check_violation THEN NULL;END;
+ result:=october_games_live('collection_question',null,admin_token,jsonb_build_object('collection_id',c,'collection_revision',rev+1,'id',6,'revision',1,'question','Who is this character?'));
+ PERFORM pg_temp.check_it((SELECT question='Who is this character?' AND solved_at IS NULL AND reward_points=35 AND cardinality(revealed_indices)=0 FROM october_live.rounds WHERE id=6),'supervisor question edit preserves active mystery');
+ BEGIN PERFORM october_games_live('collection_question',token,null,jsonb_build_object('collection_id',c,'collection_revision',rev+2,'id',6,'revision',2,'question','unauthorized'));RAISE EXCEPTION 'FAIL manager question edit';EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE '%Supervisor authorization%' THEN RAISE;END IF;END;
  FOR i IN 6..10 LOOP
   PERFORM pg_temp.check_it(october_live.current_mystery()=i,'sequential progression');
   UPDATE october_live.rounds SET solved_at=now(),winner=900001 WHERE id=i;
