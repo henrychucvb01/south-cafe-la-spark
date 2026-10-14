@@ -41,3 +41,8 @@ const removes=calls.filter(c=>c[0]==='remove').length;
 await createHandler(liveDb,true,true)({method:'POST',body:{action:'list',pin:'admin'}},{setHeader(){},status(s){liveStatus=s;return this;},json(v){liveData=v;return this;}});
 check(liveStatus,200);check(liveData.production,true);check(calls.filter(c=>c[0]==='remove').length,removes);
 console.log(`PASS ${checks} assertions: preview-only server, authorized uploads, re-encoding, 32 randomized triangles with complete coverage, private originals, unrecoverable hidden pixels, future-image privacy, server-owned paths and geometry.`);
+const monthly=await request({action:'collection_round',pin:'admin',payload:{piece_count:12,difficulty:2,layout_seed:1234,piece_costs:Array(12).fill(4),pieces:['untrusted']}});check(monthly.status,200);
+const designed=calls.filter(c=>c[0]==='rpc'&&c[1].p_action==='collection_round').at(-1)[1].p_payload;
+check(designed.pieces.length,12);check(designed.piece_costs,Array(12).fill(4));check(designed.layout_seed,1234);
+check((await request({action:'collection_round',pin:'admin',payload:{piece_count:12,difficulty:2,layout_seed:1234,piece_costs:Array(12).fill(99)}})).status,400);
+console.log('PASS monthly API: server-generated layout, retained manual costs, invalid costs rejected.');

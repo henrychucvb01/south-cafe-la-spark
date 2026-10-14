@@ -1,4 +1,4 @@
-import {makeMonthlyPieces,initialCosts} from '../lib/monthlyPuzzleGeometry.js';
+import {makeMonthlyPieces,initialCosts,seededRandom} from '../lib/monthlyPuzzleGeometry.js';
 import {sideQuestGallery} from '../lib/sideQuestGallery.js';
 import {serverDatabase} from '../src/security/databaseEnvironment.js';
 import {createClient} from '@supabase/supabase-js';
@@ -43,7 +43,13 @@ export function createHandler(db,enabled=previewEnabled(),production=false){
     content.photo_path=staged;
     if(action==='round')content.pieces=makePieces();
    }
-   if(action==='collection_round'){content.pieces=makeMonthlyPieces(Number(content.piece_count));content.piece_costs=initialCosts(content.pieces,content.difficulty);}
+   if(action==='collection_round'){
+    const seed=content.layout_seed==null?Math.floor(Math.random()*2147483647):Number(content.layout_seed);
+    if(!Number.isInteger(seed)||seed<0||seed>2147483647)throw Error('Invalid puzzle seed.');
+    content.layout_seed=seed;content.pieces=makeMonthlyPieces(Number(content.piece_count),seededRandom(seed));
+    if(content.piece_costs==null)content.piece_costs=initialCosts(content.pieces,content.difficulty);
+    if(!Array.isArray(content.piece_costs)||content.piece_costs.length!==content.pieces.length||content.piece_costs.some(n=>!Number.isInteger(n)||n<1||n>5))throw Error('Choose 1–5 credits for each piece.');
+   }
    const data=await rpc(action==='badge'?'list':action,content);staged=null;
    // Existing photo paths may be referenced by both launch and preview data. Keep replaced originals private.
    if(data && !Array.isArray(data))data.production=production;
