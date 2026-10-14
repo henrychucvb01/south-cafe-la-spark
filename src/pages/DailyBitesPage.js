@@ -1,7 +1,8 @@
+import SideQuestGalleries from '../dailyBites/SideQuestGalleries';
 import {OctoberBadge} from "../octoberGames/OctoberGames";
 import {useOctoberAvailable} from "../octoberGames/service";
 import SpotlightFeed from "../spotlight/SpotlightFeed";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 import DAILY_BITES from "../data/dailyBitesContent";
 import { selectSeasonPuzzle } from "../dailyBites/games/seasonPuzzles";
@@ -75,6 +76,7 @@ function formatBiteCategory(category) {
 }
 
 function DailyBitesPage({ location, employee, managerPin, onBack, onViewSpotlights, onOctoberGames }) {
+  const galleryContent=useRef(null);
   const octoberAvailable=useOctoberAvailable();
   const [doubleUntil,setDoubleUntil]=useState(null);
   useEffect(()=>{let alive=true;const refresh=()=>loadSchoolBenefits(location.id).then(b=>{if(alive)setDoubleUntil(b.doubleUntil);}).catch(()=>{});refresh();window.addEventListener('focus',refresh);return()=>{alive=false;window.removeEventListener('focus',refresh);};},[location.id]);
@@ -275,7 +277,8 @@ function DailyBitesPage({ location, employee, managerPin, onBack, onViewSpotligh
       </header>
 
       <main className="login-main">
-        <div className="school-dashboard-page">
+        <div className="school-dashboard-page" ref={galleryContent}>
+          {octoberAvailable&&<SideQuestGalleries contentRef={galleryContent} location={location} employee={employee} managerPin={managerPin}/>}
           <div className="school-dashboard-header">
             <div>
               <div className="dashboard-small-label">

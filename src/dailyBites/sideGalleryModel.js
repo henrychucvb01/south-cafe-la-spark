@@ -1,0 +1,2 @@
+export function pickPhoto(photos,excluded=[],random=Math.random){const choices=photos.filter(p=>!excluded.includes(p.id));return choices.length?choices[Math.floor(random()*choices.length)]:null;}
+export function gallerySpace(rect,width,height){const left=rect.left,right=width-rect.right;if(width<1600||height<500||Math.min(left,right)<210)return null;return {left:Math.min(280,left-40),right:Math.min(280,right-40)};}
