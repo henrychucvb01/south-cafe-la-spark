@@ -49,13 +49,34 @@ test('a completed quest locks upload controls for every other school',async()=>{
  data.quests[0].first_school=2;await render();expect(host.textContent).toContain('Completed by: School B');expect(host.textContent).toContain('COMPLETED');expect(button('Upload photo')).toBeUndefined();
 });
 
-test('completed quest flips only to the winning approved photo',async()=>{
+test('historical completion starts on details, never displays photos, and manually flips both ways',async()=>{
  data.quests[0].first_school=2;data.entries=[{id:'pending',quest:1,location_id:1,state:'pending',photo_url:'private.webp'},{id:'winner',quest:1,location_id:2,state:'approved',photo_url:'winner.webp'}];
- await render();const card=host.querySelector('.og-completed');expect(card.getAttribute('aria-pressed')).toBe('false');expect(card.querySelector('img').getAttribute('src')).toBe('winner.webp');
- await act(async()=>card.click());expect(card.classList.contains('is-flipped')).toBe(true);await act(async()=>card.click());expect(card.getAttribute('aria-pressed')).toBe('false');
+ await render();const card=host.querySelector('.og-completed');expect(card.getAttribute('aria-pressed')).toBe('true');expect(card.querySelector('img')).toBeNull();expect(card.classList.contains('is-animated')).toBe(false);
+ expect(card.querySelector('.og-flip-back').getAttribute('aria-hidden')).toBe('false');expect(card.textContent).toContain('Completed by: School B');
+ await act(async()=>card.click());expect(card.classList.contains('is-flipped')).toBe(false);await act(async()=>card.click());expect(card.getAttribute('aria-pressed')).toBe('true');
+ await click('Refresh');expect(card.getAttribute('aria-pressed')).toBe('true');
 });
-test('manager preview shows a reversible happy-face example without saving',async()=>{
- data.participating=false;await render();await click('Preview manager experience');const card=host.querySelector('.og-example .og-completed');expect(card.querySelector('[aria-label="Happy face preview"]')).not.toBeNull();await act(async()=>card.click());expect(card.getAttribute('aria-pressed')).toBe('true');expect(api.gamesRequest.mock.calls.every(([action])=>['seen','list'].includes(action))).toBe(true);
+test('manager preview shows completion details without photos or mutations',async()=>{
+ data.participating=false;await render();await click('Preview manager experience');const card=host.querySelector('.og-example .og-completed');expect(card.querySelector('img')).toBeNull();expect(card.getAttribute('aria-pressed')).toBe('true');await act(async()=>card.click());expect(card.getAttribute('aria-pressed')).toBe('false');expect(api.gamesRequest.mock.calls.every(([action])=>['seen','list'].includes(action))).toBe(true);
+});
+
+test('observed completions animate sequentially, while later refreshes do not replay',async()=>{
+ jest.useFakeTimers();
+ try{
+  data.quests.push({id:2,name:'Second quest',description:'Second task',reward_points:30});await render();
+  data.quests[0].first_school=2;data.quests[1].first_school=3;await click('Refresh');
+  const cards=host.querySelectorAll('.og-completed');expect(cards).toHaveLength(2);
+  expect(cards[0].classList.contains('is-animated')).toBe(true);expect(cards[1].classList.contains('is-animated')).toBe(false);
+  await act(async()=>jest.advanceTimersByTime(40));expect(cards[0].getAttribute('aria-pressed')).toBe('true');expect(cards[1].getAttribute('aria-pressed')).toBe('false');
+  await act(async()=>jest.advanceTimersByTime(700));await act(async()=>jest.advanceTimersByTime(40));expect(cards[1].getAttribute('aria-pressed')).toBe('true');
+  await act(async()=>jest.advanceTimersByTime(700));await act(async()=>cards[0].click());await click('Refresh');expect(cards[0].getAttribute('aria-pressed')).toBe('false');
+ }finally{jest.useRealTimers();}
+});
+
+test('reduced motion completes immediately without enabling animation',async()=>{
+ const previous=window.matchMedia;window.matchMedia=()=>({matches:true});
+ try{await render();data.quests[0].first_school=2;await click('Refresh');const card=host.querySelector('.og-completed');expect(card.getAttribute('aria-pressed')).toBe('true');expect(card.classList.contains('is-animated')).toBe(false);}
+ finally{window.matchMedia=previous;}
 });
 
 test('only supervisor sees the new quest form',async()=>{
