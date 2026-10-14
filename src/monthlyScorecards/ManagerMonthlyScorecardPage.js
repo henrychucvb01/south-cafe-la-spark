@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { buildSchoolScorecard } from "./monthlyScorecardCalculations";
 import { loadManagerMonthlyScorecardDataset } from "./monthlyScorecardService";
 import MonthlySchoolScorecard from "./MonthlySchoolScorecard";
+import {recordScorecardOpen} from "../dailyBites/bingoTracking";
 import "./monthlyScorecards.css";
 
 const dateString = (date) => {
@@ -77,6 +78,11 @@ export default function ManagerMonthlyScorecardPage({ location, employee, manage
     const school = dataset?.schools?.[0];
     return school && range ? buildSchoolScorecard(school, dataset, range) : null;
   }, [dataset, range]);
+  useEffect(() => {
+    if (!loading && !error && card && managerPin) {
+      recordScorecardOpen(location,employee,managerPin).catch(reason=>console.warn('Bingo scorecard tracking:',reason.message));
+    }
+  }, [loading,error,card,location,employee,managerPin]);
 
   return (
     <div className="login-app" style={{ minHeight: "100vh", background: "#f4f7fa" }}>
