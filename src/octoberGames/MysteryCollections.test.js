@@ -33,3 +33,5 @@ test('active October shows five editable additions without editing solved photos
  expect(button('Activate additional mysteries').disabled).toBe(true);expect(host.querySelector('[aria-label="Move mystery 6 up"]').disabled).toBe(true);
  await act(async()=>button('Edit').click());expect(host.querySelector('input[max="48"]')).not.toBeNull();
 });
+
+test('question defaults to Who is this and saves with the draft',async()=>{await render();await act(async()=>button('Edit').click());const question=[...host.querySelectorAll('label')].find(x=>x.textContent==='Question').querySelector('input');expect(question.value).toBe('Who is this?');await act(async()=>host.querySelector('.mc-editor').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));expect(run).toHaveBeenCalledWith('collection_round',expect.objectContaining({question:'Who is this?'}),null);expect(host.textContent).not.toContain('Alternative spellings');});
