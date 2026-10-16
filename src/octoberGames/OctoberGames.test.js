@@ -17,13 +17,52 @@ afterEach(()=>{act(()=>root.unmount());host.remove();});
 const render=async props=>act(async()=>root.render(<OctoberGames location={location} employee={employee} managerPin="test-pin" {...props}/>));
 const button=text=>[...host.querySelectorAll('button')].find(b=>b.textContent===text);
 const click=async text=>act(async()=>button(text).click());
+const openReview=async()=>act(async()=>[...host.querySelectorAll('.og-management-tabs button')].find(b=>b.textContent.startsWith('Photo Review')).click());
+
+test('supervisor sections group quest controls and collapse monthly mysteries',async()=>{
+ data.games_planning={drafts:[],waves:[],warnings:[]};await render({supervisorPin:'admin-test'});await click('Games & Challenges');
+ const quests=host.querySelector('.og-quest-management'),mysteries=host.querySelector('.og-mystery-management');
+ expect(quests.open).toBe(false);expect(quests.querySelector('.sg-planner')).not.toBeNull();expect(quests.textContent).toContain('Quest instructions');
+ expect(mysteries.open).toBe(false);expect(host.textContent).toContain('Confirm the door champion');
+ await click('Guesses, Unlocks & Points');expect(host.textContent).toContain('Points and corrections');expect(host.querySelector('.sg-planner')).toBeNull();
+ await click('Settings');expect(host.querySelector('.og-quest-management')).not.toBeNull();
+});
+
+test('photo review badge counts pending entries and clears after approval',async()=>{
+ data.entries=[{id:'pending',location_id:1,quest:1,state:'pending',revision:1,feedback:'',photo_url:'test.webp'},{id:'reviewed',location_id:2,quest:0,state:'approved',feedback:'',photo_url:'door.webp'}];
+ await render({supervisorPin:'admin-test'});await click('Games & Challenges');
+ expect(host.querySelector('.og-review-count').textContent).toBe('1');await openReview();expect(host.querySelectorAll('img[alt="Submission for review"]')).toHaveLength(1);
+ data.entries[0].state='approved';await click('Approve');expect(host.querySelector('.og-review-count')).toBeNull();expect(host.textContent).toContain('No photos awaiting review.');
+ expect(api.gamesRequest).toHaveBeenLastCalledWith('review',{pin:'admin-test'},expect.objectContaining({id:'pending',state:'approved',revision:1}),undefined);
+ await act(async()=>host.querySelector('.og-check input').click());expect(host.querySelectorAll('img[alt="Submission for review"]')).toHaveLength(2);
+});
+
+test.each([false,true])('Test High School can open Mystery Photos without a current puzzle (preview: %s)',async preview=>{
+ data.location_id=32;data.participating=false;data.current_round=null;data.rounds=[];
+ await render({location:{id:32,school_name:'Test High School'}});
+ if(preview)await click('Preview manager experience');
+ await click('Mystery Photos');
+ expect(host.textContent).toContain('Mystery Photo Unlock');
+ expect(host.textContent).toContain('Get More Unlocks');
+ expect(button('Side Quests')).toBeDefined();
+ expect(button('Buy 1 Credit · 5 Points').disabled).toBe(!preview);
+ await click('Side Quests');expect(host.textContent).toContain('Team Spirit');
+ expect(api.gamesRequest.mock.calls.every(([action])=>['seen','list'].includes(action))).toBe(true);
+});
+
+test('a completed collection remains navigable when no current round is returned',async()=>{
+ data.current_round=null;data.rounds[0]={...data.rounds[0],solved_at:'2026-10-15',answer:'A completed mystery',winner:2};
+ await render();await click('Mystery Photos');
+ expect(host.textContent).toContain('Collection complete');expect(host.textContent).toContain('A completed mystery');
+ await click('Door Contest');expect(host.querySelector('.og-door')).not.toBeNull();
+});
 test('development gate hides Games entirely outside preview',async()=>{api.useOctoberAvailable.mockReturnValue(false);await render();expect(host.textContent).toBe('');expect(sessions.openSession).not.toHaveBeenCalled();});
 test('manager sees 28 named blank frames and no supervisor controls',async()=>{await render();await click('Door Contest');expect(host.querySelectorAll('.og-door')).toHaveLength(28);expect(host.querySelectorAll('.og-door-photo span')).toHaveLength(28);expect(host.textContent).not.toContain('Games & Challenges');expect(api.gamesRequest).toHaveBeenCalledWith('seen',{token:'scoped-token'});});
 test('approved photos fit frames; own pending status is private and no own-school vote',async()=>{data.entries=[{id:'own',location_id:1,quest:0,state:'pending',feedback:'',photo_url:'private.webp'},{id:'other',location_id:2,quest:0,state:'approved',photo_url:'approved.webp',votes:null}];await render();await click('Door Contest');expect(host.querySelectorAll('.og-door-photo img')).toHaveLength(1);expect(host.textContent).toContain('Submitted — Pending Approval');expect(host.querySelectorAll('.og-door button')).toHaveLength(1);expect(host.textContent).not.toContain('0 votes');});
 test('covering managers see explanation and cannot vote',async()=>{data.identified=false;data.entries=[{id:'other',location_id:2,quest:0,state:'approved',photo_url:'approved.webp',votes:null}];await render();await click('Door Contest');expect(button('Vote for this school').disabled).toBe(true);expect(host.textContent).toContain('registered manager login');});
 test('upload prepares preview and requires consent; submitted photos await approval',async()=>{await render();await click('Upload photo');const input=host.querySelector('input[type=file]');Object.defineProperty(input,'files',{value:[new File(['photo'],'test.jpg',{type:'image/jpeg'})]});await act(async()=>input.dispatchEvent(new Event('change',{bubbles:true})));expect(api.prepareGamePhoto).toHaveBeenCalledTimes(1);expect(host.querySelector('.og-photo-picker img')).not.toBeNull();expect(button('Submit for approval').disabled).toBe(true);await act(async()=>host.querySelector('input[type=checkbox]').click());expect(button('Submit for approval').disabled).toBe(false);data.entries=[{id:'new',location_id:1,quest:1,state:'pending'}];await act(async()=>host.querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));expect(api.gamesRequest).toHaveBeenLastCalledWith('submit',{token:'scoped-token'},expect.objectContaining({quest:1,consent:true}),expect.objectContaining({base64:'compressed'}));expect(host.textContent).toContain('Submitted — Pending Approval');});
 test('school daily limit disables guessing',async()=>{data.guess_shop.used_today=true;data.guess_shop.free_available=false;await render();await click('Mystery Photos');expect(host.textContent).toContain('Your school’s free guess is saved for today');expect(button('Submit guess').disabled).toBe(true);});
-test('supervisor has review, eligibility, dates, artwork and corrections',async()=>{data.admin=true;data.rounds[0].answer='Jack-o-lantern';data.entries=[{id:'pending',location_id:1,quest:1,state:'pending',revision:1,photo_url:'test.webp',feedback:''}];await render({supervisorPin:'admin-test'});await click('Games & Challenges');expect(button('Approve')).toBeDefined();expect(host.textContent).toContain('Participating schools');expect(host.textContent).toContain('Quest instructions');expect(host.textContent).toContain('accepted answers');expect(sessions.openSession).not.toHaveBeenCalled();await click('Approve');expect(api.gamesRequest).toHaveBeenLastCalledWith('review',{pin:'admin-test'},expect.objectContaining({id:'pending',state:'approved',revision:1}),undefined);});
+test('supervisor has review, eligibility, dates, artwork and corrections',async()=>{data.admin=true;data.rounds[0].answer='Jack-o-lantern';data.entries=[{id:'pending',location_id:1,quest:1,state:'pending',revision:1,photo_url:'test.webp',feedback:''}];await render({supervisorPin:'admin-test'});await click('Games & Challenges');expect(button('Approve')).toBeUndefined();expect(host.textContent).toContain('Participating schools');expect(host.textContent).toContain('Quest instructions');expect(host.textContent).toContain('accepted answers');expect(sessions.openSession).not.toHaveBeenCalled();await openReview();await click('Approve');expect(api.gamesRequest).toHaveBeenLastCalledWith('review',{pin:'admin-test'},expect.objectContaining({id:'pending',state:'approved',revision:1}),undefined);});
 test('game standings use earning month and exclude voided rewards',async()=>{data.rewards=[{location_id:1,points:25,service_date:'2026-10-15',voided:false},{location_id:1,points:25,service_date:'2026-09-15',voided:false},{location_id:1,points:10,service_date:'2026-10-15',voided:true}];await render();await click('SPARK Standings');expect(host.querySelector('tbody tr').textContent).toBe('1School A25');});
 test('new challenge badge uses registered manager identity',async()=>{await act(async()=>root.render(<OctoberBadge location={location} employee={employee} managerPin="pin"/>));expect(host.textContent).toBe('NEW CHALLENGE');expect(sessions.openSession).toHaveBeenCalledWith(location,employee,'pin');});
 
@@ -147,7 +186,7 @@ test('tomorrow purchases remain locked but matured extras work after daily free 
  data.guess_shop.available=1;data.guess_shop.used_today=true;data.extra_guess_prizes=[{id:55}];await click('Refresh');expect(button('Submit guess').disabled).toBe(false);expect(button('Use extra guess prize (1 available)')).toBeDefined();expect(button('Extra guess · 10 SPARK Points').disabled).toBe(false);
 });
 test('supervisor accepts an actual submitted guess and collection names winning school',async()=>{
- data.admin=true;data.guesses=[{attempt_key:'original:1:11',round:1,employee_id:'11',location_id:2,guess:'spelling variant',correct:false}];await render({supervisorPin:'admin-test'});await click('Games & Challenges');const confirm=jest.spyOn(window,'confirm').mockReturnValue(true);await click('Accept as correct');expect(api.gamesRequest).toHaveBeenLastCalledWith('accept_guess',{pin:'admin-test'},{round:1,attempt_key:'original:1:11'},undefined);
+ data.admin=true;data.guesses=[{attempt_key:'original:1:11',round:1,employee_id:'11',location_id:2,guess:'spelling variant',correct:false}];await render({supervisorPin:'admin-test'});await click('Games & Challenges');await click('Guesses, Unlocks & Points');const confirm=jest.spyOn(window,'confirm').mockReturnValue(true);await click('Accept as correct');expect(api.gamesRequest).toHaveBeenLastCalledWith('accept_guess',{pin:'admin-test'},{round:1,attempt_key:'original:1:11'},undefined);
  data.rounds[0]={...data.rounds[0],solved_at:'2026-10-15',winner:2,winner_name:'School B',answer:'Test answer'};await click('Refresh');expect(button('Accept as correct')).toBeUndefined();await click('Mystery Photos');expect(host.textContent).toContain('Solved by: School B');confirm.mockRestore();
 });
 test('preview purchase never sends a write',async()=>{
