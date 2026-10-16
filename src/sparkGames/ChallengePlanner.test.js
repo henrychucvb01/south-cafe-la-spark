@@ -49,3 +49,16 @@ test('published weeks lock editing, replacement and removal but keep preview',as
  data.games_planning.waves=[{monday:draft.monday,month:draft.month,state:'released',release_at:'2027-11-01T15:00:00Z'}];await render();
  expect([...host.querySelectorAll('button')].filter(b=>['Edit','Try Another'].includes(b.textContent)).every(b=>b.disabled)).toBe(true);expect(host.querySelector('.sg-remove').disabled).toBe(true);await click('Preview');expect(document.querySelector('dialog')).not.toBeNull();
 });
+
+test('Improve keeps the original until accepted and preserves its reward and schedule',async()=>{
+ data.games_planning.drafts[0].reward_points=75;serverUpdates();await render();await click('Improve');
+ expect(run).not.toHaveBeenCalled();expect(document.querySelector('dialog').textContent).toContain('Suggested wording');await click('Keep original');expect(run).not.toHaveBeenCalled();
+ await click('Improve');await click('Accept improvement');const payload=run.mock.calls[0][1];expect(payload.title).toBe(draft.title);expect(payload.description).toContain(draft.description);expect(payload.reward_points).toBe(75);expect(payload.monday).toBe(draft.monday);expect(payload.state).toBe('proposed');
+});
+test('Try Another preserves a custom reward and changes the subject category',async()=>{
+ data.games_planning.drafts[0]={...draft,title:'Team Thank You',reward_points:85};await render();await click('Try Another');expect(run.mock.calls[0][1].reward_points).toBe(85);expect(run.mock.calls[0][1].category).not.toBe('appreciation');
+});
+test('weeks are collapsed by default and example exclusions do not change quest text',async()=>{
+ data.games_planning.drafts[0].state='approved';await render();expect(host.querySelector('.sg-week').open).toBe(false);
+ const checkbox=host.querySelector('.sg-example-library input');await act(async()=>checkbox.click());expect(run).toHaveBeenCalledWith('games_example',{id:'one',excluded:true});expect(data.games_planning.drafts[0].title).toBe(draft.title);
+});

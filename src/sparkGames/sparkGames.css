@@ -18,3 +18,10 @@
 .og .sg-remove:hover:not(:disabled){color:#fff;background:#b42318}
 .sg-manager-preview{margin-top:20px;background:repeating-linear-gradient(135deg,#f1f2f3 0,#f1f2f3 12px,#e6e8ea 12px,#e6e8ea 24px);color:#263238;border-color:#aeb6bd}
 .sg-planner-feedback{position:sticky;top:64px;z-index:2;padding:10px;border:1px solid #b9cbd3;border-radius:6px;background:#f4fafc;color:#183947}
+.sg-week>summary{font-size:13px;font-weight:700;cursor:pointer}
+.sg-table .sg-row-actions{flex-wrap:nowrap;align-items:center;white-space:nowrap}
+.sg-history table{min-width:640px}
+.sg-history td{white-space:nowrap;vertical-align:middle}
+.sg-history-description{display:block;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sg-example-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:4px 16px}
+.sg-history .sg-table td:nth-child(3){min-width:0;max-width:none;width:60px}

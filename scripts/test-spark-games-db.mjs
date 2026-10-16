@@ -85,6 +85,15 @@ assert.equal((await db.query('select count(*) n from october_live.game_photo_rev
 await assert.rejects(rpc('games_revealed',{quests:done}),/manager session/);
 assert.equal(JSON.stringify((await db.query('select * from public.spark_points order by unique_key')).rows),pointsAfterWaveTwo);
 console.log('Stage 3: per-manager reveal persistence, idempotency, authenticated-only tracking and unchanged points passed.');
+const originalDrafts=JSON.stringify((await db.query('select * from october_live.game_drafts order by id')).rows);
+await db.exec(await readFile('supabase/migrations/20261016173848_sidequest_example_preferences.sql','utf8'));
+assert.deepEqual((await db.query("select to_jsonb(d)-'example_excluded' as original from october_live.game_drafts d order by id")).rows.map(r=>r.original),JSON.parse(originalDrafts));
+const approvedExample=(await rpc('list')).games_planning.drafts.find(x=>x.state==='approved');
+await assert.rejects(rpc('games_example',{id:approvedExample.id,excluded:true},false),/Supervisor/);
+await assert.rejects(rpc('games_example',{id:approvedExample.id,excluded:'yes'}),/preference/);
+let examples=await rpc('games_example',{id:approvedExample.id,excluded:true});assert.equal(examples.games_planning.drafts.find(x=>x.id===approvedExample.id).example_excluded,true);
+examples=await rpc('games_example',{id:approvedExample.id,excluded:false});assert.equal(examples.games_planning.drafts.find(x=>x.id===approvedExample.id).example_excluded,false);
+assert.deepEqual((await db.query("select to_jsonb(d)-'example_excluded' as original from october_live.game_drafts d order by id")).rows.map(r=>r.original),JSON.parse(originalDrafts));
+assert.equal(JSON.stringify((await db.query('select * from public.spark_points order by unique_key')).rows),pointsAfterWaveTwo);
+console.log('Stage 4: supervisor-only persistent example exclusions; unchanged titles, descriptions, revisions, schedules, rewards and points passed.');
 await db.close();
-
-

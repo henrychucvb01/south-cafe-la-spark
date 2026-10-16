@@ -1,5 +1,5 @@
 // Curated, reusable prompts. No AI credentials, billing, or student images required.
-const themes=['winter','winter','spring','spring','spring','summer','summer','summer','autumn','autumn','autumn','winter'];
+import {creativeLibrary,chooseChallenges} from './creativePrompts.mjs';
 const seeds=[
 ['Rainbow on a Tray','Arrange menu foods into a colorful, complete lunch tray.','Make everyday school lunch stand out through thoughtful color.'],
 ['Breakfast Sunrise','Arrange an approved breakfast with a sunrise-inspired layout.','Bring a cheerful morning mood to a balanced breakfast.'],
@@ -62,6 +62,7 @@ const seeds=[
 ['Cafeteria Signature','Design a reusable welcome display using a recurring school color or shape.','Create a recognizable cafeteria style.'],
 ['Tomorrow’s Welcome','Arrange reusable materials for the next service’s welcome message.','Show preparation with a creative greeting.']
 ];
-export const challengeLibrary=seeds.map(([title,description,goal,season],i)=>({library_id:`spark-${i+1}`,title,description,goal,season,reward_points:10}));
+export const legacyChallengeLibrary=seeds.map(([title,description,goal,season],i)=>({library_id:`spark-${i+1}`,title,description,goal,season,reward_points:10}));
+export const challengeLibrary=creativeLibrary;
 export function mondayDates(month){if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month))throw Error('Select a valid competition month.');const [y,m]=month.split('-').map(Number),days=[];for(let d=1;d<=31;d++){const date=new Date(Date.UTC(y,m-1,d));if(date.getUTCMonth()!==m-1)break;if(date.getUTCDay()===1)days.push(date.toISOString().slice(0,10));}return days;}
-export function generateChallenges(month,count=50,recent=[]){const dates=mondayDates(month);if(!Number.isInteger(count)||count<1||count>50)throw Error('Generate between 1 and 50 suggestions.');const used=new Set(recent.map(x=>String(x).trim().toLowerCase())),season=themes[Number(month.slice(5))-1];return challengeLibrary.filter(q=>(!q.season||q.season===season)&&!used.has(q.library_id)&&!used.has(q.title.toLowerCase())).sort((a,b)=>Number(b.season===season)-Number(a.season===season)).slice(0,count).map((q,i)=>({...q,monday:dates[Math.floor(i/10)]||null}));}
+export function generateChallenges(month,count=50,recent=[],options={}){const dates=mondayDates(month);if(!Number.isInteger(count)||count<1||count>50)throw Error('Generate between 1 and 50 suggestions.');return chooseChallenges(month,count,recent,options).map((q,i)=>({...q,monday:dates[Math.floor(i/10)]||null}));}
