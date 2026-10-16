@@ -7,3 +7,14 @@
 .og .sg-toolbar button{margin:0;min-height:44px;align-self:end}
 @media(max-width:1000px){.og .sg-toolbar{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:600px){.og .sg-toolbar{grid-template-columns:minmax(0,1fr)}.og .sg-toolbar button{width:100%}}
+.og.sg-planner-dialog{position:fixed;inset:0;margin:auto;padding:0;width:min(640px,calc(100vw - 32px));max-height:calc(100dvh - 32px);border-radius:8px;overflow:auto;box-shadow:0 16px 60px #0005}
+.sg-planner-dialog::backdrop{background:#0009}
+.sg-dialog-content{padding:20px}
+.sg-dialog-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.og .sg-dialog-heading h3{margin:0;font-size:20px}
+.og .sg-close,.og .sg-remove{width:36px;height:36px;min-height:36px;padding:0;font-size:24px;line-height:1;flex-shrink:0}
+.og .sg-remove{color:#b42318;border-color:#b42318}
+.sg-table button.sg-remove{padding:0!important;font-size:24px!important}
+.og .sg-remove:hover:not(:disabled){color:#fff;background:#b42318}
+.sg-manager-preview{margin-top:20px;background:repeating-linear-gradient(135deg,#f1f2f3 0,#f1f2f3 12px,#e6e8ea 12px,#e6e8ea 24px);color:#263238;border-color:#aeb6bd}
+.sg-planner-feedback{position:sticky;top:64px;z-index:2;padding:10px;border:1px solid #b9cbd3;border-radius:6px;background:#f4fafc;color:#183947}
