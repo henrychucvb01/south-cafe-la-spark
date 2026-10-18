@@ -5,6 +5,7 @@ export default function MysteryUnlockControls({data, round, preview, busy, run, 
   const inFlight = useRef(false);
   const shop = data.unlock_shop;
   if (!shop) return null;
+  const singlePrice=shop.single_price??5,bundlePrice=shop.bundle_price??20;
   const ready = preview || (data.identified && data.participating);
   const selectable = Array.isArray(round?.revealed_indices);
   const selectionValid = Number.isInteger(selectedPiece) && selectedPiece>=0 && selectedPiece<(round?.pieces?.length||0) && !round.revealed_indices?.includes(selectedPiece);
@@ -31,8 +32,8 @@ export default function MysteryUnlockControls({data, round, preview, busy, run, 
     <div className="og-unlock-shop-heading"><h4>Get More Unlocks</h4><p><strong>{shop.balance.toLocaleString()} unlock {shop.balance === 1 ? 'credit' : 'credits'}</strong><span>Season balance: {shop.points.toLocaleString()} SPARK Points</span></p></div>
     <p className="og-unlock-daily">Your school receives 1 free credit each school day, automatically. Unused credits carry over. Weekends and recorded school holidays are excluded (Los Angeles time).</p>
     <div className="og-actions">
-      <button type="button" disabled={!ready || busy || (!preview && shop.points < 5)} onClick={() => buy(1, 5)}>Buy 1 Credit &#183; 5 Points</button>
-      <button type="button" disabled={!ready || busy || (!preview && shop.points < 20)} onClick={() => buy(5, 20)}>Buy 5 Credits &#183; 20 Points</button>
+      <button type="button" disabled={!ready || busy || (!preview && shop.points < singlePrice)} onClick={() => buy(1, singlePrice)}>Buy 1 Credit &#183; {singlePrice} Points</button>
+      <button type="button" disabled={!ready || busy || (!preview && shop.points < bundlePrice)} onClick={() => buy(5, bundlePrice)}>Buy 5 Credits &#183; {bundlePrice} Points</button>
       {round && <button type="button" disabled={!canReveal || busy} onClick={() => submit('reveal_piece', {round: round.id, expected_unlocked: round.unlocked, expected_cost: cost,...(selectable?{piece_index:selectedPiece}:{})})}>{selectable?(selectionValid?`Reveal piece ${selectedPiece+1}`:'Select a piece in the photo'):'Reveal next piece'}{cost > 0 ? ` · ${cost} ${cost === 1 ? 'credit' : 'credits'}` : ''}</button>}
     </div>
   </section>;

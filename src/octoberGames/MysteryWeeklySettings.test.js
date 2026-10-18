@@ -1,0 +1,20 @@
+import React,{act} from 'react';
+import {createRoot} from 'react-dom/client';
+import {MysteryPricing,MysteryWeek,losAngelesInput} from './MysteryWeeklySettings';
+let host,root,run;
+const collection={id:'month',month:'2026-10-01',state:'active',revision:3};
+const week={week:3,state:'draft',revision:1,release_at:'2026-10-19T14:00:00Z'};
+const ready=Array.from({length:5},(_,i)=>({id:i,position:11+i,photo_url:'test.webp',answer:'answer',pieces:[[],[]],piece_count:2}));
+beforeEach(()=>{global.IS_REACT_ACT_ENVIRONMENT=true;host=document.createElement('div');document.body.append(host);root=createRoot(host);run=jest.fn(async()=>true);});
+afterEach(()=>{act(()=>root.unmount());host.remove();jest.restoreAllMocks();});
+const render=async node=>act(async()=>root.render(node));
+test('release inputs use Los Angeles timezone including daylight saving',()=>{expect(losAngelesInput(week.release_at)).toBe('2026-10-19T07:00');expect(losAngelesInput('2026-11-09T15:00:00Z')).toBe('2026-11-09T07:00');});
+test('weekly groups are collapsed and scheduling requires five ready photos and confirmation',async()=>{
+ await render(<MysteryWeek week={week} collection={collection} items={ready} renderRow={r=><tr key={r.id}><td>{r.position}</td></tr>} busy={false} run={run}/>);
+ expect(host.querySelector('details').open).toBe(false);expect(host.textContent).toContain('Photos 11–15');
+ jest.spyOn(window,'confirm').mockReturnValue(false);await act(async()=>host.querySelector('button').click());expect(run).not.toHaveBeenCalled();
+ window.confirm.mockReturnValue(true);await act(async()=>host.querySelector('button').click());expect(run).toHaveBeenCalledWith('collection_schedule',expect.objectContaining({week:3,release_local:'2026-10-19T07:00',collection_revision:3,confirmed:true}));
+});
+test('incomplete weeks cannot be scheduled',async()=>{await render(<MysteryWeek week={week} collection={collection} items={ready.slice(1)} renderRow={()=>null} busy={false} run={run}/>);expect(host.querySelector('button').disabled).toBe(true);});
+test('scheduled week requires unscheduling before changing the time',async()=>{await render(<MysteryWeek week={{...week,state:'scheduled'}} collection={collection} items={ready} renderRow={()=>null} busy={false} run={run}/>);expect(host.querySelector('input').disabled).toBe(true);await act(async()=>host.querySelector('button').click());expect(run).toHaveBeenCalledWith('collection_unschedule',expect.objectContaining({week:3,revision:1}));});
+test('pricing is saved explicitly with current collection revision',async()=>{await render(<MysteryPricing collection={collection} busy={false} run={run}/>);expect(run).not.toHaveBeenCalled();await act(async()=>host.querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));expect(run).toHaveBeenCalledWith('collection_pricing',expect.objectContaining({collection_revision:3,guess_first_price:10,guess_next_price:25,guess_multiplier:2,unlock_single_price:5,unlock_bundle_price:20}));expect(host.textContent).toContain('Prices saved');});
