@@ -1,0 +1,14 @@
+import React,{act} from 'react';
+import {createRoot} from 'react-dom/client';
+import RewardsManagement from './RewardsManagement';
+import {rewardsRequest} from './service';
+jest.mock('./service',()=>({rewardsRequest:jest.fn()}));
+jest.mock('../supperMonitoring/service',()=>({openSession:jest.fn(),closeSession:jest.fn()}));
+let host,root,data;
+beforeEach(()=>{global.IS_REACT_ACT_ENVIRONMENT=true;host=document.createElement('div');document.body.append(host);root=createRoot(host);data={launch_ready:false,manager_enabled:false,settings:{revision:1,meeting_spin_limit:1},catalog:[{id:'reward-1',name:'Breakfast for School Staff',description:'Staff breakfast.',icon:'🎁',type:'fixed',status:'draft',active:false,config:{},fulfillment:'not_started',revision:1}],schools:[{id:1,school_name:'Synthetic School'}],wheel:[],spins:[],history:[],balance:'0'};rewardsRequest.mockReset();rewardsRequest.mockImplementation(async()=>JSON.parse(JSON.stringify(data)));});
+afterEach(()=>{act(()=>root.unmount());host.remove();});
+const render=()=>act(async()=>root.render(<RewardsManagement supervisorPin="synthetic-token"/>));
+const click=text=>act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent===text).click());
+test('Supervisor can edit configuration while activation stays locked',async()=>{await render();expect(host.querySelector('.sr-settings input[type=checkbox]').disabled).toBe(true);await click('Edit');expect(document.querySelector('dialog .sr-editor')).not.toBeNull();await act(async()=>document.querySelector('.sr-editor').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));expect(rewardsRequest).toHaveBeenLastCalledWith('save','synthetic-token',expect.objectContaining({id:'reward-1',status:'draft',location_id:null}));expect(document.querySelector('dialog')).toBeNull();});
+test('Supervisor preview stays read-only and wheels are configured through the catalog',async()=>{await render();await click('Preview Manager Rewards Page');expect(document.querySelector('dialog .sr-manager')).not.toBeNull();expect(document.querySelector('.sr-card-body>button').disabled).toBe(true);await act(async()=>document.querySelector('dialog button[aria-label="Close dialog"]').click());expect(host.textContent).not.toContain('Maximum spins per meeting');expect([...host.querySelectorAll('button')].some(b=>b.textContent==='Challenge Wheel')).toBe(false);expect(host.querySelector('h2').textContent).toBe('Reward Catalog');});
+test('saving activation settings preserves the hidden legacy spin limit',async()=>{data.settings.meeting_spin_limit=7;await render();await act(async()=>host.querySelector('.sr-settings').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));expect(rewardsRequest).toHaveBeenLastCalledWith('settings','synthetic-token',expect.objectContaining({meeting_spin_limit:7,manager_enabled:false}));});

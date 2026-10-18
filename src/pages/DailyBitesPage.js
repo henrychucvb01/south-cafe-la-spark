@@ -1,4 +1,5 @@
 import GameAnnouncements from '../sparkGames/GameAnnouncements';
+import RewardsBanners from '../rewards/RewardsBanners';
 import SideQuestGalleries from '../dailyBites/SideQuestGalleries';
 import {OctoberBadge} from "../octoberGames/OctoberGames";
 import {useOctoberAvailable} from "../octoberGames/service";
@@ -76,7 +77,7 @@ function formatBiteCategory(category) {
     .join(" ");
 }
 
-function DailyBitesPage({ location, employee, managerPin, onBack, onViewSpotlights, onOctoberGames }) {
+function DailyBitesPage({ location, employee, managerPin, onBack, onViewSpotlights, onOctoberGames,onRewards }) {
   const galleryContent=useRef(null);
   const octoberAvailable=useOctoberAvailable();
   const [doubleUntil,setDoubleUntil]=useState(null);
@@ -295,7 +296,7 @@ function DailyBitesPage({ location, employee, managerPin, onBack, onViewSpotligh
             </div>
           </div>
 
-          {octoberAvailable&&<button className="og-shortcut" onClick={onOctoberGames}><strong>🎮 SPARK Games</strong><OctoberBadge location={location} employee={employee} managerPin={managerPin}/><span>Open Side Quests, Door Contests & Mystery Photos →</span></button>}
+          <RewardsBanners location={location} employee={employee} managerPin={managerPin} onRewards={onRewards}>{octoberAvailable&&<button className="og-shortcut" onClick={onOctoberGames}><strong>🎮 SPARK Games</strong><OctoberBadge location={location} employee={employee} managerPin={managerPin}/><span>Side Quests, Door Contests & Mystery Photos</span></button>}</RewardsBanners>
           <SpotlightFeed location={location} employee={employee} managerPin={managerPin} onViewAll={onViewSpotlights} />
           {doubleUntil&&new Date(doubleUntil)>new Date()&&<p role="status" className="dashboard-card">🍎 Double Daily Bites is active until {new Date(doubleUntil).toLocaleString()}. Visit, Word, Connections and AR Training points are doubled automatically.</p>}
           <section className="dashboard-card">

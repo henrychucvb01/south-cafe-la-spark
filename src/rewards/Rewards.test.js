@@ -1,0 +1,14 @@
+import React,{act} from 'react';
+import {createRoot} from 'react-dom/client';
+import {RewardsPage} from './RewardsPage';
+import {visibleRewards} from './model';
+jest.mock('./service',()=>({rewardsRequest:jest.fn()}));
+jest.mock('../supperMonitoring/service',()=>({openSession:jest.fn(),closeSession:jest.fn()}));
+const reward=(type,id)=>({id,type,name:type+' reward',description:'A configured reward',active:true,status:'published',config:{goal:100,price:25,quantity:2,starting_bid:10},fulfillment:'not_started',icon:'🎁'});
+const data={catalog:[reward('pool','a'),reward('fixed','b'),{...reward('auction','c'),status:'draft'}],location_id:900001,balance:'125',manager_enabled:false,launch_ready:false};
+let root,host;
+beforeEach(()=>{global.IS_REACT_ACT_ENVIRONMENT=true;host=document.createElement('div');document.body.append(host);root=createRoot(host);});afterEach(()=>{act(()=>root.unmount());host.remove();});
+test('manager view fails closed and does not reveal unpublished rewards',()=>{act(()=>root.render(<RewardsPage data={data}/>));expect(host.textContent).toContain('not available');expect(host.querySelectorAll('.sr-reward')).toHaveLength(0);});
+test('Supervisor preview uses the shared layout, actual balance, drafts and disabled actions',()=>{act(()=>root.render(<RewardsPage data={data} preview/>));expect(host.textContent).toContain('Supervisor Preview');expect(host.textContent).toContain('125 SPARK Points');expect(host.querySelectorAll('.sr-reward')).toHaveLength(3);expect(host.textContent).toContain('Draft');expect([...host.querySelectorAll('.sr-card-body>button')].every(b=>b.disabled)).toBe(true);});
+test('publication filters require active published rewards and valid dates',()=>{const catalog=[...data.catalog,{...reward('fixed','d'),active:false},{...reward('auction','e'),opens_at:'2099-01-01'},{...reward('auction','f'),closes_at:'2001-01-01'}];expect(visibleRewards(catalog).map(r=>r.id)).toEqual(['b','a']);});
+test('type filters and help use native keyboard/tap disclosure',()=>{act(()=>root.render(<RewardsPage data={data} preview/>));act(()=>[...host.querySelectorAll('nav button')].find(b=>b.textContent==='Silent Auction').click());expect(host.querySelectorAll('.sr-reward')).toHaveLength(1);expect(host.querySelector('.sr-help summary').getAttribute('aria-label')).toBe('About Silent Auction');act(()=>host.querySelector('.sr-help summary').click());expect(host.querySelector('.sr-help').open).toBe(true);});

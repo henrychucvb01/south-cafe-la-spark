@@ -1,4 +1,5 @@
 node_modules/
+.rewards-runtime/
 .security-runtime/
 supabase/.temp/
 build/

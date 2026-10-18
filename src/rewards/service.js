@@ -1,0 +1,3 @@
+import {useEffect,useState} from 'react';
+export async function rewardsRequest(action,pin,payload={},token){const response=await fetch('/api/rewards',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,pin,token,payload})});const data=await response.json();if(!response.ok)throw Error(data.error||'Rewards could not connect.');return data;}
+export function useRewardsAvailable(supervisor=false){const [ready,setReady]=useState(false);useEffect(()=>{let active=true;fetch('/api/rewards').then(r=>r.ok?r.json():null).then(d=>{if(active)setReady(d?.available===true&&(supervisor||d.supervisor_only!==true));}).catch(()=>{});return()=>{active=false;};},[supervisor]);return ready;}

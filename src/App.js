@@ -1,5 +1,6 @@
 import {disablePush} from './notifications/service';
 import OctoberGames from "./octoberGames/OctoberGames";
+import ManagerRewards from './rewards/RewardsPage';
 import BreakfastAccess from "./breakfast/BreakfastAccess";
 import React, { useEffect, useState } from "react";
 import { clearSparkSession } from "./security/session";
@@ -59,7 +60,7 @@ function App() {
     askSpark: ["Ask SPARK", "Manager Resources", "managerResources"],
     locationInformation: ["Location Information", "Manager Resources", "managerResources"],
     spotlight: ["SPARK Spotlight", "Daily Bites", "dailyBites"],
-    octoberGames: ["SPARK Games", "Daily Bites", "dailyBites"],
+    rewards: ["SPARK Rewards", "Daily Bites", "dailyBites"], octoberGames: ["SPARK Games", "Daily Bites", "dailyBites"],
     dailyBites: ["Daily Bites", "Manager Hub", "homeBase"],
     incidentHelper: ["Incident Record Helper", "Manager Hub", "homeBase"],
     schoolHub: ["School Dashboard", "Manager Hub", "homeBase"],
@@ -119,7 +120,8 @@ function App() {
   if (screen === "locationInformation") return managerPage(<LocationInformationPage location={selectedLocation} onBack={() => setScreen("managerResources")} />);
   if (screen === "spotlight") return managerPage(<SpotlightArchive location={selectedLocation} employee={selectedEmployee} managerPin={managerSessionPin} />);
   if (screen === "octoberGames") return managerPage(<main className="og-page"><OctoberGames location={selectedLocation} employee={selectedEmployee} managerPin={managerSessionPin}/></main>);
-  if (screen === "dailyBites") return managerPage(<DailyBitesPage onOctoberGames={() => setScreen("octoberGames")} onViewSpotlights={() => setScreen("spotlight")} managerPin={managerSessionPin} location={selectedLocation} employee={selectedEmployee} onBack={() => setScreen("homeBase")} />);
+  if (screen === 'rewards') return managerPage(<main className="og-page"><ManagerRewards location={selectedLocation} employee={selectedEmployee} managerPin={managerSessionPin} onBack={()=>setScreen('dailyBites')}/></main>);
+  if (screen === "dailyBites") return managerPage(<DailyBitesPage onRewards={()=>setScreen("rewards")} onOctoberGames={() => setScreen("octoberGames")} onViewSpotlights={() => setScreen("spotlight")} managerPin={managerSessionPin} location={selectedLocation} employee={selectedEmployee} onBack={() => setScreen("homeBase")} />);
   if (screen === "incidentHelper") return managerPage(<IncidentRecordHelper location={selectedLocation} employee={selectedEmployee} onBack={() => setScreen("homeBase")} />);
   if (screen === "schoolHub") return managerPage(<SchoolHub location={selectedLocation} employee={selectedEmployee} onFinishLine={() => { setEditingCheck(null); setScreen("finishLine"); }} onDashboard={() => setScreen("schoolDashboard")} onMealAnalytics={() => setScreen("mealAnalytics")} onExit={() => setScreen("homeBase")} />);
   if (screen === "mealAnalytics") {
