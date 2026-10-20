@@ -28,7 +28,7 @@ export function createHandler(db,enabled=previewEnabled(),production=false){
    // Never accept a caller-provided storage path or puzzle arrangement.
    const content={...payload};delete content.photo_path;delete content.pieces;
    if(photo){
-    if(!['submit','round','collection_round'].includes(action))throw Error('Unexpected photo.');
+    if(!['submit','round','collection_round','showdown_submit'].includes(action))throw Error('Unexpected photo.');
     const actor=await rpc('authorize');
     if(['round','collection_round'].includes(action)&&!actor.admin)throw Error('Supervisor authorization required.');
     if(typeof photo.base64!=='string'||photo.base64.length>2800000||!/^[A-Za-z0-9+/]+={0,2}$/.test(photo.base64))throw Error('Choose a photo under 2 MB.');
@@ -50,20 +50,25 @@ export function createHandler(db,enabled=previewEnabled(),production=false){
     if(content.piece_costs==null)content.piece_costs=initialCosts(content.pieces,content.difficulty);
     if(!Array.isArray(content.piece_costs)||content.piece_costs.length!==content.pieces.length||content.piece_costs.some(n=>!Number.isInteger(n)||n<1||n>5))throw Error('Choose 1–5 credits for each piece.');
    }
-   const data=await rpc(action==='badge'?'list':action,content);staged=null;
+   const data=await rpc(action==='badge'?'list':action,content);
+   if(staged&&data?.unused_showdown_photo)await bucket.remove([staged]);
+   staged=null;delete data.unused_showdown_photo;
    // Existing photo paths may be referenced by both launch and preview data. Keep replaced originals private.
    if(data && !Array.isArray(data))data.production=production;
    delete data.old_photo;
+   if(action==='showdown_poll')return res.status(200).json(data);
    if(action==='authorize')return res.status(200).json(data);
    if(action==='badge')return res.status(200).json({participating:data.participating,new_challenge:data.new_challenge});
-   const photoEntries=[...(data.entries||[]),...(data.admin?data.mystery_drafts||[]:[])];
-   const paths=photoEntries.filter(e=>e.photo_path).map(e=>e.photo_path);
+   const targets=(data.showdowns?.submissions||[]).filter(s=>s.target_photo).map(s=>({parent:s,photo_path:s.target_photo}));
+   const photoEntries=[...(data.entries||[]),...(data.admin?data.mystery_drafts||[]:[]),...(data.showdowns?.rounds||[]).flatMap(r=>r.photos||[]),...(data.showdowns?.submissions||[]),...(data.showdowns?.champions||[]),...targets];
+   const paths=[...new Set(photoEntries.filter(e=>e.photo_path).map(e=>e.photo_path))];
    const urls=new Map();
    if(paths.length){const {data:signed,error}=await bucket.createSignedUrls(paths,300);if(error)throw Error('Could not load submission photos.');for(const url of signed)urls.set(url.path,url.signedUrl);}
    for(const e of photoEntries){
     if(e.photo_path){e.photo_url=urls.get(e.photo_path);if(!e.photo_url)throw Error('Could not load a photo.');}
     delete e.photo_path;
    }
+   for(const target of targets){target.parent.target_photo_url=target.photo_url;delete target.parent.target_photo;}
    for(const r of data.rounds||[]){
     if(r.photo_path){
      if(data.admin||r.solved_at){const {data:url,error}=await bucket.createSignedUrl(r.photo_path,300);if(error)throw Error('Could not load a mystery photo.');r.photo_url=url.signedUrl;}
