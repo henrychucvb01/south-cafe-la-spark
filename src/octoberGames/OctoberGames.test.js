@@ -202,3 +202,11 @@ test('unlock purchase and reveal previews never send mutation requests',async()=
 });
 
 test('recent guesses show other-school labels, text and time without supervisor data',async()=>{data.recent_guesses=[{attempt_key:'example',school_name:'School B',guess:'pumpkin',submitted_at:'2026-10-15T12:00:00Z'}];await render();await click('Mystery Photos');expect(host.textContent).toContain('Last 5 guesses from other schools');expect(host.querySelector('.og-recent-guesses').textContent).toContain('School B: pumpkin');});
+test('manager showdowns precede regular quests while supervisor placement stays unchanged',async()=>{
+ data.showdowns={champions:[],used:[],eligible_quests:[],submissions:[],rounds:[{id:'active',quest:1,state:'voting',defender:2,closes_at:'2099-01-01T00:00:00Z',photos:[]}]};
+ await render();
+ const headings=()=>[...host.querySelectorAll('h3')].map(e=>e.textContent);
+ expect(headings()[0]).toBe('Side Quest Showdowns');expect(headings()[1]).toContain('Side Quests');expect(host.querySelectorAll('.sd')).toHaveLength(1);
+ data.admin=true;await render({supervisorPin:'admin-test'});
+ expect(headings()[0]).toContain('Side Quests');expect(headings().at(-1)).toBe('Side Quest Challenges');expect(host.querySelectorAll('.sd')).toHaveLength(1);
+});

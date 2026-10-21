@@ -18,3 +18,22 @@ test('enlarged photo dialog opens with the actual photograph',async()=>{await re
 test('Supervisor may confirm any photo regardless of community vote totals',async()=>{data.admin=true;data.showdowns.rounds[0].state='decision';jest.spyOn(window,'confirm').mockReturnValue(true);await render(<SideQuestShowdowns data={data} run={run} busy={false}/>);await act(async()=>[...host.querySelectorAll('button')].filter(b=>b.textContent==='Select as champion')[1].click());expect(run).toHaveBeenCalledWith('showdown_finalize',expect.objectContaining({photo:'b',revision:3,confirmed:true,request_id:expect.any(String)}));});
 test('rejected submission messages do not expose private notes',async()=>{data.showdowns.submissions=[{id:'reject',quest:7,state:'rejected',private_feedback:'SECRET'}];await render(<SideQuestShowdowns data={data} run={run} busy={false}/>);expect(host.textContent).toContain('corrected photo');expect(host.textContent).not.toContain('SECRET');});
 test('submission repeats the original requirements and winning photograph and requires confirmation',async()=>{const close=jest.fn();function Picker({onChange}){return <button type="button" onClick={()=>onChange({base64:'test',preview:'new.webp'})}>Test photo</button>;}jest.spyOn(window,'confirm').mockReturnValue(false);await render(<SideQuestShowdowns data={data} run={run} busy={false} challengeQuest={quest} onCloseChallenge={close} PhotoPicker={Picker}/>);expect(document.querySelector('.sd-original').getAttribute('src')).toBe('original.webp');expect(document.querySelector('dialog').textContent).toContain(quest.goal);await act(async()=>button('Test photo').click());await act(async()=>document.querySelector('dialog input[type=checkbox]').click());await act(async()=>document.querySelector('dialog form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));expect(run).not.toHaveBeenCalled();window.confirm.mockReturnValue(true);await act(async()=>document.querySelector('dialog form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));expect(run).toHaveBeenCalledWith('showdown_submit',expect.objectContaining({quest:7,confirmed:true,consent:true,request_id:expect.any(String)}),expect.objectContaining({base64:'test'}));expect(close).toHaveBeenCalled();});
+test('manager showdowns use soonest deadline without mutating data or supervisor order',async()=>{
+ const later=data.showdowns.rounds[0];later.quest_name='Later showdown';
+ const sooner={...later,id:'sooner',quest_name:'Sooner showdown',closes_at:new Date(Date.now()+3600000).toISOString()};
+ data.showdowns.rounds.push(sooner);
+ await render(<SideQuestShowdowns data={data} run={run} busy={false}/>);
+ expect([...host.querySelectorAll('.sd-round h4')].map(e=>e.textContent)).toEqual(['Sooner showdown','Later showdown']);
+ expect(data.showdowns.rounds[0]).toBe(later);
+ data.admin=true;await render(<SideQuestShowdowns data={data} run={run} busy={false}/>);
+ expect([...host.querySelectorAll('.sd-round h4')].map(e=>e.textContent)).toEqual(['Later showdown','Sooner showdown']);
+});
+test('no active manager showdowns hides the section while preserving history and submission dialog',async()=>{
+ data.showdowns.rounds[0].state='finalized';
+ await render(<SideQuestShowdowns data={data} run={run} busy={false}/>);
+ expect(host.querySelector('.sd')).toBeNull();expect(host.querySelector('h3')).toBeNull();expect(host.textContent).toContain('Showdown photographs & history');
+ await render(<SideQuestShowdowns data={data} run={run} busy={false} challengeQuest={quest} onCloseChallenge={()=>{}} PhotoPicker={()=>null}/>);
+ expect(document.querySelector('dialog')).not.toBeNull();
+ data.showdowns.rounds=[];await render(<SideQuestShowdowns data={data} run={run} busy={false}/>);expect(host.innerHTML).toBe('');
+ data.admin=true;await render(<SideQuestShowdowns data={data} run={run} busy={false}/>);expect(host.querySelector('.sd')).not.toBeNull();expect(host.textContent).toContain('Side Quest Challenges');
+});

@@ -52,11 +52,14 @@ function Review({submission:s,data,run,busy,onZoom}){
 export default function SideQuestShowdowns({data,run,busy,challengeQuest,onCloseChallenge,PhotoPicker}){
  const [zoom,setZoom]=useState(null);const sd=data.showdowns;if(!sd)return null;
  const active=sd.rounds.filter(r=>r.state!=='finalized'),history=sd.rounds.filter(r=>r.state==='finalized'),pending=sd.submissions.filter(s=>s.state==='pending');
- return <section className="sd"><h3>{data.admin?'Side Quest Challenges':'Side Quest Showdowns'}</h3>{data.admin&&<><h4>Pending photographs · {pending.length}</h4>{pending.map(s=><Review key={s.id} submission={s} data={data} run={run} busy={busy} onZoom={setZoom}/>)}{!pending.length&&<p>No challenge photographs awaiting review.</p>}</>}
+ if(!data.admin)active.sort((a,b)=>new Date(a.closes_at)-new Date(b.closes_at));
+ const showSection=data.admin||active.length>0;
+ const Container=showSection?'section':React.Fragment;
+ return <Container {...(showSection?{className:"sd"}:{})}>{showSection&&<h3>{data.admin?'Side Quest Challenges':'Side Quest Showdowns'}</h3>}{data.admin&&<><h4>Pending photographs · {pending.length}</h4>{pending.map(s=><Review key={s.id} submission={s} data={data} run={run} busy={busy} onZoom={setZoom}/>)}{!pending.length&&<p>No challenge photographs awaiting review.</p>}</>}
   {active.map(r=><Round key={r.id} round={r} data={data} run={run} busy={busy} onZoom={setZoom}/>)}
   {!data.admin&&sd.submissions.filter(s=>s.state==='rejected').map(s=><p key={s.id} className="sd-status">Your photograph for {data.quests.find(q=>q.id===s.quest)?.name||'this quest'} was not approved. You may submit a corrected photo while eligible.</p>)}
   {!!history.length&&<details className="sd-history"><summary>Showdown photographs & history · {history.length}</summary>{history.map(r=><Round key={r.id} round={r} data={data} run={run} busy={busy} onZoom={setZoom}/>)}</details>}
   {challengeQuest&&<Submission key={challengeQuest.id} quest={challengeQuest} data={data} run={run} busy={busy} onClose={onCloseChallenge} PhotoPicker={PhotoPicker}/>}
   {zoom&&<Dialog title={`${zoom.school} photograph`} onClose={()=>setZoom(null)}><img className="sd-zoom" src={zoom.url} alt={`${zoom.school} enlarged photograph`}/></Dialog>}
- </section>;
+ </Container>;
 }
