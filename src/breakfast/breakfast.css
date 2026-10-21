@@ -29,3 +29,7 @@
 .ba-card-meals{display:grid;gap:10px;align-items:start}.ba-card-meals .ba-card-count{display:flex;align-items:baseline;gap:6px;min-width:0}.ba-card-count strong{font-variant-numeric:tabular-nums}
 .ba-card-preorder{min-width:0;padding:10px 12px;border-radius:8px;background:#e5f3ec;color:#175947;font-size:13px;line-height:1.4;text-align:left}.ba-preorder-date{display:block;margin-bottom:8px;font-size:12px}.ba-preorder-items{list-style:none;margin:0;padding:0;display:grid;gap:6px}.ba-preorder-items li{display:grid;grid-template-columns:4ch minmax(0,1fr);align-items:baseline;column-gap:10px}.ba-preorder-quantity{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}.ba-preorder-name{min-width:0;overflow-wrap:break-word}
 .ba-signature canvas{width:100%;height:180px;background:white;border:2px solid #89a7b8;border-radius:10px;touch-action:none;display:block;margin-bottom:12px}.ba-teacher input[type=number]{font-size:1.2rem;text-align:center;min-height:44px}.ba-dispatch .ba-actions{flex-wrap:wrap;margin:12px 0}.ba-dispatch button[aria-pressed=true]{background:#146c60;color:white}
+
+.ba-day-editor{max-width:640px;box-sizing:border-box;}
+.ba-day-editor fieldset{min-width:0;border:1px solid #d5e1e6;border-radius:8px;}
+.ba-day-editor .ba-actions{flex-wrap:wrap;}

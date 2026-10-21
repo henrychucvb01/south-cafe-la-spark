@@ -18,7 +18,7 @@ test('permanent URL contains only the classroom bearer token',()=>{expect(teache
 test('requires certification; counts, submits, and explicitly corrects with a fresh confirmation',async()=>{
  await render();expect(button('Submit breakfast count').disabled).toBe(true);await click(host.querySelector('[aria-label="Add one meal"]'));expect(host.querySelector('output').textContent).toBe('1');await sign();await click(host.querySelector('input[type="checkbox"]'));
  api.teacherSubmit.mockResolvedValue({...base,record:{count:1,comments:'',revision:1,submitted_at:'2026-10-06T15:17:00Z'}});await act(async()=>host.querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
- expect(api.teacherSubmit).toHaveBeenCalledWith(qr,base,1,'',true,{attendance:20,signature:{strokes:[[[0,0],[1,1]]]},returns:{}});expect(host.textContent).toContain('Breakfast Count Submitted');await click(button('Correct breakfast count'));expect(button('Submit corrected count').disabled).toBe(true);await click(host.querySelector('[aria-label="Subtract one meal"]'));expect(host.querySelector('output').textContent).toBe('0');expect(host.querySelector('[aria-label="Subtract one meal"]').disabled).toBe(true);
+ expect(api.teacherSubmit).toHaveBeenCalledWith(qr,base,1,'',true,{attendance:20,signature:{strokes:[[[0,0],[1,1]]]},returns:null});expect(host.textContent).toContain('Breakfast Count Submitted');await click(button('Correct breakfast count'));expect(button('Submit corrected count').disabled).toBe(true);await click(host.querySelector('[aria-label="Subtract one meal"]'));expect(host.querySelector('output').textContent).toBe('0');expect(host.querySelector('[aria-label="Subtract one meal"]').disabled).toBe(true);
 });
 test('displays and acknowledges required manager messages without discarding the draft count',async()=>{
  api.teacherPage.mockResolvedValue({...base,messages:[{id:'m1',body:'Count when served',require_ack:true}]});await render();expect(api.teacherMessage).toHaveBeenCalledWith(qr,'m1');await click(host.querySelector('[aria-label="Add one meal"]'));await click(button('I have read this message'));expect(api.teacherMessage).toHaveBeenCalledWith(qr,'m1',true);expect(host.querySelector('output').textContent).toBe('1');expect(host.textContent).not.toContain('Count when served');
@@ -47,3 +47,7 @@ test('Done / Close thanks the teacher and removes counting controls even if the 
 });
 
 test('QR links retain their environment and ignore manager paths',()=>{window.history.replaceState(null,'','/manager/preview?session=private');try{const link=new URL(teacherLink(qr));expect(link.origin).toBe(window.location.origin);expect(link.pathname).toBe('/');expect(link.search).toBe('');expect(teacherToken(link.hash)).toBe(qr);}finally{window.history.replaceState(null,'','/');}});
+
+test('teacher count does not display or require cafeteria returned quantities',async()=>{
+ api.teacherPage.mockResolvedValue({...base,menu:{fruit:'Pear',milk1:'Milk'}});await render();expect(host.textContent).not.toContain('Returned items');expect(host.querySelectorAll('input[type=number]').length).toBe(1);await sign();await click(host.querySelector('input[type=checkbox]'));expect(button('Submit breakfast count').disabled).toBe(false);
+});

@@ -46,3 +46,5 @@ export const teacherPreorderItems=(qr,page,counts,menu)=>rpc('breakfast_teacher_
 export const returnsReport=(token,from,to,classroom=null,location=null)=>rpc('breakfast_returns_report',{p_token:token,p_from:from,p_to:to,p_classroom:classroom,p_location:location});
 
 export const copyBreakfastMenu=(token,source,destination,expected)=>rpc('breakfast_copy_menu',{p_token:token,p_source:source,p_destination:destination,p_expected:expected});
+
+export const editBreakfastDay=(token,day,values,reset,confirmed)=>rpc('breakfast_edit_day',{p_token:token,p_id:day.classroom_id,p_date:day.service_date,p_updated:day.updated_at,p_values:values,p_reset:reset,p_confirmed:confirmed});
