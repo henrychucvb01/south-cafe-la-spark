@@ -33,3 +33,8 @@
 .ba-day-editor{max-width:640px;box-sizing:border-box;}
 .ba-day-editor fieldset{min-width:0;border:1px solid #d5e1e6;border-radius:8px;}
 .ba-day-editor .ba-actions{flex-wrap:wrap;}
+
+.ba-card-return-warnings{list-style:none;padding:0;margin:12px 0;color:#963f15;font-size:14px;}
+.ba-card-return-warnings li{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;padding:7px 0;align-items:start;line-height:1.4;}
+.ba-card-return-warnings li+li{border-top:1px solid #dce5e5;}
+.ba-card-return-warnings span{min-width:0;overflow-wrap:anywhere;text-align:left;}
