@@ -11,7 +11,7 @@ try{
  insert into public.locations select n,'School '||n,true from generate_series(1,5)n;
  create table public.supper_monitoring_sessions(location_id bigint,employee_id bigint,actor_role text);
  create function public.require_supper_monitoring_session(text) returns public.supper_monitoring_sessions language plpgsql as $$begin
- case $1 when 'one' then return (1,11,'manager')::public.supper_monitoring_sessions;when 'two' then return (2,22,'manager')::public.supper_monitoring_sessions;when 'three' then return (3,33,'manager')::public.supper_monitoring_sessions;when 'four' then return (4,44,'manager')::public.supper_monitoring_sessions;when 'same-school-other-manager' then return (2,222,'manager')::public.supper_monitoring_sessions;when 'cover' then return (2,null,'covering')::public.supper_monitoring_sessions;else raise exception 'Invalid session';end case;end$$;
+ case $1 when 'one' then return (1,11,'manager')::public.supper_monitoring_sessions;when 'two' then return (2,22,'manager')::public.supper_monitoring_sessions;when 'three' then return (3,33,'manager')::public.supper_monitoring_sessions;when 'four' then return (4,44,'manager')::public.supper_monitoring_sessions;when 'same-school-other-manager' then return (2,222,'manager')::public.supper_monitoring_sessions;when 'other-school-cover' then return (3,null,'manager')::public.supper_monitoring_sessions;when 'nonmanager' then return (2,null,'covering')::public.supper_monitoring_sessions;when 'cover' then return (2,null,'manager')::public.supper_monitoring_sessions;else raise exception 'Invalid session';end case;end$$;
  create table public.spark_points(location_id bigint,points int);
  create function public.spark_bingo_season_balance(bigint) returns numeric language sql as $$select coalesce(sum(points),0) from public.spark_points where location_id=$1$$;
  create schema cron;create function cron.schedule(text,text,text) returns bigint language sql as $$select 1::bigint$$;`);
@@ -39,6 +39,7 @@ try{
  await db.exec(await readFile('supabase/migrations/20261020153852_sidequest_showdown.sql','utf8'));
  const migration=(await readdir('supabase/migrations')).find(f=>f.endsWith('_sidequest_cancel_challenge.sql'));
  await db.exec(await readFile('supabase/migrations/'+migration,'utf8'));
+ await db.exec(await readFile('supabase/migrations/20261021160528_showdown_school_manager_cancel.sql','utf8'));
  for(const env of ['dev','live']){
   const ns='october_'+env;
   const rpc=async(action,token='two',payload={},pin=null)=>(await db.query(`select public.october_games_${env}($1,$2,$3,$4) result`,[action,token,pin,payload])).rows[0].result;
@@ -55,16 +56,18 @@ try{
   const active=async()=> (await rpc('list')).showdowns.rounds.find(r=>['voting','decision'].includes(r.state));
   const pending=await submit();
   assert.equal((await rpc('list')).showdowns.submissions.find(s=>s.id===pending).can_cancel,true);
-  assert.equal((await rpc('list','same-school-other-manager')).showdowns.submissions.find(s=>s.id===pending).can_cancel,false);
-  await assert.rejects(cancel(pending,'three'),/Only the manager/);
-  await assert.rejects(cancel(pending,'same-school-other-manager'),/Only the manager/);
-  await assert.rejects(cancel(pending,'cover'),/Registered challenging/);
-  await assert.rejects(rpc('showdown_cancel',null,{id:pending,confirmed:true},'admin'),/Registered challenging/);
+  assert.equal((await rpc('list','same-school-other-manager')).showdowns.submissions.find(s=>s.id===pending).can_cancel,true);
+  await assert.rejects(cancel(pending,'three'),/Only a manager/);
+  assert.equal((await rpc('list','cover')).showdowns.submissions.find(s=>s.id===pending).can_cancel,true);
+  await assert.rejects(cancel(pending,'other-school-cover'),/Only a manager/);
+  await assert.rejects(cancel(pending,'nonmanager'),/Challenging school manager/);
+  await assert.rejects(rpc('showdown_cancel',null,{id:pending,confirmed:true},'admin'),/Challenging school manager/);
   await assert.rejects(rpc('showdown_cancel','two',{id:pending,revision:1}),/Confirm cancellation/);
   await assert.rejects(cancel(pending,'two',99),/Challenge changed/);
-  await cancel(pending);await cancel(pending);
+  await cancel(pending,'cover');await cancel(pending,'cover');
   assert.equal((await db.query(`select count(*)::int n from ${ns}.showdown_audit where action='cancelled'`)).rows[0].n,1);
   await assert.rejects(approve(pending),/Submission changed/);
+  const otherManagerPending=await submit();await cancel(otherManagerPending,'same-school-other-manager');
   const a=await submit();await approve(a);let round=await active();
   const photoA=round.photos.find(p=>p.location_id===2).id;
   await rpc('showdown_vote','four',{round_id:round.id,generation:round.generation,photo:photoA});
@@ -74,7 +77,7 @@ try{
   await rpc('showdown_vote','four',{round_id:round.id,generation:round.generation,photo:photoA});
   await rpc('showdown_vote','one',{round_id:round.id,generation:round.generation,photo:photoB});
   await assert.rejects(cancel(a,'two',2,round.revision-1),/Showdown changed/);
-  const after=await cancel(a,'two',2,round.revision);
+  const after=await cancel(a,'cover',2,round.revision);
   let remaining=after.showdowns.rounds.find(r=>r.id===round.id);
   assert.equal(remaining.state,'voting');assert.equal(remaining.generation,round.generation);assert.equal(remaining.closes_at,round.closes_at);
   assert.equal(remaining.photos.length,2);assert.equal(remaining.photos.find(p=>p.id===photoB).votes,1);
@@ -101,6 +104,6 @@ try{
   assert.equal(await ledger(),before,'cancellation never changes rewards, points or unlock credits');
   assert.equal((await db.query(`select has_table_privilege('anon','${ns}.showdown_submissions','UPDATE') allowed`)).rows[0].allowed,false);
   assert.equal((await db.query(`select has_function_privilege('authenticated','public.october_games_${env}(text,text,text,jsonb)','EXECUTE') allowed`)).rows[0].allowed,false);
-  console.log('PASS '+env+': pending and active withdrawal, original-manager authorization, confirmation/revision protection, idempotency, preserved competing votes/deadline, removed ballot invalidation, resubmission, sole challenger closure, finalized guard, audit and unchanged ledger.');
+  console.log('PASS '+env+': pending and active withdrawal, school-manager/temporary-manager authorization, confirmation/revision protection, idempotency, preserved competing votes/deadline, removed ballot invalidation, resubmission, sole challenger closure, finalized guard, audit and unchanged ledger.');
  }
 }finally{await db.close();}

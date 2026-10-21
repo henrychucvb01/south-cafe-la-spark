@@ -28,10 +28,11 @@ has a Side Quest Challenges tab with a pending-review/decision badge.
 
 ## Manager cancellation
 
-The submitting registered manager can use **Cancel My Challenge** while their
+A manager signed in to the challenging school, including its authorized temporary
+manager, can use **Cancel My Challenge** while their
 submission is pending or the approved round is voting/awaiting a decision.
-Confirmation is required. Other managers, covering users, and finalized rounds
-cannot use cancellation. The server checks ownership and current submission and
+Confirmation is required. Managers at other schools, supervisor sessions, and finalized rounds
+cannot use cancellation. The server checks school ownership and current submission and
 round revisions; retries are idempotent.
 
 Pending cancellation removes the submission from review. Approved cancellation

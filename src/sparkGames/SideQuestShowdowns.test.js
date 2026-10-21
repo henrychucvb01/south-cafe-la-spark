@@ -68,10 +68,17 @@ test('canceled rounds appear only in history and do not block a corrected challe
  await render(<ShowdownCardTools data={data} quest={quest} onChallenge={()=>{}}/>);expect(host.textContent).not.toContain('and lost!');
 });
 
-test('only the submitting manager sees cancellation directly below their own challenger photo',async()=>{
+test('only the challenging school sees cancellation directly below its own photo',async()=>{
  data.location_id=2;data.showdowns.submissions=[{id:'mine',quest:7,state:'approved',revision:2,can_cancel:true}];data.showdowns.rounds[0].photos[1].submission='mine';
  await render(<SideQuestShowdowns data={data} run={run} busy={false}/>);
  const photos=host.querySelectorAll('.sd-photo');expect(photos[0].querySelector('.sd-cancel')).toBeNull();expect(photos[1].querySelector('.sd-enlarge').nextElementSibling).toBe(photos[1].querySelector('.sd-cancel'));
  data.showdowns.submissions[0].can_cancel=false;await render(<SideQuestShowdowns data={data} run={run} busy={false}/>);expect(button('Cancel My Challenge')).toBeUndefined();
  data.showdowns.submissions[0].can_cancel=true;data.location_id=4;await render(<SideQuestShowdowns data={data} run={run} busy={false}/>);expect(button('Cancel My Challenge')).toBeUndefined();
+});
+
+test('authorized temporary manager sees cancellation below their school photo without a permanent identity',async()=>{
+ data.location_id=2;data.identified=false;data.showdowns.submissions=[{id:'mine',quest:7,state:'approved',revision:2,can_cancel:true}];data.showdowns.rounds[0].photos[1].submission='mine';jest.spyOn(window,'confirm').mockReturnValue(true);
+ await render(<SideQuestShowdowns data={data} run={run} busy={false}/>);
+ const ownPhoto=host.querySelectorAll('.sd-photo')[1];expect(ownPhoto.querySelector('.sd-enlarge').nextElementSibling.textContent).toBe('Cancel My Challenge');
+ await act(async()=>button('Cancel My Challenge').click());expect(run).toHaveBeenCalledWith('showdown_cancel',{id:'mine',revision:2,round_revision:3,confirmed:true});
 });
