@@ -37,3 +37,32 @@ test('no active manager showdowns hides the section while preserving history and
  data.showdowns.rounds=[];await render(<SideQuestShowdowns data={data} run={run} busy={false}/>);expect(host.innerHTML).toBe('');
  data.admin=true;await render(<SideQuestShowdowns data={data} run={run} busy={false}/>);expect(host.querySelector('.sd')).not.toBeNull();expect(host.textContent).toContain('Side Quest Challenges');
 });
+test('pending challenge cancellation requires confirmation and the server permission',async()=>{
+ data.showdowns.rounds=[];data.showdowns.submissions=[{id:'pending',quest:7,state:'pending',revision:1,can_cancel:true}];
+ const confirm=jest.spyOn(window,'confirm').mockReturnValue(false);
+ await render(<SideQuestShowdowns data={data} run={run} busy={false}/>);
+ expect(host.textContent).toContain('Your pending challenges');
+ await act(async()=>button('Cancel My Challenge').click());expect(run).not.toHaveBeenCalled();
+ confirm.mockReturnValue(true);await act(async()=>button('Cancel My Challenge').click());
+ expect(run).toHaveBeenCalledWith('showdown_cancel',{id:'pending',revision:1,confirmed:true});
+ data.showdowns.submissions[0].can_cancel=false;await render(<SideQuestShowdowns data={data} run={run} busy={false}/>);
+ expect(button('Cancel My Challenge')).toBeUndefined();
+});
+test('approved challenge can be canceled during voting or decision, never after finalization',async()=>{
+ data.showdowns.submissions=[{id:'approved',quest:7,state:'approved',revision:2,can_cancel:true}];data.showdowns.rounds[0].photos[1].submission='approved';
+ jest.spyOn(window,'confirm').mockReturnValue(true);
+ for(const state of ['voting','decision']){
+  data.showdowns.rounds[0].state=state;await render(<SideQuestShowdowns data={data} run={run} busy={false}/>);
+  await act(async()=>button('Cancel My Challenge').click());expect(run).toHaveBeenLastCalledWith('showdown_cancel',{id:'approved',revision:2,round_revision:3,confirmed:true});
+ }
+ data.showdowns.rounds[0].state='finalized';await render(<SideQuestShowdowns data={data} run={run} busy={false}/>);expect(button('Cancel My Challenge')).toBeUndefined();
+ data.showdowns.rounds[0].state='voting';await render(<SideQuestShowdowns data={data} run={run} busy={true}/>);expect(button('Cancel My Challenge').disabled).toBe(true);
+ data.admin=true;await render(<SideQuestShowdowns data={data} run={run} busy={false}/>);expect(button('Cancel My Challenge')).toBeUndefined();
+});
+test('canceled rounds appear only in history and do not block a corrected challenge',async()=>{
+ data.showdowns.rounds[0].state='cancelled';data.showdowns.rounds[0].cancelled_at=new Date().toISOString();
+ expect(canChallenge(data,quest)).toBe(true);
+ await render(<SideQuestShowdowns data={data} run={run} busy={false}/>);
+ expect(host.querySelector('.sd')).toBeNull();expect(host.querySelector('[role=timer]')).toBeNull();expect(host.textContent).toContain('Challenge canceled · champion unchanged');
+ await render(<ShowdownCardTools data={data} quest={quest} onChallenge={()=>{}}/>);expect(host.textContent).not.toContain('and lost!');
+});

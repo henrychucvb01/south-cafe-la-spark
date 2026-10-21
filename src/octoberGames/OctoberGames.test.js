@@ -210,3 +210,16 @@ test('manager showdowns precede regular quests while supervisor placement stays 
  data.admin=true;await render({supervisorPin:'admin-test'});
  expect(headings()[0]).toContain('Side Quests');expect(headings().at(-1)).toBe('Side Quest Challenges');expect(host.querySelectorAll('.sd')).toHaveLength(1);
 });
+test('live poll reloads the comparison when cancellation changes revision without restarting voting',async()=>{
+ jest.useFakeTimers();
+ try{
+  data.showdowns={champions:[],used:[],eligible_quests:[],submissions:[],rounds:[{id:'active',quest:1,state:'voting',generation:2,revision:3,defender:2,closes_at:'2099-01-01T00:00:00Z',photos:[{id:'defender',location_id:2,school_name:'School B',role:'defender',votes:1},{id:'withdrawn',location_id:3,school_name:'School C',role:'challenger',votes:1},{id:'remaining',location_id:4,school_name:'School D',role:'challenger',votes:2}]}]};
+  await render();expect(host.querySelectorAll('.sd-photo')).toHaveLength(3);
+  const round=data.showdowns.rounds[0];round.revision=4;round.photos=round.photos.filter(p=>p.id!=='withdrawn');
+  api.gamesRequest.mockImplementation(async action=>action==='showdown_poll'?{showdown_poll:true,server_time:data.server_time,rounds:JSON.parse(JSON.stringify(data.showdowns.rounds))}:JSON.parse(JSON.stringify(data)));
+  await act(async()=>jest.advanceTimersByTime(5000));
+  expect(api.gamesRequest).toHaveBeenCalledWith('showdown_poll',{token:'scoped-token'});
+  expect(api.gamesRequest).toHaveBeenCalledWith('list',{token:'scoped-token'});
+  expect(host.querySelectorAll('.sd-photo')).toHaveLength(2);expect(host.querySelector('.sd-comparison').textContent).not.toContain('School C');
+ }finally{jest.useRealTimers();}
+});

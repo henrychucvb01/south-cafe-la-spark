@@ -26,6 +26,27 @@ The Supervisor selects any participating photo after voting, regardless of
 community ranking. Confirmation is mandatory. The existing Games interface
 has a Side Quest Challenges tab with a pending-review/decision badge.
 
+## Manager cancellation
+
+The submitting registered manager can use **Cancel My Challenge** while their
+submission is pending or the approved round is voting/awaiting a decision.
+Confirmation is required. Other managers, covering users, and finalized rounds
+cannot use cancellation. The server checks ownership and current submission and
+round revisions; retries are idempotent.
+
+Pending cancellation removes the submission from review. Approved cancellation
+withdraws only that photograph and voids its current ballot selections. Remaining
+photographs keep their votes, generation, and deadline. If no challengers remain,
+the round closes as canceled and the current champion remains unchanged. The
+school's challenge opportunity is restored for the open competition. No points,
+rewards, or unlock credits change. Photos, all voting generations, and a cancellation
+audit entry remain stored; canceled rounds appear in history. Polling reloads the
+comparison when a round revision changes, including withdrawals with no restart.
+
+Validation: `node scripts/test-sidequest-cancel-db.mjs` uses in-memory PostgreSQL
+with the real Showdown migrations and synthetic legacy authorization/list helpers.
+It covers both dev/live engines without touching real school data.
+
 ## Approved Zero-Floor Policy
 
 The user superseded the original no-net-new-points rule with a zero-floor
