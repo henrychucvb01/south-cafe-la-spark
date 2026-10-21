@@ -40,6 +40,7 @@ try{
  const migration=(await readdir('supabase/migrations')).find(f=>f.endsWith('_sidequest_cancel_challenge.sql'));
  await db.exec(await readFile('supabase/migrations/'+migration,'utf8'));
  await db.exec(await readFile('supabase/migrations/20261021160528_showdown_school_manager_cancel.sql','utf8'));
+ await db.exec(await readFile('supabase/migrations/20261021162526_temporary_manager_school_games.sql','utf8'));
  for(const env of ['dev','live']){
   const ns='october_'+env;
   const rpc=async(action,token='two',payload={},pin=null)=>(await db.query(`select public.october_games_${env}($1,$2,$3,$4) result`,[action,token,pin,payload])).rows[0].result;
@@ -68,8 +69,9 @@ try{
   assert.equal((await db.query(`select count(*)::int n from ${ns}.showdown_audit where action='cancelled'`)).rows[0].n,1);
   await assert.rejects(approve(pending),/Submission changed/);
   const otherManagerPending=await submit();await cancel(otherManagerPending,'same-school-other-manager');
-  const a=await submit();await approve(a);let round=await active();
+  const a=await submit('cover');await approve(a);let round=await active();
   const photoA=round.photos.find(p=>p.location_id===2).id;
+  await rpc('showdown_vote','cover',{round_id:round.id,generation:round.generation,photo:round.photos.find(p=>p.role==='defender').id});
   await rpc('showdown_vote','four',{round_id:round.id,generation:round.generation,photo:photoA});
   await assert.rejects(cancel(a,'two',1,round.revision),/Challenge changed/); // stale pending screen after approval
   const b=await submit('three');await approve(b);round=await active();

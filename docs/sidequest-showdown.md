@@ -2,7 +2,8 @@
 
 ## Workflow
 
-Completed cards offer Challenge to eligible registered, participating managers.
+Completed cards offer Challenge to eligible signed-in, participating school managers,
+including authorized temporary managers.
 The current champion cannot challenge itself. Pending photographs require
 Supervisor approval; rejection preserves the school's opportunity. Approval
 consumes that school's opportunity for the quest/month. A defeated defender
@@ -110,3 +111,18 @@ Verification includes:
 
 No SSS, Coin Pusher, Breakroom, Bingo, authentication or operational schema is
 changed. Production publication occurs only after the whole feature passes.
+
+## Temporary-manager game access
+
+An authorized temporary manager session participates for its selected school:
+Side Quest and door photo uploads, Showdown submission/voting/cancellation, door
+voting, mystery guessing, credit purchases/reveals, completed-card tracking and
+new-challenge badges. Temporary game records use a stable school actor key; changing
+covering names or opening another session does not create a new game identity.
+Existing named-manager identities remain unchanged. Participation, school ownership,
+self-vote restrictions, approval, deadlines and school-level attempt/reward limits
+continue to apply. Daily Bites games and Bingo already use the school's shared records.
+
+Validation: `node scripts/test-temporary-manager-games-db.mjs` exercises temporary
+uploads/voting/guesses with the real legacy dev/live engines. The Showdown database
+suite also exercises temporary challenge submission, voting and cancellation.
