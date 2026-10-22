@@ -5,5 +5,6 @@ export const PACKING_ITEMS=[
  ['fruit','Fresh fruit','Fresh Fruit'],['milk1','1% white milk 8 oz','1 White Milk 8oz'],
  ['milkNonfat','Nonfat white milk 8 oz','Nonfat White Milk 8oz'],
  ['milkLactaid','Lactaid white milk 8 oz','Lactaid White Milk 8oz'],
+ ['milkSpecial','Special milk (authorized classrooms)','Other Special diet ect'],
  ['other','Other / special diet','Other Special diet ect']
 ];

@@ -20,3 +20,11 @@ await assert.rejects(build(template,{...data,rows:[data.rows[0],data.rows[0]]}),
 await assert.rejects(build(template,{...data,rows:[{...data.rows[0],items:{entree1:-1}}]}),/Invalid/);
 await mkdir('node_modules/.cache/bic-forms',{recursive:true});await writeFile('node_modules/.cache/bic-forms/packing-sample.pdf',bytes);
 console.log('PASS: district packing form, 21 classrooms over two pages, exact menu/item columns, zero vs unknown, per-page totals, unique interactive fields, blank signatures, duplicate/invalid protection.');
+
+const differentMenus={school:'Fictional BIC Pilot',service_date:'2026-10-07',menu:{},rows:[
+ {id:'k1',room:'TEST K1',enrollment:20,menu:{entree1:'Kindergarten Toast',milkSpecial:'Almond milk'},items:{entree1:10,milkSpecial:2},quantity_source:'Teacher pre-order'},
+ {id:'s1',room:'TEST G2',enrollment:20,menu:{entree1:'Standard Cereal',other:'Approved diet item',milkSpecial:'Soy milk'},items:{entree1:12,other:1,milkSpecial:3},quantity_source:'Packed'}]};
+const grouped=await build(template,differentMenus),groupedPdf=await PDFDocument.load(grouped),groupedForm=groupedPdf.getForm();assert.equal(groupedPdf.getPageCount(),2);assert.equal(groupedForm.getTextField('page1.Hot Entrée').getText(),'Kindergarten Toast');assert.equal(groupedForm.getTextField('page2.Hot Entrée').getText(),'Standard Cereal');assert.equal(groupedForm.getTextField('page1.Other Special diet ectRow1').getText(),'2');assert.equal(groupedForm.getTextField('page2.Other Special diet ectRow1').getText(),'4');
+await assert.rejects(build(template,{...differentMenus,rows:[{...differentMenus.rows[0],menu_conflicts:['Conflict']}]}),/Resolve classroom menu/);
+await writeFile('node_modules/.cache/bic-forms/grouped-packing-sample.pdf',grouped);
+console.log('PASS grouped packing PDF: separate menu/source sheets, exact per-classroom headers and quantities, authorized special milk in Other column, conflicts block printing.');

@@ -1,0 +1,17 @@
+import React,{useEffect,useRef,useState} from 'react';
+import {menuWorkspace} from './service';
+import MenuFields from './MenuFields';
+export default function ClassroomMenuPreview({token,date,data,busy,onChange}){
+ const [id,setId]=useState(''),[preview,setPreview]=useState(null),[error,setError]=useState(''),[loading,setLoading]=useState(false),[editing,setEditing]=useState(false),[values,setValues]=useState({}),[confirmed,setConfirmed]=useState(false);
+ const sequence=useRef(0);
+ useEffect(()=>{const n=++sequence.current;setPreview(null);setEditing(false);setError('');if(!id)return;setLoading(true);menuWorkspace(token,date,'preview',{classroom_id:id}).then(p=>{if(n===sequence.current)setPreview(p);}).catch(e=>{if(n===sequence.current)setError(e.message);}).finally(()=>{if(n===sequence.current)setLoading(false);});return()=>{sequence.current++;};},[id,date,data.revision,token]);
+ const conflicts=preview?.conflicts||[];
+ return <section className="ba-panel ba-classroom-menu-preview" aria-label="Classroom menu preview"><h3>Preview Classroom Menu</h3><p>Service date: {date}. Saved orders and service records show their protected menu.</p><label>Preview classroom<select disabled={busy} value={id} onChange={e=>setId(e.target.value)}><option value="">Select a classroom</option>{data.classrooms.map(c=><option key={c.id} value={c.id}>Room {c.room_code} · {c.teacher_name}{c.campus_label?` · ${c.campus_label}`:''}</option>)}</select></label>
+ {loading&&<p role="status">Loading classroom menu…</p>}{error&&<p role="alert" className="ba-error">{error}</p>}
+ {preview&&<><p>{preview.source}{preview.groups?.length?` · ${preview.groups.join(' + ')}`:''}</p>{conflicts.length>0?<div role="alert" className="ba-warning"><strong>Classroom menu needs attention</strong><ul>{conflicts.map(c=><li key={c}>{c}</li>)}</ul><p>A new preorder cannot be submitted until the cafeteria resolves this menu.</p></div>:Object.keys(preview.menu||{}).length?<ul className="ba-preview-menu">{Object.entries(preview.menu).map(([key,name])=><li key={key}>{name}</li>)}</ul>:<p role="alert">No available menu.</p>}
+ {!preview.snapshot&&!editing&&<button disabled={busy} onClick={()=>{setValues(preview.menu&&Object.keys(preview.menu).length?preview.menu:data.menus.standard||{});setEditing(true);setConfirmed(false);}}>Resolve / customize this classroom</button>}
+ {editing&&<form onSubmit={async e=>{e.preventDefault();if(confirmed&&await onChange('classroom_save',{classroom_id:id,items:values,confirmed:true}))setEditing(false);}}><p>Choose this classroom’s complete menu explicitly. Only the checked items will be offered. Confirm approved dietary accommodations.</p><fieldset disabled={busy}><MenuFields id="classroom-resolution" values={values} onChange={(key,value)=>{setValues(v=>({...v,[key]:value}));setConfirmed(false);}}/><label className="ba-check"><input required type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>I confirm this classroom’s food and approved milk/dietary options.</label><div className="ba-actions"><button className="ba-primary" disabled={!confirmed}>Save classroom menu</button><button type="button" onClick={()=>setEditing(false)}>Cancel</button></div></fieldset></form>}
+ {preview.source==='Classroom resolution'&&!editing&&<button disabled={busy} onClick={()=>window.confirm('Remove this classroom resolution and use its group menus?')&&onChange('classroom_clear',{classroom_id:id,confirmed:true})}>Use group menus again</button>}
+ </>}
+ </section>;
+}

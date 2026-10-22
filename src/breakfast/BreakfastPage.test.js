@@ -3,11 +3,11 @@ import {createRoot} from 'react-dom/client';
 import BreakfastPage from './BreakfastPage';
 import * as api from './service';
 jest.mock('./ClassroomTrend',()=>()=>null);
-jest.mock('./service',()=>({openSession:jest.fn(),closeSession:jest.fn(),listClassrooms:jest.fn(),saveClassroom:jest.fn(),classroomHistory:jest.fn(),addNote:jest.fn(),dailyDashboard:jest.fn(),breakfastMenu:jest.fn(),breakfastPacking:jest.fn().mockResolvedValue({sent:null,items:{},revision:0})}));
+jest.mock('./service',()=>({openSession:jest.fn(),closeSession:jest.fn(),listClassrooms:jest.fn(),saveClassroom:jest.fn(),classroomHistory:jest.fn(),addNote:jest.fn(),dailyDashboard:jest.fn(),breakfastMenu:jest.fn(),menuWorkspace:jest.fn(),breakfastPacking:jest.fn().mockResolvedValue({sent:null,items:{},revision:0})}));
 const location={id:1,school_name:'School A',location_code:'1234'},employee={id:11,employee_name:'Manager'};
 const record={id:'class-1',location_id:1,room_code:'B-203',teacher_name:'Ms. Garcia',enrolled_students:28,campus_label:'',active:true,revision:1};
 let root,host;
-beforeEach(()=>{global.IS_REACT_ACT_ENVIRONMENT=true;jest.clearAllMocks();api.dailyDashboard.mockResolvedValue({rows:[],total:0});api.breakfastMenu.mockResolvedValue({});api.breakfastPacking.mockResolvedValue({sent:null,items:{},revision:0});api.openSession.mockResolvedValue('scoped-token');api.closeSession.mockResolvedValue();api.listClassrooms.mockResolvedValue([record]);api.classroomHistory.mockResolvedValue({classroom:record,days:[],events:[]});host=document.createElement('div');document.body.append(host);root=createRoot(host);});
+beforeEach(()=>{global.IS_REACT_ACT_ENVIRONMENT=true;jest.clearAllMocks();api.dailyDashboard.mockResolvedValue({rows:[],total:0});api.breakfastMenu.mockResolvedValue({});api.menuWorkspace.mockImplementation(async(t,d,a='list',p={})=>({revision:1,groups:[],classrooms:[record],menus:{standard:p.items||{}},saved_groups:[]}));api.breakfastPacking.mockResolvedValue({sent:null,items:{},revision:0});api.openSession.mockResolvedValue('scoped-token');api.closeSession.mockResolvedValue();api.listClassrooms.mockResolvedValue([record]);api.classroomHistory.mockResolvedValue({classroom:record,days:[],events:[]});host=document.createElement('div');document.body.append(host);root=createRoot(host);});
 afterEach(async()=>{await act(async()=>root.unmount());host.remove();});
 const render=()=>act(async()=>root.render(<BreakfastPage location={location} employee={employee} managerPin="test"/>));
 const click=async text=>act(async()=>{const b=[...host.querySelectorAll('button')].find(e=>e.textContent===text);expect(b).toBeTruthy();b.click();});
@@ -31,8 +31,8 @@ test('does not show another school roster or fabricated data when authorization 
 
 test('Breakfast tabs show separate sections and milk checkboxes save selected item names',async()=>{
  await render();expect(host.querySelector('[role=tab][aria-selected=true]').textContent).toBe('Daily Dashboard');expect(host.querySelector('.ba-classroom-table')).toBeNull();
- await click('School Breakfast Menu');const labels=[...host.querySelectorAll('label')];const milk=labels.filter(l=>l.querySelector('input[type=checkbox]'));expect(milk.map(l=>l.textContent)).toEqual(['1% white milk 8 oz','Nonfat white milk 8 oz','Lactaid white milk 8 oz']);
- await act(async()=>milk[0].querySelector('input').click());await act(async()=>host.querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));expect(api.breakfastMenu).toHaveBeenLastCalledWith('scoped-token',expect.any(String),{milk1:'1% white milk 8 oz'});
+ await click('School Breakfast Menu');const milk=host.querySelector('[aria-label="Include 1% white milk 8 oz"]');expect(milk).toBeTruthy();
+ await act(async()=>milk.click());await act(async()=>host.querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));expect(api.menuWorkspace).toHaveBeenLastCalledWith('scoped-token',expect.any(String),'menu_save',expect.objectContaining({items:{milk1:'1% white milk 8 oz'}}));
  await click('Packing and BIC Meal Count report');expect(host.textContent).toContain('Preview / Print packing report');expect(host.querySelector('details')).toBeNull();await act(async()=>{const select=host.querySelector('.ba-report-classroom select');select.value='class-1';select.dispatchEvent(new Event('change',{bubbles:true}));});expect(host.textContent).toContain('Preview / Print meal count form');
  await click('Classrooms');expect(host.textContent).toContain('Room B-203');expect(host.textContent).not.toContain('Preview / Print packing report');
 });

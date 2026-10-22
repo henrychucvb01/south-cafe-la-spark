@@ -48,3 +48,5 @@ export const returnsReport=(token,from,to,classroom=null,location=null)=>rpc('br
 export const copyBreakfastMenu=(token,source,destination,expected)=>rpc('breakfast_copy_menu',{p_token:token,p_source:source,p_destination:destination,p_expected:expected});
 
 export const editBreakfastDay=(token,day,values,reset,confirmed)=>rpc('breakfast_edit_day',{p_token:token,p_id:day.classroom_id,p_date:day.service_date,p_updated:day.updated_at,p_values:values,p_reset:reset,p_confirmed:confirmed});
+
+export const menuWorkspace=(token,date,action='list',payload={})=>rpc('breakfast_menu_workspace',{p_token:token,p_date:date,p_action:action,p_payload:payload});
