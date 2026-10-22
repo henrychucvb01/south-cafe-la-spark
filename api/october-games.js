@@ -26,7 +26,23 @@ export function createHandler(db,enabled=previewEnabled(),production=false){
    if(action==='side_quest_gallery'){const gallery=await rpc('list');return res.status(200).json(await sideQuestGallery(gallery,bucket));}
 
    // Never accept a caller-provided storage path or puzzle arrangement.
-   const content={...payload};delete content.photo_path;delete content.pieces;
+   const content={...payload};delete content.photo_path;delete content.expected_photo_path;delete content.pieces;
+   if(action==='photo_rotate'){
+    if(photo)throw Error('Unexpected photo.');
+    if(![90,180,270].includes(content.angle))throw Error('Choose a quarter-turn rotation.');
+    const snapshot=await rpc('list');
+    if(!snapshot.admin)throw Error('Supervisor authorization required.');
+    const entry=snapshot.entries?.find(e=>e.id===content.id);
+    if(!entry||entry.state!=='pending'||entry.revision!==content.revision)throw Error('Submission changed. Refresh before rotating.');
+    if(!entry.photo_path)throw Error('Submission photo is missing.');
+    const {data:original,error:downloadError}=await bucket.download(entry.photo_path);
+    if(downloadError||!original)throw Error('Could not load the submission photo.');
+    const bytes=await sharp(Buffer.from(await original.arrayBuffer()),{limitInputPixels:20000000}).rotate(content.angle).webp({quality:90}).toBuffer();
+    staged=`${randomUUID()}/${randomUUID()}.webp`;
+    const {error}=await bucket.upload(staged,bytes,{contentType:'image/webp',upsert:false});
+    if(error)throw Error('Could not save the rotated photo.');
+    content.photo_path=staged;content.expected_photo_path=entry.photo_path;
+   }
    if(photo){
     if(!['submit','round','collection_round','showdown_submit'].includes(action))throw Error('Unexpected photo.');
     const actor=await rpc('authorize');

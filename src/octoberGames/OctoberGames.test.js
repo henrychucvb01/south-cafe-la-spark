@@ -235,3 +235,9 @@ test('temporary managers receive the school games badge using their verified sch
  await act(async()=>root.render(<OctoberBadge location={location} employee={{id:null,covering:true,employee_name:'Temporary Manager'}} managerPin="covering-session"/>));
  expect(sessions.openSession).toHaveBeenCalledWith(location,expect.objectContaining({covering:true}),'covering-session');expect(api.gamesRequest).toHaveBeenCalledWith('badge',{token:'scoped-token'});
 });
+
+test('supervisor can rotate a pending photo before approval; reviewed photos have no rotate control',async()=>{
+ data.admin=true;data.entries=[{id:'pending',location_id:1,quest:1,state:'pending',revision:1,photo_url:'upside-down.webp',feedback:''}];await render({supervisorPin:'admin-test'});await click('Games & Challenges');await openReview();
+ data.entries[0]={...data.entries[0],revision:2,photo_url:'rotated.webp'};await click('↻ Rotate 90°');expect(api.gamesRequest).toHaveBeenLastCalledWith('photo_rotate',{pin:'admin-test'},{id:'pending',revision:1,angle:90},undefined);expect(host.querySelector('img[alt="Submission for review"]').getAttribute('src')).toBe('rotated.webp');
+ data.entries[0].state='approved';await click('Approve');expect(api.gamesRequest).toHaveBeenLastCalledWith('review',{pin:'admin-test'},expect.objectContaining({id:'pending',revision:2,state:'approved'}),undefined);await act(async()=>host.querySelector('.og-check input').click());expect(button('↻ Rotate 90°')).toBeUndefined();
+});
