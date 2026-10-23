@@ -241,3 +241,24 @@ test('supervisor can rotate a pending photo before approval; reviewed photos hav
  data.entries[0]={...data.entries[0],revision:2,photo_url:'rotated.webp'};await click('↻ Rotate 90°');expect(api.gamesRequest).toHaveBeenLastCalledWith('photo_rotate',{pin:'admin-test'},{id:'pending',revision:1,angle:90},undefined);expect(host.querySelector('img[alt="Submission for review"]').getAttribute('src')).toBe('rotated.webp');
  data.entries[0].state='approved';await click('Approve');expect(api.gamesRequest).toHaveBeenLastCalledWith('review',{pin:'admin-test'},expect.objectContaining({id:'pending',revision:2,state:'approved'}),undefined);await act(async()=>host.querySelector('.og-check input').click());expect(button('↻ Rotate 90°')).toBeUndefined();
 });
+
+test('hidden tabs pause Games refreshes and resume with current data',async()=>{
+ jest.useFakeTimers();let visibility='visible';const original=Object.getOwnPropertyDescriptor(document,'visibilityState');
+ Object.defineProperty(document,'visibilityState',{configurable:true,get:()=>visibility});
+ try{
+  await render();api.gamesRequest.mockClear();visibility='hidden';
+  await act(async()=>jest.advanceTimersByTime(60000));expect(api.gamesRequest).not.toHaveBeenCalled();
+  visibility='visible';await act(async()=>jest.advanceTimersByTime(30000));
+  expect(api.gamesRequest).toHaveBeenCalledWith('list',{token:'scoped-token'});
+ }finally{if(original)Object.defineProperty(document,'visibilityState',original);else delete document.visibilityState;jest.useRealTimers();}
+});
+test('hidden tabs pause badge checks and focus refreshes when visible',async()=>{
+ jest.useFakeTimers();let visibility='hidden';const original=Object.getOwnPropertyDescriptor(document,'visibilityState');
+ Object.defineProperty(document,'visibilityState',{configurable:true,get:()=>visibility});
+ try{
+  await act(async()=>root.render(<OctoberBadge location={location} employee={employee} managerPin="test-pin"/>));
+  await act(async()=>jest.advanceTimersByTime(60000));expect(api.gamesRequest).not.toHaveBeenCalled();
+  visibility='visible';await act(async()=>window.dispatchEvent(new Event('focus')));
+  expect(api.gamesRequest).toHaveBeenCalledWith('badge',{token:'scoped-token'});
+ }finally{if(original)Object.defineProperty(document,'visibilityState',original);else delete document.visibilityState;jest.useRealTimers();}
+});

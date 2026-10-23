@@ -1,4 +1,5 @@
 import {makeMonthlyPieces,initialCosts,seededRandom} from '../lib/monthlyPuzzleGeometry.js';
+import {createGamesPhotoCache} from '../lib/gamesPhotoCache.js';
 import {sideQuestGallery} from '../lib/sideQuestGallery.js';
 import {serverDatabase} from '../src/security/databaseEnvironment.js';
 import {createClient} from '@supabase/supabase-js';
@@ -10,7 +11,8 @@ export function previewEnabled(env=process.env){
  return env.VERCEL_ENV==='preview' && ['spark-development','development'].includes(env.VERCEL_GIT_COMMIT_REF);
 }
 export function productionEnabled(env=process.env){return env.VERCEL_ENV==='production'&&env.VERCEL_GIT_COMMIT_REF==='main';}
-export function createHandler(db,enabled=previewEnabled(),production=false){
+const deployedPhotoCaches=new Map();
+export function createHandler(db,enabled=previewEnabled(),production=false,photoCache=createGamesPhotoCache()){
  return async(req,res)=>{
   res.setHeader('Cache-Control','no-store');
   if(!enabled)return res.status(404).json({error:'October Games is available only in SPARK Development.'});
@@ -23,7 +25,7 @@ export function createHandler(db,enabled=previewEnabled(),production=false){
    if(error)throw Error(error.code==='PGRST202'?'October Games development database setup is pending. Your existing SPARK features are unaffected.':error.message);return data;
   };
   try{
-   if(action==='side_quest_gallery'){const gallery=await rpc('list');return res.status(200).json(await sideQuestGallery(gallery,bucket));}
+   if(action==='side_quest_gallery'){const gallery=await rpc('list');return res.status(200).json(await sideQuestGallery(gallery,{createSignedUrls:paths=>photoCache.signedUrls(bucket,paths)}));}
 
    // Never accept a caller-provided storage path or puzzle arrangement.
    const content={...payload};delete content.photo_path;delete content.expected_photo_path;delete content.pieces;
@@ -79,7 +81,7 @@ export function createHandler(db,enabled=previewEnabled(),production=false){
    const photoEntries=[...(data.entries||[]),...(data.admin?data.mystery_drafts||[]:[]),...(data.showdowns?.rounds||[]).flatMap(r=>r.photos||[]),...(data.showdowns?.submissions||[]),...(data.showdowns?.champions||[]),...targets];
    const paths=[...new Set(photoEntries.filter(e=>e.photo_path).map(e=>e.photo_path))];
    const urls=new Map();
-   if(paths.length){const {data:signed,error}=await bucket.createSignedUrls(paths,300);if(error)throw Error('Could not load submission photos.');for(const url of signed)urls.set(url.path,url.signedUrl);}
+   if(paths.length){const {data:signed,error}=await photoCache.signedUrls(bucket,paths);if(error)throw Error('Could not load submission photos.');for(const url of signed)urls.set(url.path,url.signedUrl);}
    for(const e of photoEntries){
     if(e.photo_path){e.photo_url=urls.get(e.photo_path);if(!e.photo_url)throw Error('Could not load a photo.');}
     delete e.photo_path;
@@ -87,15 +89,21 @@ export function createHandler(db,enabled=previewEnabled(),production=false){
    for(const target of targets){target.parent.target_photo_url=target.photo_url;delete target.parent.target_photo;}
    for(const r of data.rounds||[]){
     if(r.photo_path){
-     if(data.admin||r.solved_at){const {data:url,error}=await bucket.createSignedUrl(r.photo_path,300);if(error)throw Error('Could not load a mystery photo.');r.photo_url=url.signedUrl;}
+     if(data.admin||r.solved_at){const {data:urls}=await photoCache.signedUrls(bucket,[r.photo_path]);if(!urls[0])throw Error('Could not load a mystery photo.');r.photo_url=urls[0].signedUrl;}
      else{
-      const {data:blob,error}=await bucket.download(r.photo_path);if(error)throw Error('Could not load the mystery.');
-      const bytes=Buffer.from(await blob.arrayBuffer());const meta=await sharp(bytes).metadata();
+      // Include every reveal input: another school's unlocks must never leak.
+      const maskKey='mask:'+JSON.stringify([r.photo_path,r.pieces,r.unlocked,r.revealed_indices]);
+      r.photo_url=await photoCache.remember(maskKey,async()=>{
+      const bytes=await photoCache.remember('source:'+r.photo_path,async()=>{
+       const {data:blob,error}=await bucket.download(r.photo_path);if(error)throw Error('Could not load the mystery.');
+       return Buffer.from(await blob.arrayBuffer());
+      });const meta=await sharp(bytes).metadata();
       const masked=await sharp(bytes).ensureAlpha().composite([{input:maskSvg(r.pieces,r.unlocked,meta.width,meta.height,r.revealed_indices),blend:'dest-in'}]).png().toBuffer();
       // Flatten in a separate pass so even fully transparent RGB channels cannot
       // carry hidden pixels that a client could recover by editing the alpha.
       const safe=await sharp(masked).flatten({background:'#171717'}).png().toBuffer();
-      r.photo_url=`data:image/png;base64,${safe.toString('base64')}`;
+      return `data:image/png;base64,${safe.toString('base64')}`;
+      });
      }
     }
     delete r.photo_path;
@@ -112,5 +120,7 @@ export default async function handler(req,res){
  try {configuration=serverDatabase(process.env);} catch(error) {return res.status(503).json({error:error.message});}
  const key=configuration.key;
  if(!key)return res.status(503).json({error:'October Games storage is not configured.'});
- return createHandler(createClient(configuration.url,key,{auth:{persistSession:false,autoRefreshToken:false}}),true,production)(req,res);
+ const scope=configuration.url+':'+production;
+ if(!deployedPhotoCaches.has(scope))deployedPhotoCaches.set(scope,createGamesPhotoCache());
+ return createHandler(createClient(configuration.url,key,{auth:{persistSession:false,autoRefreshToken:false}}),true,production,deployedPhotoCaches.get(scope))(req,res);
 }
