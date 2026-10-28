@@ -217,7 +217,7 @@ test('live poll reloads the comparison when cancellation changes revision withou
   await render();expect(host.querySelectorAll('.sd-photo')).toHaveLength(3);
   const round=data.showdowns.rounds[0];round.revision=4;round.photos=round.photos.filter(p=>p.id!=='withdrawn');
   api.gamesRequest.mockImplementation(async action=>action==='showdown_poll'?{showdown_poll:true,server_time:data.server_time,rounds:JSON.parse(JSON.stringify(data.showdowns.rounds))}:JSON.parse(JSON.stringify(data)));
-  await act(async()=>jest.advanceTimersByTime(5000));
+  await act(async()=>jest.advanceTimersByTime(30000));
   expect(api.gamesRequest).toHaveBeenCalledWith('showdown_poll',{token:'scoped-token'});
   expect(api.gamesRequest).toHaveBeenCalledWith('list',{token:'scoped-token'});
   expect(host.querySelectorAll('.sd-photo')).toHaveLength(2);expect(host.querySelector('.sd-comparison').textContent).not.toContain('School C');
@@ -242,14 +242,14 @@ test('supervisor can rotate a pending photo before approval; reviewed photos hav
  data.entries[0].state='approved';await click('Approve');expect(api.gamesRequest).toHaveBeenLastCalledWith('review',{pin:'admin-test'},expect.objectContaining({id:'pending',revision:2,state:'approved'}),undefined);await act(async()=>host.querySelector('.og-check input').click());expect(button('↻ Rotate 90°')).toBeUndefined();
 });
 
-test('hidden tabs pause Games refreshes and resume with current data',async()=>{
+test('idle Games pages do not re-download full context, even after becoming visible',async()=>{
  jest.useFakeTimers();let visibility='visible';const original=Object.getOwnPropertyDescriptor(document,'visibilityState');
  Object.defineProperty(document,'visibilityState',{configurable:true,get:()=>visibility});
  try{
   await render();api.gamesRequest.mockClear();visibility='hidden';
   await act(async()=>jest.advanceTimersByTime(60000));expect(api.gamesRequest).not.toHaveBeenCalled();
   visibility='visible';await act(async()=>jest.advanceTimersByTime(30000));
-  expect(api.gamesRequest).toHaveBeenCalledWith('list',{token:'scoped-token'});
+  expect(api.gamesRequest).not.toHaveBeenCalled();
  }finally{if(original)Object.defineProperty(document,'visibilityState',original);else delete document.visibilityState;jest.useRealTimers();}
 });
 test('hidden tabs pause badge checks and focus refreshes when visible',async()=>{

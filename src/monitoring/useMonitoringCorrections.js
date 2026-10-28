@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { openSession, closeSession, listMonitorings } from '../supperMonitoring/service';
+import { openSession, closeSession, correctionCount } from '../supperMonitoring/service';
 
 export default function useMonitoringCorrections(location, employee, pin) {
   const [state, setState] = useState({ count: 0, error: false });
@@ -12,8 +12,9 @@ export default function useMonitoringCorrections(location, employee, pin) {
       try {
         token = token || await openSession(location, employee, pin);
         if (cancelled) return;
-        const records = await listMonitorings(token);
-        if (!cancelled) setState({ count: records.filter(r => r.monitor_role === 'manager' && r.status === 'corrections_requested' && !r.locked).length, error: false });
+        const count = await correctionCount(token);
+        if (count==null||!Number.isSafeInteger(Number(count))||Number(count)<0) throw Error('Correction count unavailable.');
+        if (!cancelled) setState({ count: Number(count), error: false });
       } catch (error) {
         if (/Session expired/i.test(error.message)) { if (token) await closeSession(token).catch(() => {}); token = null; }
         if (!cancelled) setState(previous => ({ ...previous, error: true }));
@@ -23,7 +24,7 @@ export default function useMonitoringCorrections(location, employee, pin) {
       }
     }
     refresh();
-    const interval = setInterval(refresh, 60000);
+    const interval = setInterval(refresh, 300000);
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', refresh);
     return () => { cancelled = true; if (!running && token) { closeSession(token).catch(() => {}); token = null; } clearInterval(interval); window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', refresh); };

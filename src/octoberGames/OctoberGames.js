@@ -15,7 +15,7 @@ import {gamesRequest,prepareGamePhoto,useOctoberAvailable} from './service';
 import './octoberGames.css';
 import DoorContestSettings,{doorTheme,doorStyle} from './DoorContestSettings';
 
-export const DISCLAIMER='All submissions are subject to Area Food Services Supervisor approval. Photographs must clearly demonstrate completion of the challenge and be well-composed, clear, creative, and appropriate. The Supervisor has final discretion in determining whether a submission qualifies. Uploading a photo does not guarantee points.';
+export const DISCLAIMER='Standard Side Quest submissions require Area Food Services Supervisor approval. Showdown challenges start voting automatically and may be removed by the Supervisor. Photographs must clearly demonstrate completion of the challenge and be well-composed, clear, creative, and appropriate. The Supervisor selects the final winner. Uploading a photo does not guarantee points.';
 const day=value=>value?new Date(value).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'Not set';
 const schoolName=(data,id)=>data.schools.find(s=>String(s.id)===String(id))?.school_name||'School';
 
@@ -23,7 +23,7 @@ export function OctoberBadge({location,employee,managerPin}){
  const enabled=useOctoberAvailable();const [fresh,setFresh]=useState(false);
  useEffect(()=>{if(!enabled||!location?.id||!employee||!managerPin)return;let cancelled=false,token;
   const refresh=async()=>{if(document.visibilityState==='hidden')return;try{if(!token)token=await openSession(location,employee,managerPin);if(cancelled)return;const d=await gamesRequest('badge',{token});if(!cancelled)setFresh(d.new_challenge);}catch{}finally{if(cancelled&&token)closeSession(token).catch(()=>{});}};
-  refresh();const timer=setInterval(refresh,30000);window.addEventListener('focus',refresh);
+  refresh();const timer=setInterval(refresh,120000);window.addEventListener('focus',refresh);
   return()=>{cancelled=true;clearInterval(timer);window.removeEventListener('focus',refresh);if(token)closeSession(token).catch(()=>{});};
  },[enabled,location,employee,managerPin]);
  return fresh?<span className="og-badge">NEW CHALLENGE</span>:null;
@@ -95,7 +95,19 @@ function Games({location,employee,managerPin,supervisorPin,galleryOnly=false,ini
  useEffect(()=>{mounted.current=true;let cancelled=false,token,timer;
   (async()=>{try{const credentials=supervisorPin?{pin:supervisorPin}:{token:token=await openSession(location,employee,managerPin)};if(cancelled)return;auth.current=credentials;
    const result=await gamesRequest(supervisorPin||galleryOnly?'list':'seen',credentials);if(!cancelled)setData(result);
-   let lastFull=Date.now();const refresh=async()=>{if(cancelled)return;if(document.visibilityState==='hidden'){timer=setTimeout(refresh,30000);return;}try{const snapshot=dataRef.current;const fast=snapshot?.showdowns?.rounds.some(r=>r.state==='voting');let next=await gamesRequest(fast&&Date.now()-lastFull<30000?'showdown_poll':'list',credentials);if(cancelled)return;if(next.showdown_poll){const changed=next.rounds.length!==snapshot.showdowns.rounds.length||next.rounds.some(r=>{const previous=snapshot.showdowns.rounds.find(p=>p.id===r.id);return !previous||previous.generation!==r.generation||previous.state!==r.state||previous.revision!==r.revision;});if(changed)next=await gamesRequest('list',credentials);else setData(previous=>({...previous,server_time:next.server_time,showdowns:{...previous.showdowns,rounds:previous.showdowns.rounds.map(r=>{const update=next.rounds.find(p=>p.id===r.id);return update?{...r,...update,photos:r.photos.map(p=>({...p,votes:update.photos.find(v=>v.id===p.id)?.votes??p.votes}))}:r;})}}));}if(!next.showdown_poll&&!cancelled){lastFull=Date.now();setData(next);window.dispatchEvent(new Event('october-games-updated'));}if(!cancelled)timer=setTimeout(refresh,(next.showdowns?.rounds||next.rounds||[]).some(r=>r.state==='voting')?5000:30000);}catch{if(!cancelled)timer=setTimeout(refresh,30000);}};timer=setTimeout(refresh,result.showdowns?.rounds.some(r=>r.state==='voting')?5000:30000);
+   const refresh=async()=>{
+    if(cancelled)return;
+    try{
+     const snapshot=dataRef.current;
+     // Idle game pages do not re-download their full photo/puzzle context.
+     if(document.visibilityState==='hidden'||!snapshot?.showdowns?.rounds.some(r=>r.state==='voting'))return;
+     let next=await gamesRequest('showdown_poll',credentials);if(cancelled)return;
+     const changed=next.rounds.length!==snapshot.showdowns.rounds.length||next.rounds.some(r=>{const previous=snapshot.showdowns.rounds.find(p=>p.id===r.id);return !previous||previous.generation!==r.generation||previous.state!==r.state||previous.revision!==r.revision;});
+     if(changed){next=await gamesRequest('list',credentials);if(!cancelled)setData(next);}
+     else setData(previous=>({...previous,server_time:next.server_time,showdowns:{...previous.showdowns,rounds:previous.showdowns.rounds.map(r=>{const update=next.rounds.find(p=>p.id===r.id);return update?{...r,...update,photos:r.photos.map(p=>({...p,votes:update.photos.find(v=>v.id===p.id)?.votes??p.votes}))}:r;})}}));
+    }catch{/* Keep the current game visible; actions and Refresh report errors. */}
+    finally{if(!cancelled)timer=setTimeout(refresh,30000);}
+   };timer=setTimeout(refresh,30000);
   }catch(e){if(!cancelled)setError(e.message);}finally{if(cancelled&&token)closeSession(token).catch(()=>{});}})();
   return()=>{cancelled=true;mounted.current=false;clearTimeout(timer);auth.current=null;if(token)closeSession(token).catch(()=>{});};
  },[supervisorPin,location,employee,managerPin,galleryOnly]);

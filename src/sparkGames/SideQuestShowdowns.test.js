@@ -10,6 +10,20 @@ afterEach(()=>{act(()=>root.unmount());host.remove();document.querySelectorAll('
 const render=async node=>act(async()=>root.render(node));
 const button=text=>[...document.querySelectorAll('button')].find(b=>b.textContent===text);
 test('completed eligible cards show a free challenge action, excluding own winner and used opportunities',async()=>{expect(canChallenge(data,quest)).toBe(true);expect(canChallenge({...data,location_id:1},quest)).toBe(false);expect(canChallenge({...data,showdowns:{...data.showdowns,used:[7]}},quest)).toBe(false);const select=jest.fn();await render(<ShowdownCardTools data={data} quest={quest} onChallenge={select}/>);await act(async()=>button('Challenge').click());expect(select).toHaveBeenCalledWith(quest);});
+test('Friday/weekend starts and exhausted school budgets hide the challenge action',()=>{
+ expect(canChallenge({...data,showdowns:{...data.showdowns,policy:{can_start:false,remaining:5}}},quest)).toBe(false);
+ expect(canChallenge({...data,showdowns:{...data.showdowns,policy:{can_start:true,remaining:0}}},quest)).toBe(false);
+ expect(canChallenge({...data,showdowns:{...data.showdowns,policy:{can_start:true,remaining:1}}},quest)).toBe(true);
+});
+test('Supervisor can remove an active challenger only after confirmation',async()=>{
+ data.admin=true;data.showdowns.submissions=[{id:'submission',quest:7,state:'approved',revision:2}];data.showdowns.rounds[0].photos[1].submission='submission';
+ const confirm=jest.spyOn(window,'confirm').mockReturnValue(false);
+ await render(<SideQuestShowdowns data={data} run={run} busy={false}/>);
+ await act(async()=>button('Remove challenge').click());expect(run).not.toHaveBeenCalled();
+ confirm.mockReturnValue(true);await act(async()=>button('Remove challenge').click());
+ expect(run).toHaveBeenCalledWith('showdown_remove',{id:'submission',revision:2,round_revision:3,confirmed:true});
+ data.showdowns.rounds[0].state='finalized';await render(<SideQuestShowdowns data={data} run={run} busy={false}/>);expect(button('Remove challenge')).toBeUndefined();
+});
 test('pending or full rounds block another challenge without affecting unrelated quests',()=>{expect(canChallenge({...data,showdowns:{...data.showdowns,submissions:[{quest:7,state:'pending'}]}},quest)).toBe(false);data.showdowns.rounds[0].photos.push(photo('c',3,'challenger'));expect(canChallenge(data,quest)).toBe(false);expect(canChallenge({...data,showdowns:{...data.showdowns,eligible_quests:[8]}},{...quest,id:8})).toBe(true);});
 test('live votes show counts, percentages, progress and school-level change controls',async()=>{await render(<SideQuestShowdowns data={data} run={run} busy={false}/>);expect(host.textContent).toContain('2 votes · 67%');expect(host.querySelectorAll('progress')).toHaveLength(2);expect(host.textContent).toContain('supervisor makes the final decision');await act(async()=>button('Vote for this photo').click());expect(run).toHaveBeenCalledWith('showdown_vote',{round_id:'round',generation:2,photo:'a'});});
 test('own photo cannot be voted for but another photograph can',async()=>{data.location_id=1;await render(<SideQuestShowdowns data={data} run={run} busy={false}/>);expect(button('Your school').disabled).toBe(true);expect(button('Vote for this photo').disabled).toBe(false);});

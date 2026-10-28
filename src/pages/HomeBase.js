@@ -1,4 +1,3 @@
-import {OctoberBadge} from "../octoberGames/OctoberGames";
 import React from "react";
 import {useBreakfastAccess} from "../breakfast/BreakfastAccess";
 import useMonitoringCorrections from "../monitoring/useMonitoringCorrections";
@@ -87,7 +86,7 @@ function HomeBase({
               <div className="homebase-card-icon">🍎</div>
 
               <div className="homebase-card-body">
-                <strong>Daily Bites <OctoberBadge location={location} employee={employee} managerPin={managerPin}/></strong>
+                <strong>Daily Bites</strong>
 
                 <span>
                   Quick tips, challenges, SPARK Bingo, and school engagement.

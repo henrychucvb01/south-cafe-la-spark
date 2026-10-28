@@ -68,7 +68,7 @@ export function createHandler(db,enabled=previewEnabled(),production=false,photo
     if(content.piece_costs==null)content.piece_costs=initialCosts(content.pieces,content.difficulty);
     if(!Array.isArray(content.piece_costs)||content.piece_costs.length!==content.pieces.length||content.piece_costs.some(n=>!Number.isInteger(n)||n<1||n>5))throw Error('Choose 1–5 credits for each piece.');
    }
-   const data=await rpc(action==='badge'?'list':action,content);
+   const data=await rpc(['badge','announcements'].includes(action)?'list':action,content);
    if(staged&&data?.unused_showdown_photo)await bucket.remove([staged]);
    staged=null;delete data.unused_showdown_photo;
    // Existing photo paths may be referenced by both launch and preview data. Keep replaced originals private.
@@ -77,6 +77,8 @@ export function createHandler(db,enabled=previewEnabled(),production=false,photo
    if(action==='showdown_poll')return res.status(200).json(data);
    if(action==='authorize')return res.status(200).json(data);
    if(action==='badge')return res.status(200).json({participating:data.participating,new_challenge:data.new_challenge});
+   // The banner needs metadata only. Do not sign photos or render mystery masks.
+   if(action==='announcements')return res.status(200).json({participating:data.participating,server_time:data.server_time,game_cycles:data.game_cycles,game_waves:data.game_waves});
    const targets=(data.showdowns?.submissions||[]).filter(s=>s.target_photo).map(s=>({parent:s,photo_path:s.target_photo}));
    const photoEntries=[...(data.entries||[]),...(data.admin?data.mystery_drafts||[]:[]),...(data.showdowns?.rounds||[]).flatMap(r=>r.photos||[]),...(data.showdowns?.submissions||[]),...(data.showdowns?.champions||[]),...targets];
    const paths=[...new Set(photoEntries.filter(e=>e.photo_path).map(e=>e.photo_path))];

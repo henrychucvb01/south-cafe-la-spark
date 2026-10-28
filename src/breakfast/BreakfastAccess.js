@@ -7,13 +7,13 @@ export function useBreakfastAccess({location,employee,managerPin,qr}) {
  const [retry,setRetry]=useState(0);
  useEffect(()=>{let active=true,session,inFlight=false;
   setState({key,enabled:false,loading:true,error:''});
-  async function check(){if(inFlight)return;inFlight=true;try{
+  async function check(){if(!active||inFlight||document.visibilityState==='hidden')return;inFlight=true;try{
    if(!qr&&!session){session=await openSession(location,employee,managerPin);if(!active){await closeSession(session);session=null;return;}}
    const enabled=await (qr?qrEnabled(qr):managerEnabled(session));
    if(active)setState({key,enabled:enabled===true,loading:false,error:''});
   }catch(e){if(active)setState({key,enabled:false,loading:false,error:e.message});}finally{inFlight=false;}}
-  check();const timer=setInterval(check,30000);window.addEventListener('focus',check);
-  return()=>{active=false;clearInterval(timer);window.removeEventListener('focus',check);if(session)closeSession(session).catch(()=>{});};
+  check();window.addEventListener('focus',check);document.addEventListener('visibilitychange',check);
+  return()=>{active=false;window.removeEventListener('focus',check);document.removeEventListener('visibilitychange',check);if(session)closeSession(session).catch(()=>{});};
  },[key,qr,location,employee,managerPin,retry]);
  return {...(state.key===key?state:{enabled:false,loading:true,error:''}),refresh:()=>setRetry(v=>v+1)};
 }

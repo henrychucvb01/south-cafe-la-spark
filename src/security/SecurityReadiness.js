@@ -4,19 +4,29 @@ import {supabase,databaseConfigurationError} from '../supabaseClient';
 export function useSecurityReady() {
   const [ready,setReady]=useState(false);
   useEffect(()=>{
-    let active=true,inFlight=false;
+    let active=true,inFlight=false,timer,quotaRetryAt=0,retryDelay=60000;
+    const schedule=delay=>{if(active)timer=setTimeout(check,delay);};
     async function check(){
-      if(inFlight)return;inFlight=true;
+      if(!active||inFlight)return;
+      clearTimeout(timer);
+      if(document.visibilityState==='hidden'){schedule(60000);return;}
+      // Focus events must not bypass the quota cooldown.
+      if(Date.now()<quotaRetryAt){schedule(quotaRetryAt-Date.now());return;}
+      inFlight=true;
       try{
-        const {data,error}=await supabase.rpc('spark_security_ready');
+        const {data,error,status}=await supabase.rpc('spark_security_ready');
         // Once connected, a temporary network failure must not unmount an
         // employee's unsaved form. Database authorization still fails closed.
-        if(active&&!error)setReady(data?.version===1&&data?.ready===true);
-      }catch{/* Retry connectivity without discarding the current form. */}finally{inFlight=false;}
+        if(status===402){quotaRetryAt=Date.now()+300000;retryDelay=300000;}
+        else if(error)retryDelay=Math.min(retryDelay*2,300000);
+        else{retryDelay=60000;if(active)setReady(data?.version===1&&data?.ready===true);}
+      }catch{retryDelay=Math.min(retryDelay*2,300000);/* Preserve the current form. */}
+      finally{inFlight=false;schedule(retryDelay);}
     }
-    check();const timer=setInterval(check,10000);
+    check();
     window.addEventListener('focus',check);
-    return()=>{active=false;clearInterval(timer);window.removeEventListener('focus',check);};
+    document.addEventListener('visibilitychange',check);
+    return()=>{active=false;clearTimeout(timer);window.removeEventListener('focus',check);document.removeEventListener('visibilitychange',check);};
   },[]);
   return ready;
 }

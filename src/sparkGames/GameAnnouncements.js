@@ -11,9 +11,9 @@ export function waveAnnouncement(data,now=Date.now()){
 }
 export default function GameAnnouncements({location,employee,managerPin,onOpen}){
  const [notice,setNotice]=useState(null);
- useEffect(()=>{if(!location||!employee)return;let cancelled=false,token;
- const refresh=async()=>{try{if(!token)token=await openSession(location,employee,managerPin);if(cancelled)return;const data=await gamesRequest('list',{token});if(!cancelled)setNotice(data.participating?waveAnnouncement(data,new Date(data.server_time).getTime()):null);}catch{}};
- refresh();const timer=setInterval(refresh,30000);window.addEventListener('focus',refresh);return()=>{cancelled=true;clearInterval(timer);window.removeEventListener('focus',refresh);if(token)closeSession(token).catch(()=>{});};
- },[location,employee,managerPin]);
+ useEffect(()=>{if(!location||!employee)return;let cancelled=false,inFlight=false,token;
+ const refresh=async()=>{if(cancelled||inFlight||document.visibilityState==='hidden')return;inFlight=true;try{if(!token)token=await openSession(location,employee,managerPin);if(cancelled)return;const data=await gamesRequest('announcements',{token});if(!cancelled)setNotice(data.participating?waveAnnouncement(data,new Date(data.server_time).getTime()):null);}catch{}finally{inFlight=false;if(cancelled&&token)closeSession(token).catch(()=>{});}};
+ refresh();const timer=setInterval(refresh,120000);window.addEventListener('focus',refresh);window.addEventListener('october-games-updated',refresh);return()=>{cancelled=true;clearInterval(timer);window.removeEventListener('focus',refresh);window.removeEventListener('october-games-updated',refresh);if(token)closeSession(token).catch(()=>{});};
+ },[location?.id,employee?.id,employee?.employee_name,employee?.covering,managerPin]);
  return notice?<aside className="sg-announcement" aria-label="SPARK Games announcement"><div><strong>{notice.title}</strong><div>{notice.description}</div></div><button onClick={onOpen}>Open SPARK Games →</button></aside>:null;
 }

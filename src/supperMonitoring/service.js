@@ -12,6 +12,7 @@ export async function openSession(location, employee, pin) {
 }
 export const closeSession = token => rpc("close_supper_monitoring_session", { p_token: token });
 export const listMonitorings = token => rpc("list_supper_monitorings", { p_token: token });
+export const correctionCount = token => rpc("supper_correction_count", { p_token: token });
 export const getMonitoring = (token, id) => rpc("get_supper_monitoring", { p_token: token, p_id: id });
 export const saveDraft = (token, record, payload, section) => rpc("save_supper_monitoring_draft", { p_token: token, p_id: record?.id || null, p_revision: record?.revision || null, p_section: section, p_payload: payload });
 

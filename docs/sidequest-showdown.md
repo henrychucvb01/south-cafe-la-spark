@@ -4,13 +4,21 @@
 
 Completed cards offer Challenge to eligible signed-in, participating school managers,
 including authorized temporary managers.
-The current champion cannot challenge itself. Pending photographs require
-Supervisor approval; rejection preserves the school's opportunity. Approval
-consumes that school's opportunity for the quest/month. A defeated defender
-cannot re-enter either. Other quests remain independent.
+The current champion cannot challenge itself. New challenge submissions start
+voting automatically. The Supervisor can withdraw a challenger through **Remove
+challenge** in Side Quest Challenges; historical pending submissions retain their
+review controls. Standard Side Quest photo approval is unchanged.
 
-The first approval starts a 24-hour round with the defending photo and one
-challenger. A second approval admits a third photo, increments the voting
+New starts and second-challenger admissions are allowed only Monday–Thursday in
+America/Los_Angeles time. Friday, Saturday and Sunday starts are rejected by the
+database. Existing voting can finish on Friday. Schools share five started
+challenges per calendar month; named and temporary managers share this budget.
+Each school can challenge a prompt only once, even after losing, canceling or
+Supervisor removal. Historical started challenges count. Other prompts remain
+independent, and the monthly budget resets without resetting prompt attempts.
+
+The first submission starts a 24-hour round with the defending photo and one
+challenger. A second submission admits a third photo, increments the voting
 generation, and restarts the server deadline. Old votes are retained for audit
 but excluded from current totals. Pending submissions never restart voting.
 There is at most one active round per quest and three photographs per round.
@@ -18,9 +26,10 @@ There is at most one active round per quest and three photographs per round.
 One mutable vote is keyed by school, round and generation, never manager.
 Self-voting and cross-round photo IDs are rejected. Current counts are public
 to authorized managers; vote-level activity and private review notes are not.
-Lightweight polling updates counts every five seconds during voting without
-re-signing/downloading photographs. Structural changes and periodic refreshes
-load the full context. Server timestamps and the private scheduled deadline
+Lightweight polling updates counts every 30 seconds during voting without
+re-signing/downloading photographs. Structural changes, explicit Refresh and
+successful actions load the full context. Idle pages do not repeatedly fetch it.
+Hidden tabs pause polling. Server timestamps and the private scheduled deadline
 job close voting without requiring a browser session.
 
 The Supervisor selects any participating photo after voting, regardless of
@@ -40,7 +49,7 @@ Pending cancellation removes the submission from review. Approved cancellation
 withdraws only that photograph and voids its current ballot selections. Remaining
 photographs keep their votes, generation, and deadline. If no challengers remain,
 the round closes as canceled and the current champion remains unchanged. The
-school's challenge opportunity is restored for the open competition. No points,
+school's challenge attempt remains consumed. No points,
 rewards, or unlock credits change. Photos, all voting generations, and a cancellation
 audit entry remain stored; canceled rounds appear in history. Polling reloads the
 comparison when a round revision changes, including withdrawals with no restart.
@@ -122,6 +131,12 @@ covering names or opening another session does not create a new game identity.
 Existing named-manager identities remain unchanged. Participation, school ownership,
 self-vote restrictions, approval, deadlines and school-level attempt/reward limits
 continue to apply. Daily Bites games and Bingo already use the school's shared records.
+
+October 28 validation: `node scripts/test-showdown-automatic-rules.mjs` exercises
+both rule environments in isolated PostgreSQL, including weekday/DST boundaries,
+automatic starts, idempotent retries, limits shared by named/temporary managers,
+withdrawal, month reset, private helpers and preserved awards. Supervisor winner
+selection remains manual; expiration never automatically awards a winner.
 
 Validation: `node scripts/test-temporary-manager-games-db.mjs` exercises temporary
 uploads/voting/guesses with the real legacy dev/live engines. The Showdown database
