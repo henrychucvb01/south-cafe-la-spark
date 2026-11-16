@@ -153,7 +153,7 @@ test('missing or reversed closing dates do not save',async()=>{
  await changeInput(dates[1],'2026-10-01T08:00');await act(async()=>form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));expect(api.gamesRequest).not.toHaveBeenCalled();expect(host.textContent).toContain('Voting must close at or after submissions close');
 });
 test('submissions and voting overlap, theme reaches gallery and trading cards are removed',async()=>{
- data.server_time='2026-10-10T12:00:00Z';data.settings.door_title='Winter Doors';data.settings.door_theme='winter';data.settings.door_background='#eeeeee';
+ data.server_time='2026-10-10T12:00:00Z';data.settings.voting_start='2026-10-01T00:00:00Z';data.settings.door_title='Winter Doors';data.settings.door_theme='winter';data.settings.door_background='#eeeeee';
  data.entries=[{id:'door',quest:0,location_id:2,state:'approved',votes:null},{id:'quest',quest:1,location_id:2,state:'approved'}];
  await render();expect(host.textContent).not.toContain('SPARK Trading Cards');await click('Door Contest');expect(button('Submit your school’s door')).toBeDefined();expect(button('Vote for this school')).toBeDefined();expect(host.textContent).toContain('Winter Doors');expect(host.querySelector('.og-door').style.getPropertyValue('--door-background')).toBe('#eeeeee');expect(host.querySelector('.og-door').style.getPropertyValue('--door-ink')).toBe('#111111');
 });
@@ -261,4 +261,12 @@ test('hidden tabs pause badge checks and focus refreshes when visible',async()=>
   visibility='visible';await act(async()=>window.dispatchEvent(new Event('focus')));
   expect(api.gamesRequest).toHaveBeenCalledWith('badge',{token:'scoped-token'});
  }finally{if(original)Object.defineProperty(document,'visibilityState',original);else delete document.visibilityState;jest.useRealTimers();}
+});
+
+test('decoration votes carry the currently displayed contest identity',async()=>{
+ const confirm=jest.spyOn(window,'confirm').mockReturnValue(true);
+ data.settings.door_contest=2;data.settings.voting_start='2026-10-01T00:00:00Z';
+ data.entries=[{id:'new-door',quest:0,location_id:2,state:'approved',votes:null}];
+ await render();await click('Door Contest');await click('Vote for this school');
+ expect(api.gamesRequest).toHaveBeenLastCalledWith('vote',{token:'scoped-token'},{id:'new-door',door_contest:2},undefined);confirm.mockRestore();
 });

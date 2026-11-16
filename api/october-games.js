@@ -80,7 +80,7 @@ export function createHandler(db,enabled=previewEnabled(),production=false,photo
    // The banner needs metadata only. Do not sign photos or render mystery masks.
    if(action==='announcements')return res.status(200).json({participating:data.participating,server_time:data.server_time,game_cycles:data.game_cycles,game_waves:data.game_waves});
    const targets=(data.showdowns?.submissions||[]).filter(s=>s.target_photo).map(s=>({parent:s,photo_path:s.target_photo}));
-   const photoEntries=[...(data.entries||[]),...(data.admin?data.mystery_drafts||[]:[]),...(data.showdowns?.rounds||[]).flatMap(r=>r.photos||[]),...(data.showdowns?.submissions||[]),...(data.showdowns?.champions||[]),...targets];
+   const photoEntries=[...(data.door_history_detail?.entries||[]),...(data.entries||[]),...(data.admin?data.mystery_drafts||[]:[]),...(data.showdowns?.rounds||[]).flatMap(r=>r.photos||[]),...(data.showdowns?.submissions||[]),...(data.showdowns?.champions||[]),...targets];
    const paths=[...new Set(photoEntries.filter(e=>e.photo_path).map(e=>e.photo_path))];
    const urls=new Map();
    if(paths.length){const {data:signed,error}=await photoCache.signedUrls(bucket,paths);if(error)throw Error('Could not load submission photos.');for(const url of signed)urls.set(url.path,url.signedUrl);}

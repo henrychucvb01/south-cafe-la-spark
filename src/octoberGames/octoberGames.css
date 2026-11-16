@@ -28,8 +28,8 @@
 .og-door{background:var(--door-background,#472713);color:var(--door-ink,#fff);border-color:var(--door-border,#ffaf46);border-style:var(--door-border-style,double)}
 .og-door-photo span{color:inherit}.og-champion{border-color:#ffdd65;border-style:double;box-shadow:0 0 0 3px #bd8500,0 8px 22px #d6a92755}
 .og-door-settings-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;max-width:1000px}
-.og .og-door-settings label{margin:0;display:flex;flex-direction:column;justify-content:flex-end;font-size:14px;min-width:0;gap:5px}
-.og .og-door-settings input,.og .og-door-settings select{margin-top:0;min-width:0;height:44px}
+.og .og-door-settings label,.og .og-door-next .og-door-settings-grid label{margin:0;display:flex;flex-direction:column;justify-content:flex-end;font-size:14px;min-width:0;gap:5px}
+.og .og-door-settings input,.og .og-door-settings select,.og .og-door-next .og-door-settings-grid input,.og .og-door-next .og-door-settings-grid select{margin-top:0;min-width:0;height:44px}
 .og-door-settings summary{margin-bottom:10px}.og-door-colors{display:grid;grid-template-columns:1fr 1fr;gap:12px}.og input[type=color]{padding:4px;cursor:pointer}
 .og-door-settings-footer{display:flex;align-items:center;gap:18px;margin-top:16px;max-width:1000px}.og-door-settings-footer p{font-size:13px;margin:0 0 10px}
 .og-door-preview{flex:0 0 190px;padding:10px;display:grid;gap:8px;box-shadow:none}.og-door-preview strong{font-size:13px}.og-door-preview>span:last-child{padding:12px;border:1px dashed currentColor;border-radius:5px;font-size:12px}
@@ -45,3 +45,9 @@
 .og-puzzle svg.og-selectable{pointer-events:auto}.og-selectable g{cursor:pointer}.og-selectable g[aria-pressed=true] polygon,.og-selectable g:focus polygon{fill:#1b5147;stroke:#fff;stroke-width:5}.og-selectable text{pointer-events:none}.og-recent-guesses{max-width:650px;margin:20px auto}.og-recent-guesses li{padding:8px 0;overflow-wrap:anywhere}
 .og-management-tabs button{display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;white-space:normal}
 .og-review-count{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;min-width:24px;height:24px;padding:0 6px;border-radius:50%;background:#b42318;color:#fff;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
+
+.og-door-next,.og-door-history{margin:12px 0;padding:14px;border:1px solid #e3b578;border-radius:14px;background:#fff2df;color:#173653;min-width:0}
+.og-door-next summary,.og-door-history summary{cursor:pointer;font-weight:700}
+.og-door-next input,.og-door-next select,.og-door-history select{max-width:100%;box-sizing:border-box}
+.og-door-next .og-actions{flex-wrap:wrap;margin-top:10px}
+.og-door-history img{width:100%;height:auto;object-fit:contain}
