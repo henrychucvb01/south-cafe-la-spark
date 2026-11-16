@@ -1,3 +1,4 @@
+import SupervisorPhotoLibrary from '../photoLibrary/SupervisorPhotoLibrary';
 import SupervisorNotifications, {NotificationSettings} from '../notifications/SupervisorNotifications';
 import OctoberGames from "../octoberGames/OctoberGames";
 import RewardsManagement from '../rewards/RewardsManagement';
@@ -1117,6 +1118,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
           </button>
 
           {octoberEnabled&&<button className={`command-nav-button ${view === "games" ? "active" : ""}`} onClick={() => setView("games")}><span aria-hidden="true">🎃</span>Games &amp; Challenges</button>}
+          {octoberEnabled&&<button className={`command-nav-button ${view === "photo-library"?"active":""}`} onClick={()=>setView("photo-library")}><span aria-hidden="true">📷</span>Photo Library</button>}
           {rewardsAvailable&&<button className={`command-nav-button ${view === 'rewards'?'active':''}`} onClick={()=>setView('rewards')}><span aria-hidden="true">🎁</span>Rewards Management</button>}
           <button className={`command-nav-button ${view === "spotlight" ? "active" : ""}`} onClick={() => setView("spotlight")}><span aria-hidden="true">✦</span>SPARK Spotlight</button>
           <button className={`command-nav-button ${view === "breakfast" ? "active" : ""}`} onClick={() => setView("breakfast")}><span aria-hidden="true">🥣</span>Breakfast</button>
@@ -1165,7 +1167,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
             onClick={() => setNavigationOpen(true)}><span aria-hidden="true">☰</span> Menu</button>}
           <div>
             <h2>
-              {view === "rewards" ? "Rewards Management" : view === "settings" ? "Supervisor Settings" : view === "games" ? "Games & Challenges" : view === "breakfast" ? "Breakfast" : view === "spotlight" ? "SPARK Spotlight" : view === "meal-trends"
+              {view === "photo-library" ? "Photo Library" : view === "rewards" ? "Rewards Management" : view === "settings" ? "Supervisor Settings" : view === "games" ? "Games & Challenges" : view === "breakfast" ? "Breakfast" : view === "spotlight" ? "SPARK Spotlight" : view === "meal-trends"
                 ? "South Café LA Meal Analytics"
                 : view === "mplh-report"
                 ? "South Café LA MPLH Report"
@@ -1326,7 +1328,7 @@ function CommandCenter({ onExit, onPreviewFinishLine, onOpenSchoolAnalytics, sup
         </header>
 
         <div className="command-content">
-          {view === "rewards" ? (<RewardsManagement supervisorPin={supervisorPin}/>) : view === "settings" ? (<NotificationSettings supervisorPin={supervisorPin}/>) : view === "games" ? (<OctoberGames key={reviewQuests} initialTab={reviewQuests?"manage":"quests"} supervisorPin={supervisorPin}/>) : view === "breakfast" ? (<BreakfastRollout supervisorPin={supervisorPin}/>) : view === "spotlight" ? (
+          {view === "photo-library" ? (<SupervisorPhotoLibrary supervisorPin={supervisorPin}/>) : view === "rewards" ? (<RewardsManagement supervisorPin={supervisorPin}/>) : view === "settings" ? (<NotificationSettings supervisorPin={supervisorPin}/>) : view === "games" ? (<OctoberGames key={reviewQuests} initialTab={reviewQuests?"manage":"quests"} supervisorPin={supervisorPin}/>) : view === "breakfast" ? (<BreakfastRollout supervisorPin={supervisorPin}/>) : view === "spotlight" ? (
             <SpotlightManager supervisorPin={supervisorPin} />
           ) : view === "feedback" ? (
             <SupervisorFeedbackPanel supervisorPin={supervisorPin} />

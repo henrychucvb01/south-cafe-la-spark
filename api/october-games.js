@@ -1,5 +1,6 @@
 import {makeMonthlyPieces,initialCosts,seededRandom} from '../lib/monthlyPuzzleGeometry.js';
 import {createGamesPhotoCache} from '../lib/gamesPhotoCache.js';
+import {supervisorPhotoLibrary} from '../lib/supervisorPhotoLibrary.js';
 import {sideQuestGallery} from '../lib/sideQuestGallery.js';
 import {serverDatabase} from '../src/security/databaseEnvironment.js';
 import {createClient} from '@supabase/supabase-js';
@@ -25,6 +26,7 @@ export function createHandler(db,enabled=previewEnabled(),production=false,photo
    if(error)throw Error(error.code==='PGRST202'?'October Games development database setup is pending. Your existing SPARK features are unaffected.':error.message);return data;
   };
   try{
+   if(['photo_library','photo_library_download'].includes(action))return res.status(200).json(await supervisorPhotoLibrary({db,bucket,photoCache,pin,production,action,payload}));
    if(action==='side_quest_gallery'){const gallery=await rpc('list');return res.status(200).json(await sideQuestGallery(gallery,{createSignedUrls:paths=>photoCache.signedUrls(bucket,paths)}));}
 
    // Never accept a caller-provided storage path or puzzle arrangement.

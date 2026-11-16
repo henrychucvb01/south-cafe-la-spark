@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+import {createHandler} from '../api/october-games.js';
+import {photoZip,photoFilename} from '../src/photoLibrary/downloads.js';
+import {writeFile,mkdir} from 'node:fs/promises';
+import {execFileSync} from 'node:child_process';
+let denied=false,signs=[],downloads=0,rpcs=0;
+const photos=Array.from({length:40},(_,i)=>({id:'entry:'+i,photo_path:'private-'+i,school_id:i%2+1,school:'School '+(i%2+1),contest_id:'door:1',contest:'Contest',category:'decoration',date:'2026-10-20'}));
+const bucket={createSignedUrls:async paths=>{signs.push(paths);return {data:paths.map(path=>({path,signedUrl:'https://private.test/'+path}))};},download:async()=>{downloads++;}};
+const db={storage:{from:()=>bucket},rpc:async(name,args)=>{rpcs++;assert.equal(name,'spark_games_photo_library');assert.deepEqual(args,{p_pin:'supervisor',p_development:false});return denied?{error:{message:'Supervisor authorization required'}}:{data:photos};}};
+const handler=createHandler(db,true,true);
+async function call(action='photo_library',payload={}){let status,result;await handler({method:'POST',body:{action,pin:'supervisor',payload}},{setHeader(){},status(s){status=s;return this;},json(r){result=r;}});return {status,result};}
+let response=await call();assert.equal(response.status,200);assert.equal(response.result.total,40);assert.equal(response.result.photos.length,18);assert.equal(signs[0].length,18);assert(!JSON.stringify(response.result).includes('photo_path'));assert.equal(response.result.schools.length,2);
+response=await call('photo_library',{school:'1',page:2});assert.equal(response.result.total,20);assert.equal(response.result.photos.length,2);
+response=await call('photo_library',{from:'2026-11-01'});assert.equal(response.result.total,0);
+response=await call('photo_library_download',{ids:['entry:0','entry:39'],photo_path:'forged'});assert.equal(response.result.photos.length,2);assert(!JSON.stringify(response.result).includes('forged'));
+assert.equal((await call('photo_library_download',{ids:['forged']})).status,400);assert.equal((await call('photo_library_download',{ids:Array(31).fill('entry:0')})).status,400);
+denied=true;const count=signs.length;assert.equal((await call()).status,400);assert.equal(signs.length,count);assert.equal(downloads,0);assert(rpcs>=7);
+const files=[{name:photoFilename({...photos[0],school:'../School / One'}),bytes:new Uint8Array([1,2,3,4]).buffer},{name:photoFilename({...photos[1],contest:'x'.repeat(200)}),bytes:new Uint8Array([5,6]).buffer}];assert(!files[0].name.includes('/'));assert.notEqual(files[0].name,files[1].name);
+await mkdir('node_modules/.cache/photo-library',{recursive:true});const path='node_modules/.cache/photo-library/test.zip';await writeFile(path,Buffer.from(await photoZip(files).arrayBuffer()));
+execFileSync('python',['-c',"import zipfile,sys; z=zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None; assert len(z.namelist())==2; assert [z.read(n) for n in z.namelist()]==[bytes([1,2,3,4]),bytes([5,6])]",path]);
+console.log('PASS API/downloads: authorization before signing, 18-photo pages, school/date filters, download ID checks/cap, no server photo download, safe filenames and Python-verified ZIP CRC/content.');
