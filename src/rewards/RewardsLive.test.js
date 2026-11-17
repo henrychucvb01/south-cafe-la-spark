@@ -18,3 +18,14 @@ test('a real manager session stays open for confirmed redemption and closes on e
 });
 test('manager cards include activity and disable sold-out fixed rewards',async()=>{data.catalog[0].sold_out=true;data.activity=[{request_id:'one',reward_name:'Reward',kind:'bid',amount:50,refunded:true}];await act(async()=>root.render(<RewardsPage data={data} run={jest.fn()}/>));expect(host.querySelector('.sr-reward-action button').disabled).toBe(true);expect(host.textContent).toContain('Points returned');});
 test('anti-sniping keeps an auction visible through its extended deadline',()=>{const now=Date.now();const r={...data.catalog[0],type:'auction',opens_at:new Date(now-10000).toISOString(),closes_at:new Date(now-1000).toISOString(),auction:{closes_at:new Date(now+60000).toISOString()}};expect(visibleRewards([r],{now})).toHaveLength(1);});
+
+test('auction closing gets one final refresh before polling stops',async()=>{
+ jest.useFakeTimers();
+ try{
+  data.catalog=[{...data.catalog[0],type:'auction',config:{starting_bid:10,increment:10},opens_at:new Date(Date.now()-60000).toISOString(),closes_at:new Date(Date.now()+1000).toISOString()}];
+  await act(async()=>root.render(<ManagerRewards location={{id:1}} employee={{id:11}} managerPin="pin" onBack={()=>{}}/>));
+  const initial=rewardsRequest.mock.calls.length;data.catalog=[];data.balance='120';
+  await act(async()=>jest.advanceTimersByTime(30000));expect(rewardsRequest.mock.calls.length).toBe(initial+1);expect(host.textContent).toContain('120 SPARK Points');
+  await act(async()=>jest.advanceTimersByTime(30000));expect(rewardsRequest.mock.calls.length).toBe(initial+1);
+ }finally{act(()=>root.unmount());root=createRoot(host);jest.useRealTimers();}
+});

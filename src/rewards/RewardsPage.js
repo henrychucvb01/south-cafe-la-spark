@@ -35,7 +35,7 @@ export default function ManagerRewards({location,employee,managerPin,onBack}){
  const latest=useRef(null);useEffect(()=>{latest.current=data;},[data]);
  const tokenRef=useRef(null),inFlight=useRef(false),requests=useRef(new Map()),mounted=useRef(true);
  useEffect(()=>{mounted.current=true;let alive=true,token,timer;
-  const refresh=async()=>{if(!alive||document.visibilityState==='hidden'||inFlight.current||!latest.current?.catalog.some(r=>r.type==='auction'&&new Date(r.auction?.closes_at||r.closes_at)>new Date()))return;try{const result=await rewardsRequest('manager_context',null,{},token);if(alive)setData(result);}catch{}};
+  const refresh=async()=>{if(!alive||document.visibilityState==='hidden'||inFlight.current||!latest.current?.catalog.some(r=>r.type==='auction'&&new Date(r.opens_at)<=new Date()))return;try{const result=await rewardsRequest('manager_context',null,{},token);if(alive)setData(result);}catch{}};
   (async()=>{try{token=await openSession(location,employee,managerPin);if(!alive){await closeSession(token);return;}tokenRef.current=token;const result=await rewardsRequest('manager_context',null,{},token);if(alive){setData(result);timer=setInterval(refresh,30000);}}catch(e){if(alive)setError(e.message);}})();
   return()=>{alive=false;mounted.current=false;clearInterval(timer);tokenRef.current=null;if(token)closeSession(token).catch(()=>{});};
  },[location,employee,managerPin]);
