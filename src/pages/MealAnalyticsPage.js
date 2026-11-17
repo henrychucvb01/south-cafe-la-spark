@@ -12,7 +12,7 @@ import {
   Cell,
 } from "recharts";
 
-import { supabase } from "../supabaseClient";
+import { loadSchoolMealAnalytics } from "../mealAnalytics/schoolMealAnalyticsService";
 import { getMplhTarget } from "../mplhTargets";
 
 /* =========================================================
@@ -81,7 +81,7 @@ function ParticipationDonut({ value, meals, attendance, label }) {
    PAGE
 ========================================================= */
 
-function MealAnalyticsPage({ location, employee, onBack, backLabel = "School Dashboard" }) {
+function MealAnalyticsPage({ location, employee, managerPin, supervisorPin, onBack, backLabel = "School Dashboard" }) {
   const [range, setRange] = useState("weekly");
   const [chartView, setChartView] = useState("total");
 
@@ -117,34 +117,10 @@ function MealAnalyticsPage({ location, employee, onBack, backLabel = "School Das
 
       const startDateString = startDate.toISOString().split("T")[0];
 
-      const { data: mealData, error: mealError } = await supabase
-        .from("meal_counts")
-        .select("*")
-        .eq("location_id", location.id)
-        .gte("service_date", startDateString)
-        .order("service_date", {
-          ascending: true,
-        });
-
-      if (mealError) {
-        throw mealError;
-      }
-
-      const { data: laborData, error: laborError } = await supabase
-        .from("labor_hours")
-        .select("*")
-        .eq("location_id", location.id)
-        .gte("service_date", startDateString)
-        .order("service_date", {
-          ascending: true,
-        });
-
-      if (laborError) {
-        throw laborError;
-      }
-
-      setMealCounts(mealData || []);
-      setLaborRows(laborData || []);
+      const data = await loadSchoolMealAnalytics({location, employee, managerPin, supervisorPin,
+        startDate: startDateString, endDate: new Date().toISOString().slice(0,10)});
+      setMealCounts(data.mealRows);
+      setLaborRows(data.laborRows);
     } catch (err) {
       console.error("Meal Analytics load error:", err);
 
@@ -575,6 +551,8 @@ function MealAnalyticsPage({ location, employee, onBack, backLabel = "School Das
           </div>
 
           {error && <div className="login-error">{error}</div>}
+
+          <p>District meal counts are used when uploaded. Manager counts are used only for meals awaiting district data.</p>
 
           {/* =================================================
               TODAY'S PERFORMANCE

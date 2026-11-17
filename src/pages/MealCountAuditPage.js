@@ -373,7 +373,7 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
             Meal Count Audit & Reconciliation
           </h1>
           <p style={{ margin: "3px 0 0 0", fontSize: "13px", color: "#6b7280" }}>
-            Compares the Official Meal Count upload with manager-entered SPARK counts.
+            Compares the Official Meal Count upload with manager-entered SPARK counts. District totals include mapped offsites/EECs and weekend or excluded-day meals rolled into the preceding Friday.
           </p>
         </div>
 

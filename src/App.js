@@ -125,7 +125,7 @@ function App() {
   if (screen === "incidentHelper") return managerPage(<IncidentRecordHelper location={selectedLocation} employee={selectedEmployee} onBack={() => setScreen("homeBase")} />);
   if (screen === "schoolHub") return managerPage(<SchoolHub location={selectedLocation} employee={selectedEmployee} onFinishLine={() => { setEditingCheck(null); setScreen("finishLine"); }} onDashboard={() => setScreen("schoolDashboard")} onMealAnalytics={() => setScreen("mealAnalytics")} onExit={() => setScreen("homeBase")} />);
   if (screen === "mealAnalytics") {
-    const page = <MealAnalyticsPage location={selectedLocation} employee={selectedEmployee} backLabel={supervisorContext ? "Command Center" : "School Dashboard"} onBack={() => setScreen(supervisorContext ? "commandCenter" : "schoolHub")} />;
+    const page = <MealAnalyticsPage managerPin={managerSessionPin} supervisorPin={supervisorContext ? supervisorSessionPin : null} location={selectedLocation} employee={selectedEmployee} backLabel={supervisorContext ? "Command Center" : "School Dashboard"} onBack={() => setScreen(supervisorContext ? "commandCenter" : "schoolHub")} />;
     return supervisorContext ? page : managerPage(page);
   }
 
