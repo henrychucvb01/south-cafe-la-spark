@@ -24,3 +24,5 @@
 .sr-manager .sr-card-body>button{background:var(--sr-brand-gold);border-color:#b78125;color:#09234b;font-weight:700}.sr-manager .sr-card-body>button:disabled{background:#f1e2bd;border-color:#c7b384;color:#665634;opacity:1}
 .sr-manager .sr-help summary{border-color:#9baec0;color:#09234b}.sr-manager .sr-help p{border-color:#9baec0;color:#172033}.sr-manager .sr-card-body progress{accent-color:#a36d0b}.sr-manager .sr-wheel-display{background:#edf1f6}.sr-manager .sr-wheel{border-color:var(--sr-brand-navy)}
 .sr-manager>.sr-reward-grid{margin-top:16px}.sr-manager>.sr-reward-grid~h2{border-top:1px solid #c8d4df;margin-top:24px;padding-top:20px;color:#09234b}
+
+.sr-reward-action{margin-top:auto;width:100%;display:grid;gap:10px}.sr-reward-action label{display:grid;gap:6px;font-weight:600;font-size:14px}.sr-reward-action input{min-width:0;width:100%;box-sizing:border-box;min-height:44px;padding:10px;border:1px solid #9aafbe;border-radius:8px;font:inherit}.sr-reward-action button{width:100%;min-height:44px}
