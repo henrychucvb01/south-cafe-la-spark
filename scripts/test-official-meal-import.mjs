@@ -30,6 +30,28 @@ try {
  await assert.rejects(upload(rows,'bad'),/authorization/);
  await assert.rejects(upload([row('2026-09-11',1,'unknown')]),/Unknown/);
  assert.equal((await db.query("select jsonb_array_length(get_official_meal_count_mappings('test')) n")).rows[0].n,3);
+ // Upgrade an existing database containing the old combined Friday totals.
+ await db.exec('create table meal_counts(location_id bigint,service_date date,lunch_count integer); insert into meal_counts values(9,\'2026-09-11\',999)');
+ await db.exec(await readFile('supabase/migrations/20261117183146_official_meal_service_dates.sql','utf8'));
+ let exact=await totals();
+ const day=date=>exact.find(r=>r.service_date===date);
+ assert.equal(day('2026-09-11').breakfast_count,122); // main + offsite + EEC, same date only
+ assert.equal(day('2026-09-12').breakfast_count,12);
+ assert.equal(day('2026-09-13').breakfast_count,20);
+ assert.equal(day('2026-09-07').breakfast_count,8);
+ assert.equal(day('2026-09-04').breakfast_count,4);
+ assert.equal(day('2026-09-05').breakfast_count,3);
+ assert(!day('2026-08-28')); // obsolete shifted-date artifact is backed up, then removed
+ assert((await db.query('select count(*)::int n from official_meal_date_repair_backup')).rows[0].n>0);
+ const stable=await totals();await upload([row('2026-09-12',12)]);assert.deepEqual(await totals(),stable);
+ await upload([row('2026-09-11',0)]);exact=await totals();assert.equal(day('2026-09-11').breakfast_count,12);
+ await upload([{location_id:9,source_site_id:'1857501',service_date:'2026-09-11',lunch_count:50}]);
+ exact=await totals();assert.equal(day('2026-09-11').breakfast_count,12);assert.equal(day('2026-09-11').lunch_count,74);
+ await upload([row('2026-09-12',0)]);exact=await totals();assert.equal(day('2026-09-12').breakfast_count,0);
+ assert.equal((await db.query('select lunch_count from meal_counts')).rows[0].lunch_count,999);
+ await assert.rejects(upload([row('2026-09-12',100)],'bad'),/authorization/);
+ await assert.rejects(upload([row('2026-09-12',100,'unknown')]),/Unknown/);
  await db.exec('set role anon');await assert.rejects(db.exec('select * from official_meal_count_sources'),/permission denied/);
- console.log('PASS: weekend/holiday/Friday-holiday rollover, offsite/EEC totals, historical-date cleanup, repeat and overlapping uploads, zero protection, positive replacement, authorization.');
+ await assert.rejects(db.exec('select * from official_meal_date_repair_backup'),/permission denied/);
+ console.log('PASS: legacy upgrade repair, exact service dates including weekends/holidays, same-date offsite/EEC totals, backup, repeat/overlapping uploads, zero corrections, partial meals, authorization and manager history preservation.');
 }finally{await db.close();}

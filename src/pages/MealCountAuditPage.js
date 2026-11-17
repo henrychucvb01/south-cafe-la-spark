@@ -155,7 +155,10 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
       });
     });
 
-    return allMonthWeekdays.map((date) => {
+    const auditDates = [...new Set([...allMonthWeekdays, ...officialMealCounts
+      .filter(row => String(row.location_id) === String(currentSchool.id) && row.service_date >= startDate && row.service_date <= endDate)
+      .map(row => row.service_date)])].sort();
+    return auditDates.map((date) => {
       const distEntry = distMap.get(date);
       const dist = distEntry && distEntry.hasUpload ? distEntry : null;
       const mgr = managerMap.get(date) || null;
@@ -212,7 +215,7 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
         isNonOperating,
       };
     });
-  }, [currentSchool, officialMealCounts, managerMealCounts, allMonthWeekdays, excludedDates]);
+  }, [currentSchool, officialMealCounts, managerMealCounts, allMonthWeekdays, excludedDates, startDate, endDate]);
 
   function toggleExcludeDate(date) {
     setExcludedDates((prev) => {
@@ -321,7 +324,10 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
     schools.forEach((school) => {
       let missing = 0;
       let off = 0;
-      allMonthWeekdays.forEach((date) => {
+      const dates = new Set([...allMonthWeekdays, ...officialMealCounts
+        .filter(row => String(row.location_id) === String(school.id))
+        .map(row => String(row.service_date).slice(0, 10))]);
+      dates.forEach((date) => {
         const official = officialBySchoolDate.get(`${school.id}|${date}`);
         if (!official) return;
         const manager = managerBySchoolDate.get(`${school.id}|${date}`);
@@ -373,7 +379,7 @@ export default function MealCountAuditPage({ supervisorPin, schools: propSchools
             Meal Count Audit & Reconciliation
           </h1>
           <p style={{ margin: "3px 0 0 0", fontSize: "13px", color: "#6b7280" }}>
-            Compares the Official Meal Count upload with manager-entered SPARK counts. District totals include mapped offsites/EECs and weekend or excluded-day meals rolled into the preceding Friday.
+            Compares the Official Meal Count upload with manager-entered SPARK counts. District totals include mapped offsites/EECs on the same service date. Weekend and holiday counts stay on their original dates.
           </p>
         </div>
 

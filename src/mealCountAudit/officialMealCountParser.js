@@ -109,8 +109,8 @@ export function parseOfficialMealCountCsv(csvText, schools, mappings = []) {
       rejected.push({ row: sourceRow, reason: "invalid service date" });
       return;
     }
-    // Keep each source site/date intact. The RPC applies the configured school
-    // calendar and sums current source values, including across overlapping files.
+    // Keep each source site/date intact. The RPC sums mapped programs only
+    // on this exact service date, including across overlapping files.
     const recordKey = `${school.import_source_id || school.id}|${serviceDate}`;
     const current = records.get(recordKey) || {
       location_id: Number(school.id),
