@@ -21,3 +21,16 @@ test('signed SNP-23 copies both roles to pages 2 and 3 and preserves an unsigned
   expect(content.getContentsString().length).toBeGreaterThan(0);
  }
 });
+
+test('preserves one line per menu item on the original SNP-23',async()=>{
+ const template=fs.readFileSync('public/monitoring/snp-23.pdf');
+ const menu=[
+  'Apple Slices, Red (1)','Breaded Cheese Fish Wedges (2 oz)','Celery Sticks (1)',
+  'Deep Dish Pepperoni Pizza (2 oz)','Milk (1 cup)','Raspberry Passion Fruit Slush (1)',
+  'Roasted Potato Wedges (0.5 cup)','Vegan Chik-n Nuggets (2.25 oz)'
+ ].join('\n');
+ const pdf=await PDFDocument.load(await fillLunch(template,{
+  date:'2026-11-18',result:'pass',meal:'lunch',grades:[],answers:{},menu,menuProductionDate:'2026-11-18'
+ }));
+ expect(pdf.getForm().getTextField('Todays Menu Record All Food Items Served and Serving Sizes').getText()).toBe(menu);
+});

@@ -17,7 +17,7 @@ function portion(row){
  return ounces?`${Number(ounces)} oz`:'1';
 }
 
-const omittedItem=/^(?:special diet\b|ketchup\b|mustard\b|mayonnaise\b|mayo\b|(?:sriracha|taco|tapatio|hot)\b.*\bsauce\b|tajin\b)|\b(?:seasoning packet|condiment packet)\b/i;
+const omittedItem=/^(?:special diet\b|ketchup\b|mustard\b|mayonnaise\b|mayo\b|(?:sriracha|taco|tapatio|hot|bbq|barbecue)\b.*\bsauce\b|tajin\b|ranch dressing\b)|\b(?:seasoning packet|condiment packet)\b/i;
 const milkItem=/^milk(?:$|\s+(?:white|chocolate|strawberry|non[- ]?fat|fat[- ]?free|low[- ]?fat|[12]%|whole)(?=\s|$))/i;
 
 export function formatProductionMenu(rows){

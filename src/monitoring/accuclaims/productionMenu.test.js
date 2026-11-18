@@ -38,6 +38,8 @@ test('groups milk and removes packet, packaging and special-diet details',()=>{
   {item_name:'Soy Milk Vanilla - Driftwood',milk_cups:1},
   {item_name:'Special Diet- Almond Milk'},
   {item_name:'Ketchup Ind. Pkg'},
+  {item_name:'BBQ Sauce'},
+  {item_name:'Ranch Dressing'},
   {item_name:'Tapatio Hot Sauce Ind. Pkg'},
   {item_name:'Beef & Cheese Taquitos NNC',mma_oz_eq:2},
   {item_name:'Vegetable Crunchies (1 oz)'}
