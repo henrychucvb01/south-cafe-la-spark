@@ -58,7 +58,7 @@ export default function AccuClaims({overview,supervisorPin,onBack,initialYear,on
  {site&&<h2>AccuClaims Monitoring · SNP {mealLabel}</h2>}
  {site&&<p>{mealLabel} form · Drafts and defaults are saved in this browser.</p>}
  {error&&<p role="alert">{error}</p>}{note&&<p role="status">{note}</p>}
- {!site ? <AnnualDashboard overview={overview} sites={sites} saved={saved} save={persist} year={year} currentYear={currentYear} setYear={y=>{setYear(y);onYearChange(y);}} onOpen={open} busy={busy||parentBusy}/>:<>
+ {!site ? <AnnualDashboard sites={sites} saved={saved} year={year} currentYear={currentYear} setYear={y=>{setYear(y);onYearChange(y);}} onOpen={open} busy={busy||parentBusy}/>:<>
  <h3>{site.name}</h3>
  <div className="ac-visit-controls">
  <label>Visit date<input type="date" min={year.slice(0,4)+'-07-01'} max={(Number(year.slice(0,4))+1)+'-06-30'} value={draft.date} onChange={e=>change({date:e.target.value})}/></label>

@@ -21,11 +21,12 @@
 .ac-table-wrap {overflow-x:auto;border:1px solid #d5e4eb;border-radius:12px}
 .ac-table {border-collapse:collapse;width:100%;min-width:680px}
 .ac-table :is(th,td) {text-align:left;padding:.65rem;vertical-align:top;border-bottom:1px solid #e0e8ef}
-.sm-app .ac-table thead th,.sm-app .ac-table tbody th[scope=row] strong {font-size:12px}
+.sm-app .ac-table thead th,.sm-app .ac-table tbody small {font-size:12px}
+.sm-app .ac-table tbody th[scope=row] strong,
+.sm-app .ac-table tbody td strong,
+.sm-app .ac-table .ac-previous-date {font-size:14px}
 .ac-table thead {background:#eaf2f8}
 .ac-table tbody tr:nth-child(even) {background:#f7fafc}
 .ac-table small,.ac-table td strong {display:block}
 .ac-table summary {cursor:pointer;font-size:.85rem}
 .sm-app .ac-table button {padding:.3rem .55rem;min-height:32px;margin:.25rem .3rem .1rem 0;font-size:.85rem}
-.sm-app .ac-select-site {display:flex;align-items:center;gap:.35rem;font-size:.8rem;margin:0}
-.sm-app .ac-select-site input {width:16px;height:16px}
