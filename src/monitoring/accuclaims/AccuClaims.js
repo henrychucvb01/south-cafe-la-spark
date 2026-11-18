@@ -2,6 +2,7 @@ import React,{useEffect,useState} from 'react';
 import {openSupervisorSession,schoolManagers,closeSession} from '../../supperMonitoring/service';
 import {localDate,schoolYear} from '../../supperMonitoring/model';
 import SignaturePad from '../../supperMonitoring/SignaturePad';
+import {loadProductionMenu} from './productionMenu';
 import {fillLunch,filename,grades,questions} from './form';
 
 import './answers.css';
@@ -20,6 +21,21 @@ export default function AccuClaims({overview,supervisorPin,onBack,initialYear,on
  const [year,setYear]=useState(initialYear||currentYear);
  const sites=annualSites(overview);
  const meal=draft?.meal||'lunch';
+ const lookupDate=draft?.date;
+ const lookupMenu=Boolean(draft&&!draft.menu&&!draft.menuEdited);
+ const [menuLookupError,setMenuLookupError]=useState(false);
+ useEffect(()=>{
+  setMenuLookupError(false);
+  if(!site||!lookupMenu||!schoolYear(lookupDate)||lookupDate>localDate())return;
+  let active=true;
+  loadProductionMenu(supervisorPin,site,lookupDate,meal).then(menu=>{
+   if(!active||!menu)return;
+   setDraft(current=>current?.date===lookupDate&&current.meal===meal&&!current.menu&&!current.menuEdited
+    ? {...current,menu,menuProductionDate:lookupDate}
+    : current);
+  }).catch(()=>{if(active)setMenuLookupError(true);});
+  return ()=>{active=false;};
+ },[site,lookupDate,lookupMenu,meal,supervisorPin]);
  const mealLabel=meal==='breakfast'?'Breakfast':'Lunch';
  const id=site&&draft?`${site.key}:${meal}:${draft.date}`:'';
  function change(p){setDraft(d=>({...d,...p}));setUrl('');setNote('');}
@@ -61,7 +77,12 @@ export default function AccuClaims({overview,supervisorPin,onBack,initialYear,on
  {!site ? <AnnualDashboard sites={sites} saved={saved} year={year} currentYear={currentYear} setYear={y=>{setYear(y);onYearChange(y);}} onOpen={open} busy={busy||parentBusy}/>:<>
  <h3>{site.name}</h3>
  <div className="ac-visit-controls">
- <label>Visit date<input type="date" min={year.slice(0,4)+'-07-01'} max={(Number(year.slice(0,4))+1)+'-06-30'} value={draft.date} onChange={e=>change({date:e.target.value})}/></label>
+ <label>Visit date<input type="date" min={year.slice(0,4)+'-07-01'} max={(Number(year.slice(0,4))+1)+'-06-30'} value={draft.date} onChange={e=>{
+  const date=e.target.value;
+  change(draft.menuProductionDate&&draft.menuProductionDate!==date
+   ? {date,menu:'',menuProductionDate:undefined,menuEdited:false}
+   : {date,menuEdited:Boolean(draft.menu)});
+ }}/></label>
  <div><strong>Program: CEP</strong><div className="ac-result" role="group" aria-label="Visit result">{[['pass','Pass'],['follow-up','Follow-Up']].map(([value,label])=><button key={value} type="button" aria-pressed={draft.result===value} onClick={()=>change({result:value})}>{label}</button>)}</div></div>
  </div>
  <details><summary> {draft.staff || "Staff not selected"} · {draft.arrival}–{draft.departure} · Edit visit details</summary>
@@ -69,8 +90,9 @@ export default function AccuClaims({overview,supervisorPin,onBack,initialYear,on
  {managers.length>1&&<label>Use assigned manager<select value="" onChange={e=>{if(e.target.value)change({staff:e.target.value});}}><option value="">Select manager</option>{managers.map(m=><option key={m.id} value={m.employee_name}>{m.employee_name}</option>)}</select></label>}
  </details>
  <fieldset className="ac-grade-groups"><legend>Menu-planning grade groups</legend><div>{Object.keys(grades).map(g=><label key={g}><input type="checkbox" checked={draft.grades.includes(g)} onChange={e=>change({grades:e.target.checked?[...draft.grades,g]:draft.grades.filter(x=>x!==g)})}/>{g}</label>)}</div></fieldset>
- <label>Menu served and serving sizes<textarea value={draft.menu} onChange={e=>change({menu:e.target.value})}/></label>
- {(saved[menuStore]?.[draft.date]||[]).length>0&&<label>Reuse a saved menu for this date<select value="" onChange={e=>{if(e.target.value!=='')change({menu:saved[menuStore][draft.date][Number(e.target.value)]});}}><option value="">Choose a menu</option>{saved[menuStore][draft.date].map((m,i)=><option key={m} value={i}>{m.slice(0,90)}</option>)}</select></label>}
+ <label>Menu served and serving sizes<textarea value={draft.menu} onChange={e=>change({menu:e.target.value,menuEdited:true})}/></label>
+ {menuLookupError&&<p role="status">Production records could not be loaded. You can enter the menu here.</p>}
+ {(saved[menuStore]?.[draft.date]||[]).length>0&&<label>Reuse a saved menu for this date<select value="" onChange={e=>{if(e.target.value!=='')change({menu:saved[menuStore][draft.date][Number(e.target.value)],menuEdited:true,menuProductionDate:draft.date});}}><option value="">Choose a menu</option>{saved[menuStore][draft.date].map((m,i)=><option key={m} value={i}>{m.slice(0,90)}</option>)}</select></label>}
  <button disabled={!draft.date||!draft.menu.trim()} onClick={()=>persist({...saved,[menuStore]:{...saved[menuStore],[draft.date]:[...new Set([...(saved[menuStore]?.[draft.date]||[]),draft.menu])]}},'Menu saved for reuse on this date.')}>Save menu for this date</button>
  <details className="ac-answers"><summary>Review standard answers · {questions.filter(q=>draft.answers[q.yes]).length} of {questions.length} answered</summary>
  <p>Review what applies to this visit. Save reusable defaults separately for each meal.</p>
