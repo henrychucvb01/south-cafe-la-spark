@@ -83,3 +83,13 @@ test('writes compliance, the corrective-action deadline and both notes to the di
  expect(yes.getCheckBox('Check Box2.4.1').isChecked()).toBe(false);
  expect(yes.getTextField('Text7').getText()||'').toBe('');
 });
+
+test('filters condiments from older saved menus before exporting the PDF',async()=>{
+ const template=fs.readFileSync('public/monitoring/snp-23.pdf');
+ const menu='Apple Slices, Red (1), BBQ Sauce (1), Celery Sticks (1), Ranch Dressing (1), Milk (1 cup)';
+ const pdf=await PDFDocument.load(await fillLunch(template,{
+  date:'2026-10-08',result:'pass',meal:'lunch',grades:[],answers:{},menu
+ }));
+ expect(pdf.getForm().getTextField('Todays Menu Record All Food Items Served and Serving Sizes').getText())
+  .toBe('Apple Slices, Red (1)\nCelery Sticks (1)\nMilk (1 cup)');
+});

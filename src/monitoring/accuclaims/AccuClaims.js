@@ -2,6 +2,7 @@ import React,{useEffect,useState} from 'react';
 import {openSupervisorSession,schoolManagers,closeSession} from '../../supperMonitoring/service';
 import {localDate,schoolYear} from '../../supperMonitoring/model';
 import SignaturePad from '../../supperMonitoring/SignaturePad';
+import {cleanMenuText} from './menuText';
 import {loadProductionMenu} from './productionMenu';
 import {fillLunch,filename,grades,questions} from './form';
 
@@ -60,9 +61,7 @@ export default function AccuClaims({overview,supervisorPin,onBack,initialYear,on
    setSigningRole(null);
    setPreviewError('');
    const visit=latestDraft||completed;
-   const restoredVisit=visit?.menuProductionDate&&!visit.menuEdited
-    ? {...visit,menu:visit.menu.replace(/(\(\d+(?:\.\d+)?(?: oz| cups?)?\)), /g,'$1\n')}
-    : visit;
+   const restoredVisit=visit&&{...visit,menu:cleanMenuText(visit.menu)};
    setSite(s);setDraft({...(restoredVisit||{site:s.name.toUpperCase(),date,staff:staff.length===1?staff[0].employee_name:'',arrival:meal==='breakfast'?'7:00 AM':'10:00 AM',departure:meal==='breakfast'?'10:00 AM':'1:00 PM',menu:'',findings:'',procedures:saved.sites?.[s.key]?.procedures||'',other:'',grades:saved.sites?.[s.key]?.grades||[],answers:{...(meal==='breakfast'?saved.breakfastAnswers:saved.answers)}}),meal});
   }catch(e){setError(e.message||'Could not load school data.');}
   finally{if(token)await closeSession(token).catch(()=>{});setBusy(false);}
@@ -107,7 +106,7 @@ export default function AccuClaims({overview,supervisorPin,onBack,initialYear,on
   missing:'No imported production menu for this site, date, and meal.',
   error:'Production records could not be loaded. You can enter the menu here.'
  }[menuStatus]}</p>}
- {(saved[menuStore]?.[draft.date]||[]).length>0&&<label>Reuse a saved menu for this date<select value="" onChange={e=>{if(e.target.value!=='')change({menu:saved[menuStore][draft.date][Number(e.target.value)],menuEdited:true,menuProductionDate:draft.date});}}><option value="">Choose a menu</option>{saved[menuStore][draft.date].map((m,i)=><option key={m} value={i}>{m.slice(0,90)}</option>)}</select></label>}
+ {(saved[menuStore]?.[draft.date]||[]).length>0&&<label>Reuse a saved menu for this date<select value="" onChange={e=>{if(e.target.value!=='')change({menu:cleanMenuText(saved[menuStore][draft.date][Number(e.target.value)]),menuEdited:true,menuProductionDate:draft.date});}}><option value="">Choose a menu</option>{saved[menuStore][draft.date].map((m,i)=><option key={m} value={i}>{m.slice(0,90)}</option>)}</select></label>}
  <button disabled={!draft.date||!draft.menu.trim()} onClick={()=>persist({...saved,[menuStore]:{...saved[menuStore],[draft.date]:[...new Set([...(saved[menuStore]?.[draft.date]||[]),draft.menu])]}},'Menu saved for reuse on this date.')}>Save menu for this date</button>
  <details className="ac-answers"><summary>Review standard answers · {questions.filter(q=>draft.answers[q.yes]).length+Number(Boolean(draft.compliance))} of {questions.length+1} answered</summary>
  <p>Review what applies to this visit. Save reusable defaults separately for each meal.</p>

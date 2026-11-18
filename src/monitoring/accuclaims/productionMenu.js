@@ -1,3 +1,4 @@
+import {omitMenuItem} from './menuText';
 import {supabase} from '../../supabaseClient';
 import {localDate,schoolYear} from '../../supperMonitoring/model';
 
@@ -17,14 +18,13 @@ function portion(row){
  return ounces?`${Number(ounces)} oz`:'1';
 }
 
-const omittedItem=/^(?:special diet\b|ketchup\b|mustard\b|mayonnaise\b|mayo\b|(?:sriracha|taco|tapatio|hot|bbq|barbecue)\b.*\bsauce\b|tajin\b|ranch dressing\b)|\b(?:seasoning packet|condiment packet)\b/i;
 const milkItem=/^milk(?:$|\s+(?:white|chocolate|strawberry|non[- ]?fat|fat[- ]?free|low[- ]?fat|[12]%|whole)(?=\s|$))/i;
 
 export function formatProductionMenu(rows){
  const foods=new Map();
  for(const row of rows){
   const original=row.item_name?.trim();
-  if(!original||omittedItem.test(original))continue;
+  if(!original||omitMenuItem(original))continue;
   if(milkItem.test(original)||/^soy milk\b/i.test(original)){
    const amount=portion(row);
    if(!foods.has('milk')||foods.get('milk')==='Milk (1)')foods.set('milk',`Milk (${amount})`);

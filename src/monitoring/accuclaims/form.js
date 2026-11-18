@@ -1,4 +1,5 @@
 import {PDFDocument, StandardFonts, layoutMultilineText} from 'pdf-lib';
+import {cleanMenuText} from './menuText';
 import {drawSignature} from '../../supperMonitoring/pdf';
 
 const group = (name, labels) => labels.map((label,i)=>({label,yes:`${name}.${i}.0`,no:`${name}.${i}.1`,na:name==='Check Box17'&&i<6?`Check Box4.${i}`:null}));
@@ -32,7 +33,7 @@ export async function fillLunch(template,draft){
  const doc=await PDFDocument.load(template),form=doc.getForm();
  if(!['pass','follow-up'].includes(draft.result))throw Error('Select Pass or Follow-Up before previewing.');
  const font=await doc.embedFont(StandardFonts.Helvetica);
- const fields={'AGENCY':'Los Angeles Unified School District','SITE':draft.site,'DATE':formatDate(draft.date),'ARRIVAL TIME':draft.arrival,'DEPARTURE TIME':draft.departure,'SITE STAFF RESPONSIBLE FOR MEAL COUNTS':draft.staff,[menuField]:draft.menu,'Where Is a copy of the procedures located on site':draft.procedures,'Text16':draft.other,'Text7':draft.compliance==='no'&&draft.correctiveDueDate?formatDate(draft.correctiveDueDate):'', 'Text1':draft.findings,'Text2':draft.correctiveActionTaken};
+ const fields={'AGENCY':'Los Angeles Unified School District','SITE':draft.site,'DATE':formatDate(draft.date),'ARRIVAL TIME':draft.arrival,'DEPARTURE TIME':draft.departure,'SITE STAFF RESPONSIBLE FOR MEAL COUNTS':draft.staff,[menuField]:cleanMenuText(draft.menu),'Where Is a copy of the procedures located on site':draft.procedures,'Text16':draft.other,'Text7':draft.compliance==='no'&&draft.correctiveDueDate?formatDate(draft.correctiveDueDate):'', 'Text1':draft.findings,'Text2':draft.correctiveActionTaken};
  for(const [key,value] of Object.entries(fields)) if(value){
   const field=form.getTextField(key);
   let text=value;
