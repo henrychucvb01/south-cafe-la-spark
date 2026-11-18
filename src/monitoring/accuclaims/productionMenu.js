@@ -39,7 +39,7 @@ export function formatProductionMenu(rows){
   const item=`${name} (${size})`;
   foods.set(item.toLowerCase(),item);
  }
- return [...foods.values()].join(', ');
+ return [...foods.values()].join('\n');
 }
 
 export async function loadProductionMenu(supervisorPin,site,date,meal){

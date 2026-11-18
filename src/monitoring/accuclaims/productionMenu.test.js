@@ -12,7 +12,7 @@ test('formats concise portions',()=>{
   {item_name:'Turkey sausage',mma_oz_eq:2},
   {item_name:'Fruit cup',fruit_cups:0.5},
   {item_name:'Muffin'}
- ])).toBe('Turkey sausage (2 oz), Fruit cup (0.5 cup), Muffin (1)');
+ ])).toBe('Turkey sausage (2 oz)\nFruit cup (0.5 cup)\nMuffin (1)');
 });
 
 test('requests only Annalee El lunch for the selected day',async()=>{
@@ -41,5 +41,5 @@ test('groups milk and removes packet, packaging and special-diet details',()=>{
   {item_name:'Tapatio Hot Sauce Ind. Pkg'},
   {item_name:'Beef & Cheese Taquitos NNC',mma_oz_eq:2},
   {item_name:'Vegetable Crunchies (1 oz)'}
- ])).toBe('Milk (1 cup), Beef & Cheese Taquitos (2 oz), Vegetable Crunchies (1 oz)');
+ ])).toBe('Milk (1 cup)\nBeef & Cheese Taquitos (2 oz)\nVegetable Crunchies (1 oz)');
 });

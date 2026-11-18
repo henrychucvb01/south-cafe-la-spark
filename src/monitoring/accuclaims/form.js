@@ -27,7 +27,8 @@ export async function fillLunch(template,draft){
  if(!['pass','follow-up'].includes(draft.result))throw Error('Select Pass or Follow-Up before previewing.');
  const font=await doc.embedFont(StandardFonts.Helvetica);
  const date=draft.date.split('-');
- const fields={'AGENCY':'Los Angeles Unified School District','SITE':draft.site,'DATE':`${Number(date[1])}/${Number(date[2])}/${date[0]}`,'ARRIVAL TIME':draft.arrival,'DEPARTURE TIME':draft.departure,'SITE STAFF RESPONSIBLE FOR MEAL COUNTS':draft.staff,'Todays Menu Record All Food Items Served and Serving Sizes':draft.menu,'Where Is a copy of the procedures located on site':draft.procedures,'Text16':draft.other,'Text1':draft.findings};
+ const menu=draft.menuProductionDate?draft.menu?.split(/\r?\n/).map(line=>line.trim()).filter(Boolean).join(', '):draft.menu;
+ const fields={'AGENCY':'Los Angeles Unified School District','SITE':draft.site,'DATE':`${Number(date[1])}/${Number(date[2])}/${date[0]}`,'ARRIVAL TIME':draft.arrival,'DEPARTURE TIME':draft.departure,'SITE STAFF RESPONSIBLE FOR MEAL COUNTS':draft.staff,'Todays Menu Record All Food Items Served and Serving Sizes':menu,'Where Is a copy of the procedures located on site':draft.procedures,'Text16':draft.other,'Text1':draft.findings};
  for(const [key,value] of Object.entries(fields)) if(value){
   const field=form.getTextField(key);field.setText(value);
   if(key==='DATE'||key===menuField){fitField(field,value,font,key==='DATE'?9:11,key===menuField);field.updateAppearances(font);}

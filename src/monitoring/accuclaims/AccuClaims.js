@@ -57,7 +57,11 @@ export default function AccuClaims({overview,supervisorPin,onBack,initialYear,on
     .map(([,visit])=>visit)
     .sort((a,b)=>b.date.localeCompare(a.date))[0];
    setSigningRole(null);
-   setSite(s);setDraft({...(latestDraft||completed||{site:s.name.toUpperCase(),date,staff:staff.length===1?staff[0].employee_name:'',arrival:meal==='breakfast'?'7:00 AM':'10:00 AM',departure:meal==='breakfast'?'10:00 AM':'1:00 PM',menu:'',findings:'',procedures:saved.sites?.[s.key]?.procedures||'',other:'',grades:saved.sites?.[s.key]?.grades||[],answers:{...(meal==='breakfast'?saved.breakfastAnswers:saved.answers)}}),meal});
+   const visit=latestDraft||completed;
+   const restoredVisit=visit?.menuProductionDate&&!visit.menuEdited
+    ? {...visit,menu:visit.menu.replace(/(\(\d+(?:\.\d+)?(?: oz| cups?)?\)), /g,'$1\n')}
+    : visit;
+   setSite(s);setDraft({...(restoredVisit||{site:s.name.toUpperCase(),date,staff:staff.length===1?staff[0].employee_name:'',arrival:meal==='breakfast'?'7:00 AM':'10:00 AM',departure:meal==='breakfast'?'10:00 AM':'1:00 PM',menu:'',findings:'',procedures:saved.sites?.[s.key]?.procedures||'',other:'',grades:saved.sites?.[s.key]?.grades||[],answers:{...(meal==='breakfast'?saved.breakfastAnswers:saved.answers)}}),meal});
   }catch(e){setError(e.message||'Could not load school data.');}
   finally{if(token)await closeSession(token).catch(()=>{});setBusy(false);}
  }
