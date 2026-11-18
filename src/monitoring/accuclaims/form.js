@@ -7,7 +7,7 @@ export const questions = [
  ...group('Check Box2',['20d Water issues','20e Professional standards issues','20f Outreach issues','20g Other issues'])
 ];
 export const grades={'K–5':'Check Box8','K–8':'Check Box9','6–8':'Check Box10','9–12':'Check Box11',EEC:'Check Box3'};
-export const filename = name => `SNP Lunch-${name.trim().toUpperCase().replace(/[\\/:*?"<>|]/g,'-')}.pdf`;
+export const filename = (name,meal='lunch') => `SNP ${meal==='breakfast'?'Breakfast':'Lunch'}-${name.trim().toUpperCase().replace(/[\\/:*?"<>|]/g,'-')}.pdf`;
 const menuField = 'Todays Menu Record All Food Items Served and Serving Sizes';
 function fitField(field,text,font,maxSize,multiline){
  const widgets=field.acroField.getWidgets().map(w=>w.getRectangle());
@@ -35,7 +35,8 @@ export async function fillLunch(template,draft){
  form.getCheckBox('Check Box13').check(); // CEP
  form.getCheckBox('Check Box14')[draft.result==='pass'?'check':'uncheck']();
  form.getCheckBox('Check Box15')[draft.result==='follow-up'?'check':'uncheck']();
- form.getCheckBox('lunch').check();
+ form.getCheckBox(draft.meal==='breakfast'?'breakfast':'lunch').check();
+ form.getCheckBox(draft.meal==='breakfast'?'lunch':'breakfast').uncheck();
  for(const grade of draft.grades) if(grades[grade]) form.getCheckBox(grades[grade]).check();
  for(const q of questions){const key=q[draft.answers[q.yes]];if(key)form.getCheckBox(key).check();}
  return doc.save();

@@ -19,3 +19,14 @@ test('Bridges SPAN resolves to the SPARK main school and retains old tracker ent
   expect.objectContaining({name:'Harry Bridges El',kind:'main',siteId:'main-10',rosterKey:'roster:bridgesspan'})
  ]);
 });
+
+test('Riley is an offsite of 186th and departed schools are excluded',()=>{
+ const rows=annualSites({schools:[
+  {id:4,location_code:'5753',school_name:'186th St El'},
+  {id:40,school_name:'Peary MS'},{id:41,school_name:'Hawthorne Academy'},
+  {id:42,school_name:'Riley HS'}
+ ]});
+ expect(rows.filter(s=>s.name==='Riley HS')).toEqual([expect.objectContaining({id:4,kind:'offsite',school_name:'186th St El'})]);
+ expect(rows.map(s=>s.name)).not.toEqual(expect.arrayContaining(['Peary MS']));
+ expect(rows.map(s=>s.name)).not.toEqual(expect.arrayContaining(['Hawthorne Academy']));
+});
