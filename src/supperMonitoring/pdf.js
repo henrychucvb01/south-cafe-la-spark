@@ -6,6 +6,18 @@ export class ReportFitError extends Error {
 }
 const shortDate = value => value ? `${value.slice(5, 7)}/${value.slice(8, 10)}/${value.slice(2, 4)}` : "";
 
+export function drawSignature(page, value, { x, y, width, height }) {
+  const points = value.strokes.flat();
+  const ratio = value.aspectRatio || 3;
+  const xs = points.map(p => p[0] * ratio), ys = points.map(p => p[1]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const scale = Math.min(width / Math.max(maxX - minX, 0.02), height / Math.max(maxY - minY, 0.02));
+  for (const stroke of value.strokes) for (let i = 1; i < stroke.length; i++) {
+    const pos = p => ({ x: x + (p[0] * ratio - minX) * scale, y: y + height - (p[1] - minY) * scale });
+    page.drawLine({ start: pos(stroke[i - 1]), end: pos(stroke[i]), thickness: 1, color: rgb(0, 0, 0) });
+  }
+}
+
 // Coordinates were measured from the supplied template in PDF points.
 // The source has duplicate field names and radio export values. Final reports
 // are static: remove empty interactive widgets and overlay verified locations.
@@ -69,15 +81,7 @@ export async function generateOfficialPdf(template, data, school, { monitorRole 
     pages[page].drawLine({ start: { x, y: y + size }, end: { x: x + size, y }, thickness: 1.1 });
   }
   function signature(page, value, x, y, width, height) {
-    const points = value.strokes.flat();
-    const ratio = value.aspectRatio || 3;
-    const xs = points.map(p => p[0] * ratio), ys = points.map(p => p[1]);
-    const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
-    const scale = Math.min(width / Math.max(maxX - minX, 0.02), height / Math.max(maxY - minY, 0.02));
-    for (const stroke of value.strokes) for (let i = 1; i < stroke.length; i++) {
-      const pos = p => ({ x: x + (p[0] * ratio - minX) * scale, y: y + height - (p[1] - minY) * scale });
-      pages[page].drawLine({ start: pos(stroke[i - 1]), end: pos(stroke[i]), thickness: 1, color: rgb(0, 0, 0) });
-    }
+    drawSignature(pages[page], value, { x, y, width, height });
   }
   text(0, school.school_name, 37, 724, 179, "School name", 0);
   text(0, shortDate(data.monitoringDate), 241, 724, 72, "Monitoring date", 0);

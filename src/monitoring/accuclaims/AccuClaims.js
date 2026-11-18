@@ -1,6 +1,7 @@
 import React,{useEffect,useState} from 'react';
 import {openSupervisorSession,schoolManagers,closeSession} from '../../supperMonitoring/service';
 import {localDate,schoolYear} from '../../supperMonitoring/model';
+import SignaturePad from '../../supperMonitoring/SignaturePad';
 import {fillLunch,filename,grades,questions} from './form';
 
 import './answers.css';
@@ -8,10 +9,12 @@ import AnnualDashboard,{annualSites} from './AnnualDashboard';
 
 // Observation answers only; site information and final findings are never copied.
 const exampleAnswers=Object.fromEntries(questions.map((q,i)=>[q.yes,i===0||(i>=6&&i<28)?'yes':i<6?'na':'no']));
+const signaturePages=[2,3];
 const key='spark-accuclaims-lunch-v1';
 function read(){try{return JSON.parse(localStorage.getItem(key))||{};}catch{return {};}}
 export default function AccuClaims({overview,supervisorPin,onBack,initialYear,onYearChange,parentBusy}) {
  const [saved,setSaved]=useState(read),[site,setSite]=useState(null),[draft,setDraft]=useState(null),[managers,setManagers]=useState([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),[note,setNote]=useState(''),[url,setUrl]=useState(''),[previewDraft,setPreviewDraft]=useState(null);
+ const [signingRole,setSigningRole]=useState(null),[signerName,setSignerName]=useState('');
  useEffect(()=>()=>{if(url)URL.revokeObjectURL(url);},[url]);
  const currentYear=schoolYear(localDate());
  const [year,setYear]=useState(initialYear||currentYear);
@@ -28,7 +31,12 @@ export default function AccuClaims({overview,supervisorPin,onBack,initialYear,on
    const staff=(await schoolManagers(token))||[];
    setManagers(staff);
    const date=selectedYear===currentYear?localDate():selectedYear.slice(0,4)+'-07-01';
-   setSite(s);setDraft({...((saved.drafts?.[`${s.key}:${meal}:${completed?.date||date}`])||completed||(meal==='lunch'&&saved.drafts?.[`${s.key}:${date}`])||{site:s.name.toUpperCase(),date,staff:staff.length===1?staff[0].employee_name:'',arrival:meal==='breakfast'?'7:00 AM':'10:00 AM',departure:meal==='breakfast'?'10:00 AM':'1:00 PM',menu:'',findings:'',procedures:saved.sites?.[s.key]?.procedures||'',other:'',grades:saved.sites?.[s.key]?.grades||[],answers:{...(meal==='breakfast'?saved.breakfastAnswers:saved.answers)}}),meal});
+   const latestDraft=Object.entries(saved.drafts||{})
+    .filter(([draftKey,visit])=>draftKey.startsWith(s.key+':')&&schoolYear(visit.date)===selectedYear&&(visit.meal||'lunch')===meal)
+    .map(([,visit])=>visit)
+    .sort((a,b)=>b.date.localeCompare(a.date))[0];
+   setSigningRole(null);
+   setSite(s);setDraft({...(latestDraft||completed||{site:s.name.toUpperCase(),date,staff:staff.length===1?staff[0].employee_name:'',arrival:meal==='breakfast'?'7:00 AM':'10:00 AM',departure:meal==='breakfast'?'10:00 AM':'1:00 PM',menu:'',findings:'',procedures:saved.sites?.[s.key]?.procedures||'',other:'',grades:saved.sites?.[s.key]?.grades||[],answers:{...(meal==='breakfast'?saved.breakfastAnswers:saved.answers)}}),meal});
   }catch(e){setError(e.message||'Could not load school data.');}
   finally{if(token)await closeSession(token).catch(()=>{});setBusy(false);}
  }
@@ -52,7 +60,6 @@ export default function AccuClaims({overview,supervisorPin,onBack,initialYear,on
  {error&&<p role="alert">{error}</p>}{note&&<p role="status">{note}</p>}
  {!site ? <AnnualDashboard overview={overview} sites={sites} saved={saved} save={persist} year={year} currentYear={currentYear} setYear={y=>{setYear(y);onYearChange(y);}} onOpen={open} busy={busy||parentBusy}/>:<>
  <h3>{site.name}</h3>
- {Object.entries(saved.drafts||{}).filter(([k])=>k.startsWith(site.key+':')&&schoolYear(saved.drafts[k].date)===year&&(saved.drafts[k].meal||'lunch')===meal).length>0&&<label>Resume saved visit<select value="" onChange={e=>{if(e.target.value)change({...saved.drafts[e.target.value],meal});}}><option value="">Choose a date</option>{Object.entries(saved.drafts||{}).filter(([k])=>k.startsWith(site.key+':')&&schoolYear(saved.drafts[k].date)===year&&(saved.drafts[k].meal||'lunch')===meal).map(([k,d])=><option key={k} value={k}>{d.date}</option>)}</select></label>}
  <div className="ac-visit-controls">
  <label>Visit date<input type="date" min={year.slice(0,4)+'-07-01'} max={(Number(year.slice(0,4))+1)+'-06-30'} value={draft.date} onChange={e=>change({date:e.target.value})}/></label>
  <div><strong>Program: CEP</strong><div className="ac-result" role="group" aria-label="Visit result">{[['pass','Pass'],['follow-up','Follow-Up']].map(([value,label])=><button key={value} type="button" aria-pressed={draft.result===value} onClick={()=>change({result:value})}>{label}</button>)}</div></div>
@@ -71,10 +78,36 @@ export default function AccuClaims({overview,supervisorPin,onBack,initialYear,on
  {questions.map(q=><div className="ac-answer" role="group" aria-label={q.label} key={q.yes}><span>{q.label}</span><div className="ac-options">{[['yes','Yes'],['no','No'],...(q.na?[['na','N/A']]:[])].map(([value,label])=><button type="button" key={value} aria-label={q.label+': '+label} aria-pressed={draft.answers[q.yes]===value} onClick={()=>change({answers:{...draft.answers,[q.yes]:draft.answers[q.yes]===value?'':value}})}>{label}</button>)}</div></div>)}
  </details>
  <label>Visit findings and recommended corrective action<textarea value={draft.findings} onChange={e=>change({findings:e.target.value})}/></label>
- <p>Review the answers for this visit. Complete the remaining visit-specific fields and sign the original PDF after download.</p>
+ <fieldset>
+ <legend>Signatures</legend>
+ {['supervisor','manager'].map(role=>{
+  const label=role==='supervisor'?'Supervisor':'Manager';
+  const signature=draft.signatures?.[role];
+  return <section className="sm-subcard" key={role}>
+   <h3>{label}</h3>
+   {signature&&<p>Signed by {signature.printedName} on {signature.date}</p>}
+   {signingRole===role?<><label>{label} printed name<input value={signerName} onChange={e=>setSignerName(e.target.value)}/></label>
+    <SignaturePad initiallyExpanded disabled={schoolYear(draft.date)!==year} label={label} name={signerName} pages={signaturePages} onChange={value=>{
+     if(!value)return;
+     const signatures={...draft.signatures,[role]:value};
+     const nextDraft={...draft,signatures};
+     if(persist({...saved,drafts:{...saved.drafts,[id]:nextDraft}},`${label} signature saved.`)){
+      setDraft(nextDraft);
+      setUrl('');
+      setSigningRole(null);
+     }
+    }}/>
+    <button type="button" onClick={()=>setSigningRole(null)}>Cancel signing</button>
+   </>:<button type="button" disabled={busy||signingRole!==null||schoolYear(draft.date)!==year} onClick={()=>{
+    setSignerName(signature?.printedName||'');
+    setSigningRole(role);
+   }}>{signature?`Replace ${role} signature`:`Sign as ${role}`}</button>}
+  </section>;
+ })}
+ </fieldset>
  <button onClick={()=>persist({...saved,[meal==='breakfast'?'breakfastAnswers':'answers']:draft.answers,sites:{...saved.sites,[site.key]:{grades:draft.grades,procedures:draft.procedures}}},'Common answers and site defaults saved.')}>Save as reusable defaults</button>{' '}
  <button disabled={schoolYear(draft.date)!==year} onClick={()=>persist({...saved,drafts:{...saved.drafts,[id]:draft}},'Visit draft saved.')}>Save visit draft</button>{' '}
- <button disabled={busy||schoolYear(draft.date)!==year||!draft.result||!draft.site.trim()||!draft.staff.trim()||!draft.menu.trim()||!draft.grades.length} onClick={preview}>Preview original PDF</button>
+ <button disabled={busy||signingRole!==null||schoolYear(draft.date)!==year||!draft.result||!draft.site.trim()||!draft.staff.trim()||!draft.menu.trim()||!draft.grades.length} onClick={preview}>Preview original PDF</button>
  {url&&previewDraft===draft&&<><p><a href={url} download={filename(draft.site,meal)} onClick={finish}>Finish visit and download {filename(draft.site,meal)}</a></p><iframe title="Original SNP-23 form preview" src={url} style={{width:'100%',height:'70vh',border:0}}/></>}
  </>}
  </section>;

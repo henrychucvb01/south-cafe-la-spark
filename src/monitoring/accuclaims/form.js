@@ -1,4 +1,5 @@
 import {PDFDocument, StandardFonts, layoutMultilineText} from 'pdf-lib';
+import {drawSignature} from '../../supperMonitoring/pdf';
 
 const group = (name, labels) => labels.map((label,i)=>({label,yes:`${name}.${i}.0`,no:`${name}.${i}.1`,na:name==='Check Box17'&&i<6?`Check Box4.${i}`:null}));
 export const questions = [
@@ -39,5 +40,20 @@ export async function fillLunch(template,draft){
  form.getCheckBox(draft.meal==='breakfast'?'lunch':'breakfast').uncheck();
  for(const grade of draft.grades) if(grades[grade]) form.getCheckBox(grades[grade]).check();
  for(const q of questions){const key=q[draft.answers[q.yes]];if(key)form.getCheckBox(key).check();}
+ // Both signer fields have widgets on pages 2 and 3 of the original form.
+ for(const [role,fieldName] of [['supervisor','Monitors Signature'],['manager','Site Representatives Signature']]){
+  const signature=draft.signatures?.[role];
+  if(!signature)continue;
+  const field=form.getTextField(fieldName);
+  const boxes=field.acroField.getWidgets().map(widget=>({
+   page:doc.findPageForAnnotationRef(doc.context.getObjectRef(widget.dict)),
+   rectangle:widget.getRectangle()
+  }));
+  if(boxes.length!==2||boxes.some(box=>!box.page))throw Error('Could not locate both signature spaces on the original SNP-23 form.');
+  form.removeField(field);
+  for(const {page,rectangle:{x,y,width,height}} of boxes){
+   drawSignature(page,signature,{x:x+2,y:y+2,width:width-4,height:height-4});
+  }
+ }
  return doc.save();
 }

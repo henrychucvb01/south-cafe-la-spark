@@ -21,6 +21,7 @@
 .ac-table-wrap {overflow-x:auto;border:1px solid #d5e4eb;border-radius:12px}
 .ac-table {border-collapse:collapse;width:100%;min-width:680px}
 .ac-table :is(th,td) {text-align:left;padding:.65rem;vertical-align:top;border-bottom:1px solid #e0e8ef}
+.sm-app .ac-table thead th,.sm-app .ac-table tbody th[scope=row] strong {font-size:12px}
 .ac-table thead {background:#eaf2f8}
 .ac-table tbody tr:nth-child(even) {background:#f7fafc}
 .ac-table small,.ac-table td strong {display:block}
