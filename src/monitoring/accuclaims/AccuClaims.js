@@ -15,6 +15,7 @@ const key='spark-accuclaims-lunch-v1';
 function read(){try{return JSON.parse(localStorage.getItem(key))||{};}catch{return {};}}
 export default function AccuClaims({overview,supervisorPin,onBack,initialYear,onYearChange,parentBusy}) {
  const [saved,setSaved]=useState(read),[site,setSite]=useState(null),[draft,setDraft]=useState(null),[managers,setManagers]=useState([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),[note,setNote]=useState(''),[url,setUrl]=useState(''),[previewDraft,setPreviewDraft]=useState(null);
+ const [previewError,setPreviewError]=useState('');
  const [signingRole,setSigningRole]=useState(null);
  useEffect(()=>()=>{if(url)URL.revokeObjectURL(url);},[url]);
  const currentYear=schoolYear(localDate());
@@ -43,7 +44,7 @@ export default function AccuClaims({overview,supervisorPin,onBack,initialYear,on
  },[site,lookupDate,lookupMenu,meal,supervisorPin]);
  const mealLabel=meal==='breakfast'?'Breakfast':'Lunch';
  const id=site&&draft?`${site.key}:${meal}:${draft.date}`:'';
- function change(p){setDraft(d=>({...d,...p}));setUrl('');setNote('');}
+ function change(p){setDraft(d=>({...d,...p}));setUrl('');setNote('');setPreviewError('');}
  function persist(next,message){try{localStorage.setItem(key,JSON.stringify(next));setSaved(next);setNote(message);return true;}catch{setError('Could not save on this device.');}}
  async function open(s,selectedYear,meal,completed){
   setBusy(true);setError('');setNote('');setUrl('');let token;
@@ -57,6 +58,7 @@ export default function AccuClaims({overview,supervisorPin,onBack,initialYear,on
     .map(([,visit])=>visit)
     .sort((a,b)=>b.date.localeCompare(a.date))[0];
    setSigningRole(null);
+   setPreviewError('');
    const visit=latestDraft||completed;
    const restoredVisit=visit?.menuProductionDate&&!visit.menuEdited
     ? {...visit,menu:visit.menu.replace(/(\(\d+(?:\.\d+)?(?: oz| cups?)?\)), /g,'$1\n')}
@@ -74,9 +76,9 @@ export default function AccuClaims({overview,supervisorPin,onBack,initialYear,on
   if(!persist(next,'Completed visit saved.'))event.preventDefault();
  }
  async function preview(visit){
-  setBusy(true);setError('');
+  setBusy(true);setPreviewError('');setUrl('');
   try{const r=await fetch('/monitoring/snp-23.pdf');if(!r.ok)throw Error('Could not load the original SNP-23 form.');setUrl(URL.createObjectURL(new Blob([await fillLunch(await r.arrayBuffer(),visit)],{type:'application/pdf'})));setPreviewDraft(visit);}
-  catch(e){setError(e.message);}finally{setBusy(false);}
+  catch(e){setPreviewError(e.message);}finally{setBusy(false);}
  }
  return <section className="sm-card">
  <button onClick={site?()=>{setSite(null);setUrl('');setNote('');setError('');}:onBack}>← {site?'Site list':'Monitorings'}</button>
@@ -141,7 +143,8 @@ export default function AccuClaims({overview,supervisorPin,onBack,initialYear,on
  <button onClick={()=>persist({...saved,[meal==='breakfast'?'breakfastAnswers':'answers']:draft.answers,sites:{...saved.sites,[site.key]:{grades:draft.grades,procedures:draft.procedures}}},'Common answers and site defaults saved.')}>Save as reusable defaults</button>{' '}
  <button disabled={schoolYear(draft.date)!==year} onClick={()=>persist({...saved,drafts:{...saved.drafts,[id]:draft}},'Visit draft saved.')}>Save visit draft</button>{' '}
  <button disabled={busy||signingRole!==null||schoolYear(draft.date)!==year||!draft.result||!draft.site.trim()||!draft.staff.trim()||!draft.menu.trim()||!draft.grades.length} onClick={()=>preview(draft)}>Preview original PDF</button>
- {url&&previewDraft===draft&&signingRole===null&&<><p><a href={url} download={filename(draft.site,meal)} onClick={finish}>Finish visit and download {filename(draft.site,meal)}</a></p><iframe title="Original SNP-23 form preview" src={url} style={{width:'100%',height:'70vh',border:0}}/></>}
+ {previewError&&<p role="alert">{previewError}</p>}
+ {url&&previewDraft===draft&&signingRole===null&&<><p><a href={url} target="_blank" rel="noreferrer">Open PDF in a new tab</a></p><p><a href={url} download={filename(draft.site,meal)} onClick={finish}>Finish visit and download {filename(draft.site,meal)}</a></p><iframe title="Original SNP-23 form preview" src={url} style={{width:'100%',height:'70vh',border:0}}/></>}
  </>}
  </section>;
 }

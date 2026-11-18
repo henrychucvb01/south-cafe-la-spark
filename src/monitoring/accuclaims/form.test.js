@@ -58,3 +58,12 @@ test('regenerating a PDF replaces the supervisor strokes and retains the manager
   expect(after).toContain(managerOnly);
  }
 });
+
+test('long menus still generate a preview with all items in the district box',async()=>{
+ const template=fs.readFileSync('public/monitoring/snp-23.pdf');
+ const items=Array.from({length:16},(_,i)=>`Menu item ${i+1} (1)`);
+ const pdf=await PDFDocument.load(await fillLunch(template,{
+  date:'2026-11-18',result:'pass',meal:'lunch',grades:[],answers:{},menu:items.join('\n')
+ }));
+ expect(pdf.getForm().getTextField('Todays Menu Record All Food Items Served and Serving Sizes').getText()).toBe(items.join(', '));
+});
