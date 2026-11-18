@@ -1,0 +1,6 @@
+.ac-answers { margin-block: 0.75rem; }
+.ac-answers summary { cursor: pointer; font-weight: 700; }
+.ac-answer { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: .5rem; align-items:center; border-bottom:1px solid #dbe4ed; padding:.3rem 0; }
+.ac-options { display:grid; grid-template-columns:repeat(3, 3rem); gap:.25rem; }
+.sm-app .ac-options button { padding:.25rem; min-height:2rem; margin:0; }
+.sm-app .ac-options button[aria-pressed=true] { color:#fff; background:#155a74; border-color:#155a74; }

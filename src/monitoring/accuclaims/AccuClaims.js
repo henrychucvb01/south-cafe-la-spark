@@ -3,6 +3,10 @@ import {openSupervisorSession,schoolManagers,closeSession} from '../../supperMon
 import {localDate} from '../../supperMonitoring/model';
 import {fillLunch,filename,grades,questions} from './form';
 
+import './answers.css';
+
+// Observation answers only; site information and final findings are never copied.
+const exampleAnswers=Object.fromEntries(questions.map((q,i)=>[q.yes,i===0||(i>=6&&i<28)?'yes':i<6?'na':'no']));
 const key='spark-accuclaims-lunch-v1';
 function read(){try{return JSON.parse(localStorage.getItem(key))||{};}catch{return {};}}
 export default function AccuClaims({overview,supervisorPin,onBack}) {
@@ -36,14 +40,18 @@ export default function AccuClaims({overview,supervisorPin,onBack}) {
  {!site ? <ul>{sites.map(s=><li key={s.key}><button disabled={busy} onClick={()=>open(s)}>{s.name}{s.name!==s.school_name?` · ${s.school_name}`:''}</button></li>)}</ul>:<>
  <h3>{site.name}</h3>
  {Object.entries(saved.drafts||{}).filter(([k])=>k.startsWith(site.key+':')).length>0&&<label>Resume saved visit<select value="" onChange={e=>{if(e.target.value)change(saved.drafts[e.target.value]);}}><option value="">Choose a date</option>{Object.entries(saved.drafts||{}).filter(([k])=>k.startsWith(site.key+':')).map(([k,d])=><option key={k} value={k}>{d.date}</option>)}</select></label>}
+ <details><summary>{draft.date} · {draft.staff || "Staff not selected"} · {draft.arrival}–{draft.departure} · Edit visit details</summary>
  <div className="sm-grid">{[['site','Site name on PDF'],['date','Visit date','date'],['staff','Staff responsible for meal counts'],['arrival','Arrival'],['departure','Departure'],['procedures','Where procedures are kept'],['other','Other service points']].map(([k,label,type])=><label key={k}>{label}<input type={type||'text'} value={draft[k]} maxLength={100} onChange={e=>change({[k]:e.target.value})}/></label>)}</div>
  {managers.length>1&&<label>Use assigned manager<select value="" onChange={e=>{if(e.target.value)change({staff:e.target.value});}}><option value="">Select manager</option>{managers.map(m=><option key={m.id} value={m.employee_name}>{m.employee_name}</option>)}</select></label>}
+ </details>
  <fieldset><legend>Menu-planning grade groups</legend>{Object.keys(grades).map(g=><label key={g}><input type="checkbox" checked={draft.grades.includes(g)} onChange={e=>change({grades:e.target.checked?[...draft.grades,g]:draft.grades.filter(x=>x!==g)})}/>{g}</label>)}</fieldset>
  <label>Menu served and serving sizes<textarea value={draft.menu} onChange={e=>change({menu:e.target.value})}/></label>
  {(saved.menus?.[draft.date]||[]).length>0&&<label>Reuse a saved menu for this date<select value="" onChange={e=>{if(e.target.value!=='')change({menu:saved.menus[draft.date][Number(e.target.value)]});}}><option value="">Choose a menu</option>{saved.menus[draft.date].map((m,i)=><option key={m} value={i}>{m.slice(0,90)}</option>)}</select></label>}
  <button disabled={!draft.date||!draft.menu.trim()} onClick={()=>persist({...saved,menus:{...saved.menus,[draft.date]:[...new Set([...(saved.menus?.[draft.date]||[]),draft.menu])]}},'Menu saved for reuse on this date.')}>Save menu for this date</button>
- <details><summary>Review/edit common answers · {Object.keys(draft.answers).filter(k=>draft.answers[k]).length} answered</summary>
- {questions.map(q=><label key={q.yes}>{q.label}<select value={draft.answers[q.yes]||''} onChange={e=>change({answers:{...draft.answers,[q.yes]:e.target.value}})}><option value="">Unanswered</option><option value="yes">Yes</option><option value="no">No</option>{q.na&&<option value="na">N/A</option>}</select></label>)}
+ <details className="ac-answers"><summary>Review standard answers · {questions.filter(q=>draft.answers[q.yes]).length} of {questions.length} answered</summary>
+ <p>Load the example as a starting point, check what applies to this visit, then save reusable defaults below.</p>
+ <button type="button" onClick={()=>change({answers:{...exampleAnswers,...Object.fromEntries(Object.entries(draft.answers).filter(([,v])=>v))}})}>Fill blank answers from 186th Street example</button>
+ {questions.map(q=><div className="ac-answer" role="group" aria-label={q.label} key={q.yes}><span>{q.label}</span><div className="ac-options">{[['yes','Yes'],['no','No'],...(q.na?[['na','N/A']]:[])].map(([value,label])=><button type="button" key={value} aria-label={q.label+': '+label} aria-pressed={draft.answers[q.yes]===value} onClick={()=>change({answers:{...draft.answers,[q.yes]:draft.answers[q.yes]===value?'':value}})}>{label}</button>)}</div></div>)}
  </details>
  <label>Visit findings and recommended corrective action<textarea value={draft.findings} onChange={e=>change({findings:e.target.value})}/></label>
  <p>Review the answers for this visit. Complete the remaining visit-specific fields and sign the original PDF after download.</p>
