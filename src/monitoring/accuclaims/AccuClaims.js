@@ -40,11 +40,15 @@ export default function AccuClaims({overview,supervisorPin,onBack}) {
  {!site ? <ul>{sites.map(s=><li key={s.key}><button disabled={busy} onClick={()=>open(s)}>{s.name}{s.name!==s.school_name?` · ${s.school_name}`:''}</button></li>)}</ul>:<>
  <h3>{site.name}</h3>
  {Object.entries(saved.drafts||{}).filter(([k])=>k.startsWith(site.key+':')).length>0&&<label>Resume saved visit<select value="" onChange={e=>{if(e.target.value)change(saved.drafts[e.target.value]);}}><option value="">Choose a date</option>{Object.entries(saved.drafts||{}).filter(([k])=>k.startsWith(site.key+':')).map(([k,d])=><option key={k} value={k}>{d.date}</option>)}</select></label>}
- <details><summary>{draft.date} · {draft.staff || "Staff not selected"} · {draft.arrival}–{draft.departure} · Edit visit details</summary>
- <div className="sm-grid">{[['site','Site name on PDF'],['date','Visit date','date'],['staff','Staff responsible for meal counts'],['arrival','Arrival'],['departure','Departure'],['procedures','Where procedures are kept'],['other','Other service points']].map(([k,label,type])=><label key={k}>{label}<input type={type||'text'} value={draft[k]} maxLength={100} onChange={e=>change({[k]:e.target.value})}/></label>)}</div>
+ <div className="ac-visit-controls">
+ <label>Visit date<input type="date" value={draft.date} onChange={e=>change({date:e.target.value})}/></label>
+ <div><strong>Program: CEP</strong><div className="ac-result" role="group" aria-label="Visit result">{[['pass','Pass'],['follow-up','Follow-Up']].map(([value,label])=><button key={value} type="button" aria-pressed={draft.result===value} onClick={()=>change({result:value})}>{label}</button>)}</div></div>
+ </div>
+ <details><summary> {draft.staff || "Staff not selected"} · {draft.arrival}–{draft.departure} · Edit visit details</summary>
+ <div className="sm-grid">{[['site','Site name on PDF'],['staff','Staff responsible for meal counts'],['arrival','Arrival'],['departure','Departure'],['procedures','Where procedures are kept'],['other','Other service points']].map(([k,label,type])=><label key={k}>{label}<input type={type||'text'} value={draft[k]} maxLength={100} onChange={e=>change({[k]:e.target.value})}/></label>)}</div>
  {managers.length>1&&<label>Use assigned manager<select value="" onChange={e=>{if(e.target.value)change({staff:e.target.value});}}><option value="">Select manager</option>{managers.map(m=><option key={m.id} value={m.employee_name}>{m.employee_name}</option>)}</select></label>}
  </details>
- <fieldset><legend>Menu-planning grade groups</legend>{Object.keys(grades).map(g=><label key={g}><input type="checkbox" checked={draft.grades.includes(g)} onChange={e=>change({grades:e.target.checked?[...draft.grades,g]:draft.grades.filter(x=>x!==g)})}/>{g}</label>)}</fieldset>
+ <fieldset className="ac-grade-groups"><legend>Menu-planning grade groups</legend><div>{Object.keys(grades).map(g=><label key={g}><input type="checkbox" checked={draft.grades.includes(g)} onChange={e=>change({grades:e.target.checked?[...draft.grades,g]:draft.grades.filter(x=>x!==g)})}/>{g}</label>)}</div></fieldset>
  <label>Menu served and serving sizes<textarea value={draft.menu} onChange={e=>change({menu:e.target.value})}/></label>
  {(saved.menus?.[draft.date]||[]).length>0&&<label>Reuse a saved menu for this date<select value="" onChange={e=>{if(e.target.value!=='')change({menu:saved.menus[draft.date][Number(e.target.value)]});}}><option value="">Choose a menu</option>{saved.menus[draft.date].map((m,i)=><option key={m} value={i}>{m.slice(0,90)}</option>)}</select></label>}
  <button disabled={!draft.date||!draft.menu.trim()} onClick={()=>persist({...saved,menus:{...saved.menus,[draft.date]:[...new Set([...(saved.menus?.[draft.date]||[]),draft.menu])]}},'Menu saved for reuse on this date.')}>Save menu for this date</button>
@@ -57,7 +61,7 @@ export default function AccuClaims({overview,supervisorPin,onBack}) {
  <p>Review the answers for this visit. Complete the remaining visit-specific fields and sign the original PDF after download.</p>
  <button onClick={()=>persist({...saved,answers:draft.answers,sites:{...saved.sites,[site.key]:{grades:draft.grades,procedures:draft.procedures}}},'Common answers and site defaults saved.')}>Save as reusable defaults</button>{' '}
  <button disabled={!draft.date} onClick={()=>persist({...saved,drafts:{...saved.drafts,[id]:draft}},'Visit draft saved.')}>Save visit draft</button>{' '}
- <button disabled={busy||!draft.date||!draft.site.trim()||!draft.staff.trim()||!draft.menu.trim()||!draft.grades.length} onClick={preview}>Preview original PDF</button>
+ <button disabled={busy||!draft.date||!draft.result||!draft.site.trim()||!draft.staff.trim()||!draft.menu.trim()||!draft.grades.length} onClick={preview}>Preview original PDF</button>
  {url&&<><p><a href={url} download={filename(draft.site)}>Download {filename(draft.site)}</a></p><iframe title="Original SNP-23 lunch form preview" src={url} style={{width:'100%',height:'70vh',border:0}}/></>}
  </>}
  </section>;

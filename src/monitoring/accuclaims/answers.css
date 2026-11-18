@@ -4,3 +4,7 @@
 .ac-options { display:grid; grid-template-columns:repeat(3, 3rem); gap:.25rem; }
 .sm-app .ac-options button { padding:.25rem; min-height:2rem; margin:0; }
 .sm-app .ac-options button[aria-pressed=true] { color:#fff; background:#155a74; border-color:#155a74; }
+.ac-visit-controls { display:flex; gap:1.25rem; flex-wrap:wrap; align-items:center; margin:.75rem 0; }
+.ac-result, .ac-grade-groups > div { display:flex; gap:.4rem 1rem; flex-wrap:wrap; align-items:center; }
+.sm-app .ac-grade-groups label { display:inline-flex; align-items:center; gap:.35rem; margin:0; white-space:nowrap; }
+.sm-app .ac-result button[aria-pressed=true] { color:#fff; background:#155a74; border-color:#155a74; }
