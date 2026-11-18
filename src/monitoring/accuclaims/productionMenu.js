@@ -17,9 +17,29 @@ function portion(row){
  return ounces?`${Number(ounces)} oz`:'1';
 }
 
+const omittedItem=/^(?:special diet\b|ketchup\b|mustard\b|mayonnaise\b|mayo\b|(?:sriracha|taco|tapatio|hot)\b.*\bsauce\b|tajin\b)|\b(?:seasoning packet|condiment packet)\b/i;
+const milkItem=/^milk(?:$|\s+(?:white|chocolate|strawberry|non[- ]?fat|fat[- ]?free|low[- ]?fat|[12]%|whole)(?=\s|$))/i;
+
 export function formatProductionMenu(rows){
- const items=rows.filter(row=>row.item_name?.trim()).map(row=>`${row.item_name.trim()} (${portion(row)})`);
- return [...new Set(items)].join(', ');
+ const foods=new Map();
+ for(const row of rows){
+  const original=row.item_name?.trim();
+  if(!original||omittedItem.test(original))continue;
+  if(milkItem.test(original)||/^soy milk\b/i.test(original)){
+   const amount=portion(row);
+   if(!foods.has('milk')||foods.get('milk')==='Milk (1)')foods.set('milk',`Milk (${amount})`);
+   continue;
+  }
+  const listedSize=original.match(/\((\d+(?:\.\d+)?\s*(?:oz|cups?))\)\s*$/i);
+  const name=original.replace(/\s*\(\d+(?:\.\d+)?\s*(?:oz|cups?)\)\s*$/i,'')
+   .replace(/\b(?:NNC|Ind\.\s*(?:Bag|Pkg))\b/gi,'')
+   .replace(/\s+,/g,',').replace(/\s{2,}/g,' ').trim();
+  if(!name)continue;
+  const size=listedSize?.[1]||portion(row);
+  const item=`${name} (${size})`;
+  foods.set(item.toLowerCase(),item);
+ }
+ return [...foods.values()].join(', ');
 }
 
 export async function loadProductionMenu(supervisorPin,site,date,meal){

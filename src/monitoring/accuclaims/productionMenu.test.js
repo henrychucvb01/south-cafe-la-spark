@@ -29,3 +29,17 @@ test('skips future dates and unmapped offsites',async()=>{
  await expect(loadProductionMenu('pin',{...site,kind:'offsite',key:'unknown'},date,'lunch')).resolves.toBe('');
  expect(supabase.rpc).not.toHaveBeenCalled();
 });
+
+test('groups milk and removes packet, packaging and special-diet details',()=>{
+ expect(formatProductionMenu([
+  {item_name:'Milk Chocolate Non- Fat, Pouch - Driftwood'},
+  {item_name:'Milk White 1% Low Fat Carton - Driftwood',milk_cups:1},
+  {item_name:'Milk Strawberry Non-Fat Carton - Driftwood',milk_cups:1},
+  {item_name:'Soy Milk Vanilla - Driftwood',milk_cups:1},
+  {item_name:'Special Diet- Almond Milk'},
+  {item_name:'Ketchup Ind. Pkg'},
+  {item_name:'Tapatio Hot Sauce Ind. Pkg'},
+  {item_name:'Beef & Cheese Taquitos NNC',mma_oz_eq:2},
+  {item_name:'Vegetable Crunchies (1 oz)'}
+ ])).toBe('Milk (1 cup), Beef & Cheese Taquitos (2 oz), Vegetable Crunchies (1 oz)');
+});
