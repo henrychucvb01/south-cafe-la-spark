@@ -9,3 +9,13 @@ test('known offsites inherit the right parent and configured sites are not count
  expect(rows.find(s=>s.name==='Riley HS').id).toBeUndefined();
  expect(rows.find(s=>s.name==='Banning HS').siteId).toBe('m');
 });
+
+test('Bridges SPAN resolves to the SPARK main school and retains old tracker entries',()=>{
+ const rows=annualSites({schools:[{id:10,location_code:'6867',school_name:'Harry Bridges El'}],sites:[
+  {id:'main-10',location_id:10,kind:'main',name:'Main Site'},
+  {id:'duplicate',location_id:10,kind:'offsite',name:'Bridges SPAN'}
+ ]});
+ expect(rows.filter(r=>/bridges/i.test(r.name))).toEqual([
+  expect.objectContaining({name:'Harry Bridges El',kind:'main',siteId:'main-10',rosterKey:'roster:bridgesspan'})
+ ]);
+});

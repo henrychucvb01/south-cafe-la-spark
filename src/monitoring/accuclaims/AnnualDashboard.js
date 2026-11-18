@@ -5,14 +5,15 @@ import {hasCurrentPdf} from '../types';
 const namedSites=[
  ['Avalon HS','8529','offsite'],['Eagle Tree HS','8575','offsite'],
  ['De La Torre EL LAUP','2301','program'],['Dolores EEC','3452','eec'],
- ['Wilmington Park EEC','7781','eec'],['Bridges SPAN',null,'offsite'],
+ ['Wilmington Park EEC','7781','eec'],
  ['Hawthorne Academy',null,'offsite'],['Peary MS',null,'main'],['Riley HS',null,'offsite']
 ];
 const normalize = name => String(name||'').toLowerCase().replace(/[^a-z0-9]/g,'');
 export function annualSites({schools,sites=[]}){
  const active=schools.filter(s=>!/^test\b/i.test(s.school_name));
- const result=active.flatMap(s=>[{...s,key:`main:${s.id}`,name:s.school_name,kind:'main',siteId:sites.find(t=>String(t.location_id)===String(s.id)&&t.kind==='main')?.id},
- ...sites.filter(t=>String(t.location_id)===String(s.id)&&t.kind!=='main').map(t=>({...s,key:`site:${t.id}`,name:t.name,kind:t.kind,siteId:t.id}))]);
+ const isBridges=s=>String(s.location_code)==='6867';
+ const result=active.flatMap(s=>[{...s,key:`main:${s.id}`,name:s.school_name,kind:'main',...(isBridges(s)?{rosterKey:'roster:bridgesspan'}:{}),siteId:sites.find(t=>String(t.location_id)===String(s.id)&&t.kind==='main')?.id},
+ ...sites.filter(t=>String(t.location_id)===String(s.id)&&t.kind!=='main'&&!(isBridges(s)&&['bridgesspan','harrybridgesel'].includes(normalize(t.name)))).map(t=>({...s,key:`site:${t.id}`,name:t.name,kind:t.kind,siteId:t.id}))]);
  for(const [name,code,kind] of namedSites){
   const parent=active.find(s=>String(s.location_code)===code);
   const alias=name==='De La Torre EL LAUP'?['delatorreelcspp']:name==='Wilmington Park EEC'?['wilmingtoneec']:[];
