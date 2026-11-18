@@ -67,3 +67,19 @@ test('long menus still generate a preview with all items in the district box',as
  }));
  expect(pdf.getForm().getTextField('Todays Menu Record All Food Items Served and Serving Sizes').getText()).toBe(items.join(', '));
 });
+
+test('writes compliance, the corrective-action deadline and both notes to the district fields',async()=>{
+ const template=fs.readFileSync('public/monitoring/snp-23.pdf');
+ const draft={date:'2026-11-18',result:'follow-up',meal:'lunch',grades:[],answers:{},
+  compliance:'no',correctiveDueDate:'2026-12-01',findings:'Review meal counts.',correctiveActionTaken:'Completed 11/20/2026.'};
+ const no=(await PDFDocument.load(await fillLunch(template,draft))).getForm();
+ expect(no.getCheckBox('Check Box2.4.0').isChecked()).toBe(false);
+ expect(no.getCheckBox('Check Box2.4.1').isChecked()).toBe(true);
+ expect(no.getTextField('Text7').getText()).toBe('12/1/2026');
+ expect(no.getTextField('Text1').getText()).toBe(draft.findings);
+ expect(no.getTextField('Text2').getText()).toBe(draft.correctiveActionTaken);
+ const yes=(await PDFDocument.load(await fillLunch(template,{...draft,compliance:'yes'}))).getForm();
+ expect(yes.getCheckBox('Check Box2.4.0').isChecked()).toBe(true);
+ expect(yes.getCheckBox('Check Box2.4.1').isChecked()).toBe(false);
+ expect(yes.getTextField('Text7').getText()||'').toBe('');
+});

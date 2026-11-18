@@ -9,6 +9,11 @@ export const questions = [
 ];
 export const grades={'K–5':'Check Box8','K–8':'Check Box9','6–8':'Check Box10','9–12':'Check Box11',EEC:'Check Box3'};
 export const filename = (name,meal='lunch') => `SNP ${meal==='breakfast'?'Breakfast':'Lunch'}-${name.trim().toUpperCase().replace(/[\\/:*?"<>|]/g,'-')}.pdf`;
+const complianceBoxes={yes:'Check Box2.4.0',no:'Check Box2.4.1'};
+const formatDate=value=>{
+ const [year,month,day]=value.split('-');
+ return `${Number(month)}/${Number(day)}/${year}`;
+};
 const menuField = 'Todays Menu Record All Food Items Served and Serving Sizes';
 function fitField(field,text,font,maxSize,multiline){
  const widgets=field.acroField.getWidgets().map(w=>w.getRectangle());
@@ -27,8 +32,7 @@ export async function fillLunch(template,draft){
  const doc=await PDFDocument.load(template),form=doc.getForm();
  if(!['pass','follow-up'].includes(draft.result))throw Error('Select Pass or Follow-Up before previewing.');
  const font=await doc.embedFont(StandardFonts.Helvetica);
- const date=draft.date.split('-');
- const fields={'AGENCY':'Los Angeles Unified School District','SITE':draft.site,'DATE':`${Number(date[1])}/${Number(date[2])}/${date[0]}`,'ARRIVAL TIME':draft.arrival,'DEPARTURE TIME':draft.departure,'SITE STAFF RESPONSIBLE FOR MEAL COUNTS':draft.staff,[menuField]:draft.menu,'Where Is a copy of the procedures located on site':draft.procedures,'Text16':draft.other,'Text1':draft.findings};
+ const fields={'AGENCY':'Los Angeles Unified School District','SITE':draft.site,'DATE':formatDate(draft.date),'ARRIVAL TIME':draft.arrival,'DEPARTURE TIME':draft.departure,'SITE STAFF RESPONSIBLE FOR MEAL COUNTS':draft.staff,[menuField]:draft.menu,'Where Is a copy of the procedures located on site':draft.procedures,'Text16':draft.other,'Text7':draft.compliance==='no'&&draft.correctiveDueDate?formatDate(draft.correctiveDueDate):'', 'Text1':draft.findings,'Text2':draft.correctiveActionTaken};
  for(const [key,value] of Object.entries(fields)) if(value){
   const field=form.getTextField(key);
   let text=value;
@@ -48,6 +52,9 @@ export async function fillLunch(template,draft){
  form.getCheckBox(draft.meal==='breakfast'?'lunch':'breakfast').uncheck();
  for(const grade of draft.grades) if(grades[grade]) form.getCheckBox(grades[grade]).check();
  for(const q of questions){const key=q[draft.answers[q.yes]];if(key)form.getCheckBox(key).check();}
+ for(const [answer,box] of Object.entries(complianceBoxes)){
+  form.getCheckBox(box)[draft.compliance===answer?'check':'uncheck']();
+ }
  // Both signer fields have widgets on pages 2 and 3 of the original form.
  for(const [role,fieldName] of [['supervisor','Monitors Signature'],['manager','Site Representatives Signature']]){
   const signature=draft.signatures?.[role];

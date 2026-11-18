@@ -109,12 +109,21 @@ export default function AccuClaims({overview,supervisorPin,onBack,initialYear,on
  }[menuStatus]}</p>}
  {(saved[menuStore]?.[draft.date]||[]).length>0&&<label>Reuse a saved menu for this date<select value="" onChange={e=>{if(e.target.value!=='')change({menu:saved[menuStore][draft.date][Number(e.target.value)],menuEdited:true,menuProductionDate:draft.date});}}><option value="">Choose a menu</option>{saved[menuStore][draft.date].map((m,i)=><option key={m} value={i}>{m.slice(0,90)}</option>)}</select></label>}
  <button disabled={!draft.date||!draft.menu.trim()} onClick={()=>persist({...saved,[menuStore]:{...saved[menuStore],[draft.date]:[...new Set([...(saved[menuStore]?.[draft.date]||[]),draft.menu])]}},'Menu saved for reuse on this date.')}>Save menu for this date</button>
- <details className="ac-answers"><summary>Review standard answers · {questions.filter(q=>draft.answers[q.yes]).length} of {questions.length} answered</summary>
+ <details className="ac-answers"><summary>Review standard answers · {questions.filter(q=>draft.answers[q.yes]).length+Number(Boolean(draft.compliance))} of {questions.length+1} answered</summary>
  <p>Review what applies to this visit. Save reusable defaults separately for each meal.</p>
  {meal==='lunch'&&<button type="button" onClick={()=>change({answers:{...exampleAnswers,...Object.fromEntries(Object.entries(draft.answers).filter(([,v])=>v))}})}>Fill blank answers from 186th Street example</button>}
  {questions.map(q=><div className="ac-answer" role="group" aria-label={q.label} key={q.yes}><span>{q.label}</span><div className="ac-options">{[['yes','Yes'],['no','No'],...(q.na?[['na','N/A']]:[])].map(([value,label])=><button type="button" key={value} aria-label={q.label+': '+label} aria-pressed={draft.answers[q.yes]===value} onClick={()=>change({answers:{...draft.answers,[q.yes]:draft.answers[q.yes]===value?'':value}})}>{label}</button>)}</div></div>)}
+ <div className="ac-answer" role="group" aria-label="Site compliance">
+  <span>Site appears to be in compliance, no corrective action is needed.</span>
+  <div className="ac-options">{[['yes','Yes'],['no','No']].map(([value,label])=>
+   <button type="button" key={value} aria-label={`Site compliance: ${label}`} aria-pressed={draft.compliance===value}
+    onClick={()=>change({compliance:draft.compliance===value?'':value})}>{label}</button>)}</div>
+ </div>
+ {draft.compliance==='no'&&<label>Submit corrective action by<input type="date" value={draft.correctiveDueDate||''}
+  onChange={e=>change({correctiveDueDate:e.target.value})}/></label>}
  </details>
- <label>Visit findings and recommended corrective action<textarea value={draft.findings} onChange={e=>change({findings:e.target.value})}/></label>
+ <label>Summary of findings and recommended corrective action<textarea value={draft.findings||''} onChange={e=>change({findings:e.target.value})}/></label>
+ <label>Corrective action taken and date completed<textarea value={draft.correctiveActionTaken||''} onChange={e=>change({correctiveActionTaken:e.target.value})}/></label>
  <fieldset>
  <legend>Signatures</legend>
  {['supervisor','manager'].map(role=>{
