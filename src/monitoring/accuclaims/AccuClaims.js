@@ -1,28 +1,31 @@
 import React,{useEffect,useState} from 'react';
 import {openSupervisorSession,schoolManagers,closeSession} from '../../supperMonitoring/service';
-import {localDate} from '../../supperMonitoring/model';
+import {localDate,schoolYear} from '../../supperMonitoring/model';
 import {fillLunch,filename,grades,questions} from './form';
 
 import './answers.css';
+import AnnualDashboard,{annualSites} from './AnnualDashboard';
 
 // Observation answers only; site information and final findings are never copied.
 const exampleAnswers=Object.fromEntries(questions.map((q,i)=>[q.yes,i===0||(i>=6&&i<28)?'yes':i<6?'na':'no']));
 const key='spark-accuclaims-lunch-v1';
 function read(){try{return JSON.parse(localStorage.getItem(key))||{};}catch{return {};}}
-export default function AccuClaims({overview,supervisorPin,onBack}) {
+export default function AccuClaims({overview,supervisorPin,onBack,onUpload,onView,initialYear,onYearChange,parentBusy}) {
  const [saved,setSaved]=useState(read),[site,setSite]=useState(null),[draft,setDraft]=useState(null),[managers,setManagers]=useState([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),[note,setNote]=useState(''),[url,setUrl]=useState('');
  useEffect(()=>()=>{if(url)URL.revokeObjectURL(url);},[url]);
- const sites=overview.schools.filter(s=>!/^test\b/i.test(s.school_name)).flatMap(s=>[{...s,key:`main:${s.id}`,name:s.school_name},...(overview.sites||[]).filter(t=>String(t.location_id)===String(s.id)&&t.kind!=='main').map(t=>({...s,key:`site:${t.id}`,name:t.name}))]);
+ const currentYear=schoolYear(localDate());
+ const [year,setYear]=useState(initialYear||currentYear);
+ const sites=annualSites(overview);
  const id=site&&draft?`${site.key}:${draft.date}`:'';
  function change(p){setDraft(d=>({...d,...p}));setUrl('');setNote('');}
  function persist(next,message){try{localStorage.setItem(key,JSON.stringify(next));setSaved(next);setNote(message);}catch{setError('Could not save on this device.');}}
- async function open(s){
+ async function open(s,selectedYear){
   setBusy(true);setError('');setNote('');setUrl('');let token;
   try{
    token=await openSupervisorSession(s,supervisorPin);
    const staff=(await schoolManagers(token))||[];
    setManagers(staff);
-   const date=localDate();
+   const date=selectedYear===currentYear?localDate():selectedYear.slice(0,4)+'-07-01';
    setSite(s);setDraft(saved.drafts?.[`${s.key}:${date}`]||{site:s.name.toUpperCase(),date,staff:staff.length===1?staff[0].employee_name:'',arrival:'10:00 AM',departure:'1:00 PM',menu:'',findings:'',procedures:saved.sites?.[s.key]?.procedures||'',other:'',grades:saved.sites?.[s.key]?.grades||[],answers:{...saved.answers}});
   }catch(e){setError(e.message||'Could not load school data.');}
   finally{if(token)await closeSession(token).catch(()=>{});setBusy(false);}
@@ -34,10 +37,10 @@ export default function AccuClaims({overview,supervisorPin,onBack}) {
  }
  return <section className="sm-card">
  <button onClick={site?()=>{setSite(null);setUrl('');setNote('');setError('');}:onBack}>← {site?'Site list':'Monitorings'}</button>
- <h2>AccuClaims Monitoring · SNP Lunch</h2>
- <p>Pilot · Drafts and defaults are saved in this browser. Breakfast uses a separate workflow and is outside this pilot.</p>
+ {site&&<h2>AccuClaims Monitoring · SNP Lunch</h2>}
+ {site&&<p>Lunch form · Drafts and defaults are saved in this browser.</p>}
  {error&&<p role="alert">{error}</p>}{note&&<p role="status">{note}</p>}
- {!site ? <ul>{sites.map(s=><li key={s.key}><button disabled={busy} onClick={()=>open(s)}>{s.name}{s.name!==s.school_name?` · ${s.school_name}`:''}</button></li>)}</ul>:<>
+ {!site ? <AnnualDashboard overview={overview} sites={sites} saved={saved} save={persist} year={year} currentYear={currentYear} setYear={y=>{setYear(y);onYearChange(y);}} onOpen={open} onUpload={(s,type,date)=>onUpload(s,type,date,year)} onView={onView} busy={busy||parentBusy}/>:<>
  <h3>{site.name}</h3>
  {Object.entries(saved.drafts||{}).filter(([k])=>k.startsWith(site.key+':')).length>0&&<label>Resume saved visit<select value="" onChange={e=>{if(e.target.value)change(saved.drafts[e.target.value]);}}><option value="">Choose a date</option>{Object.entries(saved.drafts||{}).filter(([k])=>k.startsWith(site.key+':')).map(([k,d])=><option key={k} value={k}>{d.date}</option>)}</select></label>}
  <div className="ac-visit-controls">

@@ -16,6 +16,8 @@ export default function SupervisorMonitoringPage({ supervisorPin, onBack }) {
   const [accuClaims,setAccuClaims]=useState(false);
   const [school,setSchool]=useState(null);
   const [workspace,setWorkspace]=useState(null);
+  const [accuUpload,setAccuUpload]=useState(null);
+  const [accuYear,setAccuYear]=useState(null);
   const [upload,setUpload]=useState(false);
   const [year,setYear]=useState(schoolYear(localDate()));
   const [schoolFilter,setSchoolFilter]=useState('');
@@ -35,9 +37,9 @@ export default function SupervisorMonitoringPage({ supervisorPin, onBack }) {
     }catch(e){if(token)await closeSession(token).catch(()=>{});setError(e.message);}finally{setBusy(false);}
   }
   async function closeReview(){await closeSession(workspace.token).catch(()=>{});setWorkspace(null);await load();}
-  if(accuClaims) return <div className="login-app sm-app"><main className="sm-main"><AccuClaims overview={overview} supervisorPin={supervisorPin} onBack={()=>setAccuClaims(false)}/></main></div>;
   if(workspace) return <div className="login-app sm-app"><main className="sm-main"><PdfReviewWorkspace token={workspace.token} initialRecord={workspace.record} school={workspace.school} supervisor onBack={closeReview}/></main></div>;
-  if(upload) return <div className="login-app sm-app"><main className="sm-main"><SupervisorExistingUpload schools={overview.schools} supervisorPin={supervisorPin} initialYear={year} onBack={()=>setUpload(false)} onUploaded={async(record,school)=>{await openReview(record,school);}}/>{error&&<p role="alert" className="sm-error">{error}</p>}</main></div>;
+  if(upload||accuUpload) return <div className="login-app sm-app"><main className="sm-main"><SupervisorExistingUpload schools={overview.schools} supervisorPin={supervisorPin} initialYear={accuUpload?.year||year} preset={accuUpload} onBack={()=>{setUpload(false);setAccuUpload(null);}} onUploaded={async(record,school)=>{setAccuUpload(null);await openReview(record,school);}}/>{error&&<p role="alert" className="sm-error">{error}</p>}</main></div>;
+  if(accuClaims) return <div className="login-app sm-app"><main className="sm-main"><AccuClaims overview={overview} supervisorPin={supervisorPin} initialYear={accuYear} onYearChange={setAccuYear} parentBusy={busy} onView={openReview} onUpload={(site,type,date,year)=>setAccuUpload({site,type,date,year})} onBack={()=>setAccuClaims(false)}/>{error&&<p role="alert">{error}</p>}</main></div>;
   if(school) return <MonitoringPage key={school.id} location={school} employee={{employee_name:'Supervisor / AFSS'}} supervisorPin={supervisorPin} onBack={()=>{setSchool(null);load();}}/>;
   const rows=overview.schools.filter(s=>!schoolFilter||String(s.id)===schoolFilter).map(s=>{
     const records=overview.records.filter(r=>r.location_id===s.id&&r.school_year===year&&(!monitoringType||r.monitoring_type===monitoringType));

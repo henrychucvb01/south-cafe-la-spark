@@ -8,3 +8,23 @@
 .ac-result, .ac-grade-groups > div { display:flex; gap:.4rem 1rem; flex-wrap:wrap; align-items:center; }
 .sm-app .ac-grade-groups label { display:inline-flex; align-items:center; gap:.35rem; margin:0; white-space:nowrap; }
 .sm-app .ac-result button[aria-pressed=true] { color:#fff; background:#155a74; border-color:#155a74; }
+.ac-dashboard {margin-top:1rem}
+.ac-hero {padding:1.4rem;color:#fff;background:linear-gradient(120deg,#142f4b,#126574);border-radius:14px}
+.ac-hero h2,.ac-hero p {margin:.3rem 0}
+.ac-hero span {font-size:.75rem;letter-spacing:.12em;font-weight:700}
+.ac-year-tabs,.ac-filters {display:flex;flex-wrap:wrap;gap:.65rem;margin:1rem 0}
+.ac-year-tabs button[aria-pressed=true] {background:#155a74;color:white}
+.ac-metrics {display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:.65rem}
+.ac-metrics div {background:#eff6f8;border:1px solid #d5e4eb;padding:.75rem;border-radius:12px}
+.ac-metrics strong {display:block;font-size:1.6rem}
+.ac-help,.ac-table small {color:#53687a}
+.ac-table-wrap {overflow-x:auto;border:1px solid #d5e4eb;border-radius:12px}
+.ac-table {border-collapse:collapse;width:100%;min-width:680px}
+.ac-table :is(th,td) {text-align:left;padding:.65rem;vertical-align:top;border-bottom:1px solid #e0e8ef}
+.ac-table thead {background:#eaf2f8}
+.ac-table tbody tr:nth-child(even) {background:#f7fafc}
+.ac-table small,.ac-table td strong {display:block}
+.ac-table summary {cursor:pointer;font-size:.85rem}
+.sm-app .ac-table button {padding:.3rem .55rem;min-height:32px;margin:.25rem .3rem .1rem 0;font-size:.85rem}
+.sm-app .ac-select-site {display:flex;align-items:center;gap:.35rem;font-size:.8rem;margin:0}
+.sm-app .ac-select-site input {width:16px;height:16px}
