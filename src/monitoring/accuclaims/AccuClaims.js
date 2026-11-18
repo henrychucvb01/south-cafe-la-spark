@@ -73,9 +73,9 @@ export default function AccuClaims({overview,supervisorPin,onBack,initialYear,on
   }}};
   if(!persist(next,'Completed visit saved.'))event.preventDefault();
  }
- async function preview(){
+ async function preview(visit){
   setBusy(true);setError('');
-  try{const r=await fetch('/monitoring/snp-23.pdf');if(!r.ok)throw Error('Could not load the original SNP-23 form.');setUrl(URL.createObjectURL(new Blob([await fillLunch(await r.arrayBuffer(),draft)],{type:'application/pdf'})));setPreviewDraft(draft);}
+  try{const r=await fetch('/monitoring/snp-23.pdf');if(!r.ok)throw Error('Could not load the original SNP-23 form.');setUrl(URL.createObjectURL(new Blob([await fillLunch(await r.arrayBuffer(),visit)],{type:'application/pdf'})));setPreviewDraft(visit);}
   catch(e){setError(e.message);}finally{setBusy(false);}
  }
  return <section className="sm-card">
@@ -130,6 +130,7 @@ export default function AccuClaims({overview,supervisorPin,onBack,initialYear,on
       setDraft(nextDraft);
       setUrl('');
       setSigningRole(null);
+      if(url&&previewDraft===draft)void preview(nextDraft);
      }
     }}/>
     <button type="button" onClick={()=>setSigningRole(null)}>Cancel signing</button>
@@ -139,8 +140,8 @@ export default function AccuClaims({overview,supervisorPin,onBack,initialYear,on
  </fieldset>
  <button onClick={()=>persist({...saved,[meal==='breakfast'?'breakfastAnswers':'answers']:draft.answers,sites:{...saved.sites,[site.key]:{grades:draft.grades,procedures:draft.procedures}}},'Common answers and site defaults saved.')}>Save as reusable defaults</button>{' '}
  <button disabled={schoolYear(draft.date)!==year} onClick={()=>persist({...saved,drafts:{...saved.drafts,[id]:draft}},'Visit draft saved.')}>Save visit draft</button>{' '}
- <button disabled={busy||signingRole!==null||schoolYear(draft.date)!==year||!draft.result||!draft.site.trim()||!draft.staff.trim()||!draft.menu.trim()||!draft.grades.length} onClick={preview}>Preview original PDF</button>
- {url&&previewDraft===draft&&<><p><a href={url} download={filename(draft.site,meal)} onClick={finish}>Finish visit and download {filename(draft.site,meal)}</a></p><iframe title="Original SNP-23 form preview" src={url} style={{width:'100%',height:'70vh',border:0}}/></>}
+ <button disabled={busy||signingRole!==null||schoolYear(draft.date)!==year||!draft.result||!draft.site.trim()||!draft.staff.trim()||!draft.menu.trim()||!draft.grades.length} onClick={()=>preview(draft)}>Preview original PDF</button>
+ {url&&previewDraft===draft&&signingRole===null&&<><p><a href={url} download={filename(draft.site,meal)} onClick={finish}>Finish visit and download {filename(draft.site,meal)}</a></p><iframe title="Original SNP-23 form preview" src={url} style={{width:'100%',height:'70vh',border:0}}/></>}
  </>}
  </section>;
 }
