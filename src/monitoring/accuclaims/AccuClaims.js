@@ -15,7 +15,7 @@ const key='spark-accuclaims-lunch-v1';
 function read(){try{return JSON.parse(localStorage.getItem(key))||{};}catch{return {};}}
 export default function AccuClaims({overview,supervisorPin,onBack,initialYear,onYearChange,parentBusy}) {
  const [saved,setSaved]=useState(read),[site,setSite]=useState(null),[draft,setDraft]=useState(null),[managers,setManagers]=useState([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),[note,setNote]=useState(''),[url,setUrl]=useState(''),[previewDraft,setPreviewDraft]=useState(null);
- const [signingRole,setSigningRole]=useState(null),[signerName,setSignerName]=useState('');
+ const [signingRole,setSigningRole]=useState(null);
  useEffect(()=>()=>{if(url)URL.revokeObjectURL(url);},[url]);
  const currentYear=schoolYear(localDate());
  const [year,setYear]=useState(initialYear||currentYear);
@@ -23,17 +23,22 @@ export default function AccuClaims({overview,supervisorPin,onBack,initialYear,on
  const meal=draft?.meal||'lunch';
  const lookupDate=draft?.date;
  const lookupMenu=Boolean(draft&&!draft.menu&&!draft.menuEdited);
- const [menuLookupError,setMenuLookupError]=useState(false);
+ const [menuStatus,setMenuStatus]=useState(null);
  useEffect(()=>{
-  setMenuLookupError(false);
-  if(!site||!lookupMenu||!schoolYear(lookupDate)||lookupDate>localDate())return;
+  if(!site||!lookupMenu||!schoolYear(lookupDate)||lookupDate>localDate()){
+   setMenuStatus(null);
+   return;
+  }
+  setMenuStatus('loading');
   let active=true;
   loadProductionMenu(supervisorPin,site,lookupDate,meal).then(menu=>{
-   if(!active||!menu)return;
+   if(!active)return;
+   setMenuStatus(menu?null:'missing');
+   if(!menu)return;
    setDraft(current=>current?.date===lookupDate&&current.meal===meal&&!current.menu&&!current.menuEdited
     ? {...current,menu,menuProductionDate:lookupDate}
     : current);
-  }).catch(()=>{if(active)setMenuLookupError(true);});
+  }).catch(()=>{if(active)setMenuStatus('error');});
   return ()=>{active=false;};
  },[site,lookupDate,lookupMenu,meal,supervisorPin]);
  const mealLabel=meal==='breakfast'?'Breakfast':'Lunch';
@@ -91,7 +96,11 @@ export default function AccuClaims({overview,supervisorPin,onBack,initialYear,on
  </details>
  <fieldset className="ac-grade-groups"><legend>Menu-planning grade groups</legend><div>{Object.keys(grades).map(g=><label key={g}><input type="checkbox" checked={draft.grades.includes(g)} onChange={e=>change({grades:e.target.checked?[...draft.grades,g]:draft.grades.filter(x=>x!==g)})}/>{g}</label>)}</div></fieldset>
  <label>Menu served and serving sizes<textarea value={draft.menu} onChange={e=>change({menu:e.target.value,menuEdited:true})}/></label>
- {menuLookupError&&<p role="status">Production records could not be loaded. You can enter the menu here.</p>}
+ {lookupMenu&&menuStatus&&<p role="status">{{
+  loading:'Looking up the production menu…',
+  missing:'No imported production menu for this site, date, and meal.',
+  error:'Production records could not be loaded. You can enter the menu here.'
+ }[menuStatus]}</p>}
  {(saved[menuStore]?.[draft.date]||[]).length>0&&<label>Reuse a saved menu for this date<select value="" onChange={e=>{if(e.target.value!=='')change({menu:saved[menuStore][draft.date][Number(e.target.value)],menuEdited:true,menuProductionDate:draft.date});}}><option value="">Choose a menu</option>{saved[menuStore][draft.date].map((m,i)=><option key={m} value={i}>{m.slice(0,90)}</option>)}</select></label>}
  <button disabled={!draft.date||!draft.menu.trim()} onClick={()=>persist({...saved,[menuStore]:{...saved[menuStore],[draft.date]:[...new Set([...(saved[menuStore]?.[draft.date]||[]),draft.menu])]}},'Menu saved for reuse on this date.')}>Save menu for this date</button>
  <details className="ac-answers"><summary>Review standard answers · {questions.filter(q=>draft.answers[q.yes]).length} of {questions.length} answered</summary>
@@ -107,9 +116,9 @@ export default function AccuClaims({overview,supervisorPin,onBack,initialYear,on
   const signature=draft.signatures?.[role];
   return <section className="sm-subcard" key={role}>
    <h3>{label}</h3>
-   {signature&&<p>Signed by {signature.printedName} on {signature.date}</p>}
-   {signingRole===role?<><label>{label} printed name<input value={signerName} onChange={e=>setSignerName(e.target.value)}/></label>
-    <SignaturePad initiallyExpanded disabled={schoolYear(draft.date)!==year} label={label} name={signerName} pages={signaturePages} onChange={value=>{
+   {signature&&<p>Signature saved</p>}
+   {signingRole===role?<>
+    <SignaturePad initiallyExpanded disabled={schoolYear(draft.date)!==year} label={label} captureSignerDetails={false} pages={signaturePages} onChange={value=>{
      if(!value)return;
      const signatures={...draft.signatures,[role]:value};
      const nextDraft={...draft,signatures};
@@ -120,10 +129,7 @@ export default function AccuClaims({overview,supervisorPin,onBack,initialYear,on
      }
     }}/>
     <button type="button" onClick={()=>setSigningRole(null)}>Cancel signing</button>
-   </>:<button type="button" disabled={busy||signingRole!==null||schoolYear(draft.date)!==year} onClick={()=>{
-    setSignerName(signature?.printedName||'');
-    setSigningRole(role);
-   }}>{signature?`Replace ${role} signature`:`Sign as ${role}`}</button>}
+   </>:<button type="button" disabled={busy||signingRole!==null||schoolYear(draft.date)!==year} onClick={()=>setSigningRole(role)}>{signature?`Replace ${role} signature`:`Sign as ${role}`}</button>}
   </section>;
  })}
  </fieldset>

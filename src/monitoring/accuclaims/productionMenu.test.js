@@ -1,34 +1,31 @@
 import {formatProductionMenu,loadProductionMenu} from './productionMenu';
-import {loadMonthlyScorecardDatasetWithRetry} from '../../monthlyScorecards/monthlyScorecardService';
+import {supabase} from '../../supabaseClient';
 
-jest.mock('../../monthlyScorecards/monthlyScorecardService',()=>({
- loadMonthlyScorecardDatasetWithRetry:jest.fn()
-}));
+jest.mock('../../supabaseClient',()=>({supabase:{rpc:jest.fn()}}));
+beforeEach(()=>jest.clearAllMocks());
 
-const date='2026-11-18';
-const site={kind:'main',location_code:'8529'};
-const row={source_site_id:'1852901',production_date:date,meal_type:'breakfast',served:20};
-const dataset={
- schools:[{location_code:'8529',source_site_id:'1852901'}],
- production_rows:[
-  {...row,item_name:'Turkey sausage',mma_oz_eq:2},
-  {...row,item_name:'Fruit cup',fruit_cups:0.5},
-  {...row,item_name:'Muffin'},
-  {...row,item_name:'Unserved item',served:0},
-  {...row,item_name:'Lunch item',meal_type:'lunch'},
-  {...row,item_name:'Earlier item',production_date:'2026-11-17'},
-  {...row,item_name:'Avalon item',source_site_id:'1853101'}
- ]
-};
+const date='2026-10-08';
+const site={kind:'main',location_code:'2146'};
 
-test('formats concise portions and matches the exact site, date and meal',()=>{
- expect(formatProductionMenu(dataset,site,date,'breakfast')).toBe('Turkey sausage (2 oz), Fruit cup (0.5 cup), Muffin (1)');
- expect(formatProductionMenu(dataset,{kind:'offsite',rosterKey:'roster:avalonhs'},date,'breakfast')).toBe('Avalon item (1)');
- expect(formatProductionMenu(dataset,{kind:'offsite',key:'unmapped'},date,'breakfast')).toBe('');
- expect(formatProductionMenu(dataset,site,'2026-11-16','breakfast')).toBe('');
+test('formats concise portions',()=>{
+ expect(formatProductionMenu([
+  {item_name:'Turkey sausage',mma_oz_eq:2},
+  {item_name:'Fruit cup',fruit_cups:0.5},
+  {item_name:'Muffin'}
+ ])).toBe('Turkey sausage (2 oz), Fruit cup (0.5 cup), Muffin (1)');
 });
 
-test('skips future menu lookups',async()=>{
+test('requests only Annalee El lunch for the selected day',async()=>{
+ supabase.rpc.mockResolvedValue({data:[{item_name:'Milk',milk_cups:1}]});
+ await expect(loadProductionMenu('pin',site,date,'lunch')).resolves.toBe('Milk (1 cup)');
+ expect(supabase.rpc).toHaveBeenCalledWith('get_accuclaims_production_menu',{
+  p_supervisor_pin:'pin',p_location_code:'2146',p_source_site_id:null,
+  p_visit_date:date,p_meal_type:'lunch'
+ });
+});
+
+test('skips future dates and unmapped offsites',async()=>{
  await expect(loadProductionMenu('pin',site,'2099-07-01','breakfast')).resolves.toBe('');
- expect(loadMonthlyScorecardDatasetWithRetry).not.toHaveBeenCalled();
+ await expect(loadProductionMenu('pin',{...site,kind:'offsite',key:'unknown'},date,'lunch')).resolves.toBe('');
+ expect(supabase.rpc).not.toHaveBeenCalled();
 });

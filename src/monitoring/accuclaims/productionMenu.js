@@ -1,4 +1,4 @@
-import {loadMonthlyScorecardDatasetWithRetry} from '../../monthlyScorecards/monthlyScorecardService';
+import {supabase} from '../../supabaseClient';
 import {localDate,schoolYear} from '../../supperMonitoring/model';
 
 // Source sites are distinct from the schools to which their totals roll up.
@@ -17,22 +17,22 @@ function portion(row){
  return ounces?`${Number(ounces)} oz`:'1';
 }
 
-export function formatProductionMenu(dataset,site,date,meal){
- const sourceId=site.kind==='main'
-  ? dataset.schools?.find(s=>String(s.location_code)===String(site.location_code)&&site.location_code)?.source_site_id
-  : offsiteSourceIds[site.rosterKey||site.key];
- if(!sourceId)return '';
- const items=(dataset.production_rows||[])
-  .filter(row=>String(row.source_site_id)===String(sourceId)&&row.production_date===date&&row.meal_type===meal)
-  .filter(row=>row.item_name?.trim()&&(row.served==null||Number(row.served)>0))
-  .sort((a,b)=>a.source_row_number-b.source_row_number)
-  .map(row=>`${row.item_name.trim()} (${portion(row)})`);
+export function formatProductionMenu(rows){
+ const items=rows.filter(row=>row.item_name?.trim()).map(row=>`${row.item_name.trim()} (${portion(row)})`);
  return [...new Set(items)].join(', ');
 }
 
 export async function loadProductionMenu(supervisorPin,site,date,meal){
- const year=schoolYear(date);
- if(!year||date>localDate())return '';
- const dataset=await loadMonthlyScorecardDatasetWithRetry(supervisorPin,year,`${date.slice(0,7)}-01`);
- return formatProductionMenu(dataset,site,date,meal);
+ if(!schoolYear(date)||date>localDate()||!site.location_code)return '';
+ const sourceId=site.kind==='main'?null:offsiteSourceIds[site.rosterKey||site.key];
+ if(sourceId===undefined)return '';
+ const {data,error}=await supabase.rpc('get_accuclaims_production_menu',{
+  p_supervisor_pin:supervisorPin,
+  p_location_code:String(site.location_code),
+  p_source_site_id:sourceId,
+  p_visit_date:date,
+  p_meal_type:meal
+ });
+ if(error)throw error;
+ return formatProductionMenu(data||[]);
 }

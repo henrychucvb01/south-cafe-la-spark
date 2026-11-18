@@ -5,7 +5,7 @@ import React, { useEffect, useRef, useState } from "react";
 // erase ink; the same accepted strokes can later be embedded in the official PDF.
 const supperPages = [1, 2];
 
-export default function SignaturePad({ name, value, onChange, disabled = false, label, pages = supperPages, initiallyExpanded = false }) {
+export default function SignaturePad({ name = "", value, onChange, disabled = false, label, pages = supperPages, initiallyExpanded = false, captureSignerDetails = true }) {
   const pageLabel = pages === supperPages ? "both official pages" : `official PDF pages ${pages.join(" and ")}`;
   const canvas = useRef(null);
   const drawing = useRef(null);
@@ -15,7 +15,7 @@ export default function SignaturePad({ name, value, onChange, disabled = false, 
   const [applyBoth, setApplyBoth] = useState(value?.pages?.length === 2);
   const [message, setMessage] = useState("");
   const [expanded, setExpanded] = useState(initiallyExpanded);
-  const accepted = !!value && value.printedName === name.trim();
+  const accepted = !!value && (!captureSignerDetails || value.printedName === name.trim());
 
   function paint() {
     const surface = canvas.current;
@@ -74,9 +74,16 @@ export default function SignaturePad({ name, value, onChange, disabled = false, 
     strokes.current = []; drawing.current = null; setHasInk(false); setMessage(""); onChange(null); paint();
   }
   function accept() {
-    if (!name.trim() || !date || !hasInk || !applyBoth) { setMessage("Confirm your printed name, draw a signature, enter its date, and authorize its use before accepting."); return; }
+    if (captureSignerDetails && (!name.trim() || !date)) {
+      setMessage("Confirm your printed name and enter the signature date.");
+      return;
+    }
+    if (!hasInk || !applyBoth) {
+      setMessage("Draw a signature and authorize its use before accepting.");
+      return;
+    }
     const rect = canvas.current.getBoundingClientRect();
-    onChange({ strokes: strokes.current.map(stroke => stroke.map(point => [...point])), aspectRatio: rect.width / rect.height, printedName: name.trim(), date, pages, acceptedAt: new Date().toISOString(), method: "this-device" });
+    onChange({ strokes: strokes.current.map(stroke => stroke.map(point => [...point])), aspectRatio: rect.width / rect.height, printedName: name.trim(), date: captureSignerDetails ? date : localDate(), pages, acceptedAt: new Date().toISOString(), method: "this-device" });
     setMessage("");
   }
   return <div className="sm-signature">
@@ -84,7 +91,7 @@ export default function SignaturePad({ name, value, onChange, disabled = false, 
     {(expanded || accepted) && <>
     <p>{accepted ? `Your signature will appear in your signature spaces on ${pageLabel}.` : `Use your finger to sign in the box below, or use a mouse on a computer. Your signature will be copied into your signature spaces on ${pageLabel}.`}</p>
     <canvas ref={canvas} className="sm-signature-canvas" aria-label={`${label} signature drawing area`} onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={() => { drawing.current = null; }} />
-    <label>Signature date<input type="date" value={date} disabled={disabled || accepted} onChange={e => setDate(e.target.value)} /></label>
+    {captureSignerDetails && <label>Signature date<input type="date" value={date} disabled={disabled || accepted} onChange={e => setDate(e.target.value)} /></label>}
     <label className="sm-check"><input type="checkbox" checked={applyBoth} disabled={disabled || accepted} onChange={e => setApplyBoth(e.target.checked)} />I authorize this signature to be applied to the required {label} signature locations on {pageLabel}.</label>
     {accepted && <p role="status">✓ Signature Complete — Signature accepted for {pageLabel} — {value.date}</p>}
     {message && <p className="sm-error" role="alert">{message}</p>}
