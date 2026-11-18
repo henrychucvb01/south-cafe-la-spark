@@ -145,6 +145,7 @@ export default function AccuClaims({overview,supervisorPin,onBack,initialYear,on
   onChange={e=>change({correctiveDueDate:e.target.value})}/></label>}
  </details>
  <label>Summary of findings and recommended corrective action<textarea value={draft.findings||''} onChange={e=>change({findings:e.target.value})}/></label>
+ <button type="button" onClick={()=>change({findings:'No findings.'})}>No Findings</button>
  <label>Corrective action taken and date completed<textarea value={draft.correctiveActionTaken||''} onChange={e=>change({correctiveActionTaken:e.target.value})}/></label>
  <fieldset>
  <legend>Signatures</legend>
