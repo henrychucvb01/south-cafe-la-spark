@@ -67,12 +67,21 @@ export default function AccuClaims({overview,supervisorPin,onBack,initialYear,on
   finally{if(token)await closeSession(token).catch(()=>{});setBusy(false);}
  }
  const menuStore=meal==='breakfast'?'breakfastMenus':'menus';
- function finish(event){
+ const visitReady=Boolean(draft&&schoolYear(draft.date)===year&&draft.result&&draft.site.trim()&&
+  draft.staff.trim()&&draft.menu.trim()&&draft.grades.length);
+ const visitActionsDisabled=busy||signingRole!==null||!visitReady;
+ function finish(){
+  if(visitActionsDisabled)return;
   const visits=saved.completed?.[year]||{};
   const next={...saved,drafts:{...saved.drafts,[id]:draft},completed:{...saved.completed,[year]:{
    ...visits,[site.key]:{...visits[site.rosterKey],...visits[site.key],[meal]:draft}
   }}};
-  if(!persist(next,'Completed visit saved.'))event.preventDefault();
+  if(persist(next,'Completed visit saved.')){
+   setUrl('');
+   setPreviewDraft(null);
+   setSite(null);
+   setDraft(null);
+  }
  }
  async function preview(visit){
   setBusy(true);setPreviewError('');setUrl('');
@@ -150,9 +159,10 @@ export default function AccuClaims({overview,supervisorPin,onBack,initialYear,on
  </fieldset>
  <button onClick={()=>persist({...saved,[meal==='breakfast'?'breakfastAnswers':'answers']:draft.answers,sites:{...saved.sites,[site.key]:{grades:draft.grades,procedures:draft.procedures}}},'Common answers and site defaults saved.')}>Save as reusable defaults</button>{' '}
  <button disabled={schoolYear(draft.date)!==year} onClick={()=>persist({...saved,drafts:{...saved.drafts,[id]:draft}},'Visit draft saved.')}>Save visit draft</button>{' '}
- <button disabled={busy||signingRole!==null||schoolYear(draft.date)!==year||!draft.result||!draft.site.trim()||!draft.staff.trim()||!draft.menu.trim()||!draft.grades.length} onClick={()=>preview(draft)}>Preview original PDF</button>
+ <button disabled={visitActionsDisabled} onClick={()=>preview(draft)}>Preview original PDF</button>{' '}
+ <button type="button" className="sm-primary" disabled={visitActionsDisabled} onClick={finish}>Finish visit</button>
  {previewError&&<p role="alert">{previewError}</p>}
- {url&&previewDraft===draft&&signingRole===null&&<><p><a href={url} target="_blank" rel="noreferrer">Open PDF in a new tab</a></p><p><a href={url} download={filename(draft.site,meal)} onClick={finish}>Finish visit and download {filename(draft.site,meal)}</a></p><iframe title="Original SNP-23 form preview" src={url} style={{width:'100%',height:'70vh',border:0}}/></>}
+ {url&&previewDraft===draft&&signingRole===null&&<><p><a href={url} target="_blank" rel="noreferrer">Open PDF in a new tab</a></p><p><a href={url} download={filename(draft.site,meal)}>Download {filename(draft.site,meal)}</a></p><iframe title="Original SNP-23 form preview" src={url} style={{width:'100%',height:'70vh',border:0}}/></>}
  </>}
  </section>;
 }
