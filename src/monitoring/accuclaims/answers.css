@@ -30,3 +30,9 @@
 .ac-table small,.ac-table td strong {display:block}
 .ac-table summary {cursor:pointer;font-size:.85rem}
 .sm-app .ac-table button {padding:.3rem .55rem;min-height:32px;margin:.25rem .3rem .1rem 0;font-size:.85rem}
+
+.sm-app .ac-form-hero {margin:1rem 0}
+.sm-app .ac-form-hero h2 {display:flex;flex-wrap:wrap;align-items:center;gap:.55rem .8rem;color:inherit;font-size:clamp(1.35rem,3vw,2rem)}
+.sm-app .ac-form-site {font-weight:700}
+.sm-app .ac-form-hero .ac-meal-label {padding:.3rem .65rem;border:1px solid #ffffff66;border-radius:999px;background:#ffffff1a;font-size:.85rem;letter-spacing:normal}
+.sm-app textarea.ac-menu-input {field-sizing:content;box-sizing:border-box;min-height:6rem;max-height:none;overflow:hidden;resize:none;line-height:1.5}
