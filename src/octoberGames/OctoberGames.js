@@ -172,14 +172,26 @@ function Management({data,run,busy}){
   <div className="og-grid">{data.entries.filter(e=>all||e.state==='pending').map(e=><Review key={`${e.id}-${e.revision}`} entry={e} data={data} run={run} busy={busy}/>)}</div>
   {!data.entries.some(e=>all||e.state==='pending')&&<p role="status">{all?'No photo submissions yet.':'No photos awaiting review.'}</p>}
   </>}
-  {view==='activity'&&<><h3>Guesses, unlocks and awarded points</h3><h4>Guesses</h4><div className="og-table"><table><thead><tr><th>Round</th><th>School</th><th>Manager ID</th><th>Guess</th><th>Result</th><th>Submitted</th><th>Review</th></tr></thead><tbody>{data.guesses.map(g=><tr key={g.attempt_key||`${g.round}-${g.employee_id}-${g.win_id||'first'}`}><td>{g.round}</td><td>{schoolName(data,g.location_id)}</td><td>{g.employee_id}</td><td>{g.guess}</td><td>{g.supervisor_accepted?'Correct — accepted by supervisor':g.correct?'Correct':'Incorrect'}</td><td>{day(g.submitted_at)}</td><td>{g.supervisor_accepted&&g.refund_points!=null?<span>{g.reward_points} awarded · {g.refund_points} refunded</span>:!g.correct&&g.attempt_key&&<button type="button" disabled={busy} onClick={()=>{
-     const refund=g.paid_points? ` Refund ${g.paid_points} SPARK Points for this guess.`:'';
-     if(window.confirm(`Accept ${schoolName(data,g.location_id)}’s answer for Mystery ${g.round}? Award the round reward if the school hasn’t already earned it.${refund}`)){
-      run('review_guess',{round:g.round,attempt_key:g.attempt_key});
-     }
-    }}>Accept &amp; credit</button>}</td></tr>)}</tbody></table></div>
+  {view==='activity'&&<><h3>Guesses, unlocks and awarded points</h3><h4>Guesses</h4><div className="og-table"><table><thead><tr><th>Round</th><th>School</th><th>Manager ID</th><th>Guess</th><th>Result</th><th>Submitted</th><th>Review</th></tr></thead><tbody>{data.guesses.map(g=><tr key={g.attempt_key||`${g.round}-${g.employee_id}-${g.win_id||'first'}`}><td>{g.round}</td><td>{schoolName(data,g.location_id)}</td><td>{g.employee_id}</td><td>{g.guess}</td><td>{g.supervisor_accepted?'Correct — accepted by supervisor':g.correct?'Correct':'Incorrect'}</td><td>{day(g.submitted_at)}</td><td><GuessReview guess={g} school={schoolName(data,g.location_id)} run={run} busy={busy}/></td></tr>)}</tbody></table></div>
    <p>{data.unlock_events.length} quest unlock events recorded. New completions add 3 unlock credits once. Previously earned credits stay unchanged.</p><h4>Points and corrections</h4><div className="og-table"><table><thead><tr><th>School</th><th>Source</th><th>Date</th><th>Points</th><th>Correction</th></tr></thead><tbody>{data.rewards.map(r=><tr key={r.event}><td>{schoolName(data,r.location_id)}</td><td>{r.event.startsWith('mystery')?'Mystery winner':r.event==='door:champion'?'Door champion':'Approved photo'}</td><td>{r.service_date}</td><td>{r.voided?'Voided':r.points}</td><td><button disabled={busy} onClick={()=>{const reason=window.prompt('Reason for this points correction:');if(reason)run('reward',{event:r.event,voided:!r.voided,reason});}}>{r.voided?'Restore':'Void'} award</button>{r.reason&&<small>{r.reason}</small>}</td></tr>)}</tbody></table></div>
   </>}</>;
+}
+function GuessReview({guess,school,run,busy}){
+ const {round,attempt_key,paid_points,refund_points,reward_points,correct,supervisor_accepted}=guess;
+ const canRefund=!correct&&attempt_key&&paid_points>0&&!refund_points;
+ function review(action,message){
+  if(window.confirm(message))run(action,{round,attempt_key});
+ }
+ return <div className="og-actions">
+  {supervisor_accepted&&reward_points!=null&&<span>{reward_points} awarded</span>}
+  {refund_points>0&&<span>{refund_points} refunded</span>}
+  {!correct&&attempt_key&&<button type="button" disabled={busy} onClick={()=>review('review_guess',
+   `Accept ${school}’s answer for Mystery ${round}? Award the round reward if the school hasn’t already earned it.${canRefund?` Refund ${paid_points} SPARK Points for this guess.`:''}`
+  )}>Accept &amp; credit</button>}
+  {canRefund&&<button type="button" disabled={busy} onClick={()=>review('refund_guess',
+   `Refund ${paid_points} SPARK Points to ${school} for this Mystery ${round} guess? The answer will remain incorrect.`
+  )}>Refund points</button>}
+ </div>;
 }
 function SchoolSettings({data,run,busy}){
  const [selected,setSelected]=useState(data.schools.filter(s=>s.participating).map(s=>s.id));

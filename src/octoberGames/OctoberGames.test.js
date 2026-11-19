@@ -282,3 +282,19 @@ test('decoration votes carry the currently displayed contest identity',async()=>
  await render();await click('Door Contest');await click('Vote for this school');
  expect(api.gamesRequest).toHaveBeenLastCalledWith('vote',{token:'scoped-token'},{id:'new-door',door_contest:2},undefined);confirm.mockRestore();
 });
+
+test('refunds paid incorrect guesses without marking them correct',async()=>{
+ data.admin=true;
+ data.guesses=[{attempt_key:'attempt:paid',round:1,location_id:1,guess:'incorrect answer',correct:false,paid_points:10}];
+ await render({supervisorPin:'admin-test'});await click('Games & Challenges');await click('Guesses, Unlocks & Points');
+ const confirm=jest.spyOn(window,'confirm').mockReturnValue(true);
+ await click('Refund points');
+ expect(api.gamesRequest).toHaveBeenLastCalledWith('refund_guess',{pin:'admin-test'},{round:1,attempt_key:'attempt:paid'},undefined);
+ data.guesses[0]={...data.guesses[0],refund_points:10,reward_points:0};
+ await click('Refresh');
+ expect(button('Refund points')).toBeUndefined();
+ expect(button('Accept & credit')).toBeDefined();
+ expect(host.textContent).toContain('Incorrect');
+ expect(host.textContent).toContain('10 refunded');
+ confirm.mockRestore();
+});
