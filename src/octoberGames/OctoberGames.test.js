@@ -185,9 +185,21 @@ test('tomorrow purchases remain locked but matured extras work after daily free 
  data.rounds[0].photo_url='masked.png';data.guess_shop.free_available=false;data.guess_shop.tomorrow=2;await render();await click('Mystery Photos');expect(button('Submit guess').disabled).toBe(true);expect(host.textContent).toContain('2 available tomorrow');
  data.guess_shop.available=1;data.guess_shop.used_today=true;data.extra_guess_prizes=[{id:55}];await click('Refresh');expect(button('Submit guess').disabled).toBe(false);expect(button('Use extra guess prize (1 available)')).toBeDefined();expect(button('Extra guess · 10 SPARK Points').disabled).toBe(false);
 });
-test('supervisor accepts an actual submitted guess and collection names winning school',async()=>{
- data.admin=true;data.guesses=[{attempt_key:'original:1:11',round:1,employee_id:'11',location_id:2,guess:'spelling variant',correct:false}];await render({supervisorPin:'admin-test'});await click('Games & Challenges');await click('Guesses, Unlocks & Points');const confirm=jest.spyOn(window,'confirm').mockReturnValue(true);await click('Accept as correct');expect(api.gamesRequest).toHaveBeenLastCalledWith('accept_guess',{pin:'admin-test'},{round:1,attempt_key:'original:1:11'},undefined);
- data.rounds[0]={...data.rounds[0],solved_at:'2026-10-15',winner:2,winner_name:'School B',answer:'Test answer'};await click('Refresh');expect(button('Accept as correct')).toBeUndefined();await click('Mystery Photos');expect(host.textContent).toContain('Solved by: School B');confirm.mockRestore();
+test('supervisor credits an alternate guess after the photo was solved',async()=>{
+ data.admin=true;
+ data.rounds[0]={...data.rounds[0],solved_at:'2026-10-15',winner:2,winner_name:'School B',answer:'Test answer'};
+ data.guesses=[{attempt_key:'attempt:paid',round:1,employee_id:'11',location_id:1,guess:'spelling variant',correct:false,paid_points:10}];
+ await render({supervisorPin:'admin-test'});await click('Games & Challenges');await click('Guesses, Unlocks & Points');
+ const confirm=jest.spyOn(window,'confirm').mockReturnValue(true);
+ await click('Accept & credit');
+ expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Refund 10 SPARK Points'));
+ expect(api.gamesRequest).toHaveBeenLastCalledWith('review_guess',{pin:'admin-test'},{round:1,attempt_key:'attempt:paid'},undefined);
+ data.guesses[0]={...data.guesses[0],correct:true,supervisor_accepted:true,refund_points:10,reward_points:25};
+ await click('Refresh');
+ expect(button('Accept & credit')).toBeUndefined();
+ expect(host.textContent).toContain('25 awarded');
+ expect(host.textContent).toContain('10 refunded');
+ await click('Mystery Photos');expect(host.textContent).toContain('Solved by: School B');confirm.mockRestore();
 });
 test('preview purchase never sends a write',async()=>{
  data.participating=false;await render();await click('Preview manager experience');await click('Mystery Photos');const confirm=jest.spyOn(window,'confirm').mockReturnValue(true);await click('Extra guess · 10 SPARK Points');expect(api.gamesRequest.mock.calls.every(([a])=>['seen','list'].includes(a))).toBe(true);expect(host.textContent).toContain('No points were spent');confirm.mockRestore();
